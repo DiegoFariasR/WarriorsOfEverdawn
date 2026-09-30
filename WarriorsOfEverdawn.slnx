@@ -1,0 +1,5 @@
+<Solution>
+  <Project Path="Core/Core.csproj" />
+  <Project Path="Core.Tests/Core.Tests.csproj" />
+  <Project Path="GodotClient/WarriorsOfEverdawn.csproj" />
+</Solution>

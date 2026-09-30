@@ -1,0 +1,33 @@
+# Godot build cache and import data
+GodotClient/.godot/
+
+# Build results
+build/
+**/bin/
+**/obj/
+
+# Scratch area for self-test logs, renders, debug dumps
+_staging/
+
+# Generated reports: /auto-maintain runs, lens scans, audits
+/Dev/
+
+# AI assistant config: shared skills, agents, settings and hooks are tracked; memory and local settings stay local
+.claude/*
+!.claude/skills/
+!.claude/agents/
+!.claude/tools-index.md
+!.claude/settings.json
+!.claude/hooks/
+
+# Visual Studio / Rider
+.vs/
+*.user
+*.suo
+
+# OS
+Thumbs.db
+[Dd]esktop.ini
+.DS_Store
+
+__pycache__/

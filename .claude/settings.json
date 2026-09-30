@@ -1,0 +1,70 @@
+{
+    "$schema": "https://json.schemastore.org/claude-code-settings.json",
+    "permissions": {
+        "allow": [
+            "Bash(*)",
+            "Bash(./dev.sh:*)",
+            "Bash(bash ./dev.sh:*)",
+            "Bash(python Tools/lint_agents.py)",
+            "Bash(python Tools/:*)",
+            "Bash(dotnet build:*)",
+            "Bash(dotnet test:*)",
+            "Bash(dotnet format:*)",
+            "Bash(tasklist:*)",
+            "Bash(taskkill:*)",
+            "Bash(git status)",
+            "Bash(git status:*)",
+            "Bash(git diff:*)",
+            "Bash(git log:*)",
+            "Bash(git show:*)",
+            "Bash(git stash:*)",
+            "Bash(git restore:*)",
+            "Bash(git check-ignore:*)",
+            "Bash(ls:*)",
+            "Bash(cat:*)",
+            "Bash(head:*)",
+            "Bash(tail:*)",
+            "Bash(wc:*)",
+            "Bash(grep:*)",
+            "Bash(rg:*)",
+            "Bash(awk:*)",
+            "Bash(diff:*)",
+            "Bash(mkdir:*)",
+            "Bash(cp:*)",
+            "Bash(mv:*)",
+            "Skill",
+            "Agent",
+            "Read",
+            "Edit",
+            "Write",
+            "Glob",
+            "Grep",
+            "TodoWrite",
+            "ToolSearch"
+        ]
+    },
+    "hooks": {
+        "PreToolUse": [
+            {
+                "matcher": "Bash",
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": "python \"$CLAUDE_PROJECT_DIR/.claude/hooks/headless_guard.py\""
+                    }
+                ]
+            }
+        ],
+        "PostToolUse": [
+            {
+                "matcher": "Edit|Write",
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": "python \"$CLAUDE_PROJECT_DIR/.claude/hooks/post_edit_checks.py\""
+                    }
+                ]
+            }
+        ]
+    }
+}
