@@ -12,11 +12,12 @@ Ported from Everdawn's `EverdawnTheme` into `GodotClient/scripts/Theme/UiTheme.c
 
 | Element | Where | Shows |
 |---|---|---|
-| Player frame | Top left | Name and weapon (with "PvP" when on), HP bar with value, mana bar with value, STR / WIS / AGI, "down" status |
-| Skill bar | Bottom centre | The held weapon's two skills: primary (LMB) and Spin (RMB, held, with its mana per revolution, e.g. "4 MP / turn"); it changes with the weapon. A slot dims while it cannot be used (not enough mana, or a cooldown with seconds left) |
+| Player frame | Top left | Name and weapon (with "PvP" when on), HP bar with value, mana bar with value, STR / WIS / AGI, gold and souls earned, "down" status |
+| Skill bar | Bottom centre | The held weapon's two skills: primary (LMB) and Spin (RMB, held, with its mana per revolution, e.g. "4 MP / turn"); it changes with the weapon. A slot dims while it cannot be used (not enough mana, or a cooldown with seconds left). With an empty hand the slots and the guard read "-" and stay dimmed, and the player frame says "Unarmed" |
 | Guard slot | Bottom centre, after the skills | "SHIFT", the guard, "hold"; the name turns gold while the guard is up and the slot dims for the 0.4 s it cannot go up again |
 | Dash slot | Bottom centre, after Guard | "SPACE Dash", a pip per charge (lit while available), the seconds until the next charge, and "+ LMB: lunge" |
-| Back weapon slot | Bottom centre, after Dash | "X", the weapon on the back, "on your back": what X swaps to |
+| Back weapon slot | Bottom centre, after Dash | "X", the weapon on the back ("Empty" with none), "on your back": what X swaps to |
+| Ground weapon labels | Over each weapon on the ground within 4 of the player | The weapon's name. The one F would take (the one the player faces) also shows three lines of what it does in this player's hands (damage with the player's STR) and, within reach, "F - pick up" in gold, or in red that hands and back are full and G drops |
 | Mode notice | Top centre | The camera mode on start and on each switch, and the new weapon sets on each change (fades after 2.5 s) |
 | Overhead bars | Over every living skeleton and every other player who is up | A thin HP bar (48 x 5 px) with no frame and no number, small enough to leave the fight in view. Fill: red for skeletons and PvP opponents, blue for co-op allies (Everdawn's TeamPlayer). Removed when a skeleton dies, hidden while a player is down |
 

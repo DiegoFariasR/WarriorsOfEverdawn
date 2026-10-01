@@ -49,8 +49,9 @@ public partial class PlayerCharacter : CharacterBody3D
     private readonly HashSet<ulong> _hitThisSwing = new();
     private float _clock;
     private readonly Guard _guard = new();
-    private WeaponDefinition _weapon = WeaponSets.Default.Active;
-    private WeaponDefinition _stowed = WeaponSets.Default.Stowed;
+    private WeaponDefinition? _weapon = WeaponSets.Default.Active;
+    private WeaponDefinition? _stowed = WeaponSets.Default.Stowed;
+    private bool _pickUpPending;
     private BoneAttachment3D _hand = null!;
     private BoneAttachment3D _back = null!;
     private bool _reportedUnknownWeapon;
@@ -79,12 +80,12 @@ public partial class PlayerCharacter : CharacterBody3D
     public float AimYaw { get; set; }
 
     // The weapon sets, chosen on the player's own machine and replicated; every machine shows the weapon in hand and
-    // the one on the back that they name.
+    // the one on the back that they name. Empty for an empty slot.
     [Export]
-    public string WeaponId { get; set; } = WeaponSets.Default.Active.Id;
+    public string WeaponId { get; set; } = WeaponSets.Default.Active!.Id;
 
     [Export]
-    public string StowedWeaponId { get; set; } = WeaponSets.Default.Stowed.Id;
+    public string StowedWeaponId { get; set; } = WeaponSets.Default.Stowed!.Id;
 
     public long PeerId { get; private set; }
 
@@ -122,11 +123,11 @@ public partial class PlayerCharacter : CharacterBody3D
 
     public float AttackSpeed => StatRules.AttackSpeed(Stats);
 
-    // The weapon this machine shows the player holding.
-    public WeaponDefinition Weapon => _weapon;
+    // The weapon this machine shows the player holding; null with an empty hand.
+    public WeaponDefinition? Weapon => _weapon;
 
-    // The weapon this machine shows on the player's back.
-    public WeaponDefinition StowedWeapon => _stowed;
+    // The weapon this machine shows on the player's back; null with nothing there.
+    public WeaponDefinition? StowedWeapon => _stowed;
 
     public bool IsGuarding => _guard.IsUp;
 
@@ -134,8 +135,8 @@ public partial class PlayerCharacter : CharacterBody3D
 
     public bool CanRaiseGuard => FreeToGuard && _guard.CanRaise(GuardClock);
 
-    // Between swings only.
-    private bool FreeToGuard => !IsDowned && _swing == null && ActiveSkill == null;
+    // Between swings only, and with a weapon to guard with.
+    private bool FreeToGuard => !IsDowned && _weapon != null && _swing == null && ActiveSkill == null;
 
     // Every machine keeps its own guard timing, by its own clock: the host's decides blocks and parries.
     private static float GuardClock => Time.GetTicksMsec() / 1000f;
@@ -170,9 +171,13 @@ public partial class PlayerCharacter : CharacterBody3D
     // On every machine, as the player's weapon in hand or on the back changes.
     public event Action<WeaponSets>? WeaponsChanged;
 
+    // On the owner: the weapon it reached for was taken by someone else first.
+    public event Action? PickUpRefused;
+
     public float CooldownRemaining(int skill) => _cooldowns.Remaining(skill, _clock);
 
-    public bool CanUse(int button) => _cooldowns.IsReady(button, _clock) && _mana.CanAfford(_weapon.Skill(button).ManaCost);
+    public bool CanUse(int button) =>
+        _weapon != null && _cooldowns.IsReady(button, _clock) && _mana.CanAfford(_weapon.Skill(button).ManaCost);
 
     public static PlayerCharacter? Find(SceneTree tree, long peerId) =>
         tree.GetNodesInGroup(Group).OfType<PlayerCharacter>().FirstOrDefault(p => p.PeerId == peerId);
@@ -194,9 +199,9 @@ public partial class PlayerCharacter : CharacterBody3D
         player.AddChild(player._model);
         var body = Assets.Instantiate(ModelPath);
         player._model.AddChild(body);
-        var look = CombatVisuals.LookFor(WeaponSets.Default.Active);
-        var backLook = CombatVisuals.LookFor(WeaponSets.Default.Stowed);
-        player._hand = CharacterRig.AttachToHand(body, look.Model, look.Grip);
+        var look = CombatVisuals.LookFor(WeaponSets.Default.Active!);
+        var backLook = CombatVisuals.LookFor(WeaponSets.Default.Stowed!);
+        player._hand = CharacterRig.AttachToHand(body, look);
         player._back = CharacterRig.AttachToBack(body, backLook);
         CharacterRig.ShrinkHead(body);
         player.Skeleton = body.GetNode<Skeleton3D>(RigAnimations.SkeletonPath);
@@ -297,7 +302,7 @@ public partial class PlayerCharacter : CharacterBody3D
             _dashLeft -= (float)delta;
 
             // The attack button, held as the dash starts or pressed just after, makes it a lunge.
-            if (!_lunged && _swing == null && _dashLeft > 0f && DashRules.Duration - _dashLeft <= DashRules.LungeWithin
+            if (!_lunged && _weapon != null && _swing == null && _dashLeft > 0f && DashRules.Duration - _dashLeft <= DashRules.LungeWithin
                 && (_lungeArmed || Controls.SkillHeld == Primary))
             {
                 _lunged = true;
@@ -331,7 +336,7 @@ public partial class PlayerCharacter : CharacterBody3D
         if (amount > 0f)
         {
             _legs = LegDirectionSelector.Select(Yaw.Of(move) - AimYaw, _legs).Direction;
-            velocity = move / move.Length() * MoveSpeed.For(_legs, ActiveSkill, _guard.IsUp ? _weapon.Guard : null) * amount;
+            velocity = move / move.Length() * MoveSpeed.For(_legs, ActiveSkill, _guard.IsUp ? _weapon?.Guard : null) * amount;
         }
 
         Velocity = velocity;
@@ -356,22 +361,35 @@ public partial class PlayerCharacter : CharacterBody3D
             return;
         }
 
-        // Between swings only, so a swing always plays out with the weapon it started with.
-        if (!IsDowned && _swing == null && !_animator.IsAttacking)
+        // Between swings only, so a swing always plays out with the weapon it started with. While the host is still
+        // answering a pick-up the slots stay as they are, so the weapon has somewhere to go when it arrives.
+        if (!IsDowned && _swing == null && !_animator.IsAttacking && !_pickUpPending)
         {
+            var sets = new WeaponSets(_weapon, _stowed);
             if (Controls.SwapSetsPressed)
             {
-                Carry(new WeaponSets(_weapon, _stowed).Swapped());
+                Carry(sets.Swapped());
             }
             else if (Controls.WeaponNextPressed)
             {
-                Carry(new WeaponSets(_weapon, _stowed).WithNextActive());
+                Carry(sets.WithNextActive());
+            }
+            else if (Controls.DropPressed && _weapon != null)
+            {
+                GroundWeapons.In(GetTree()).Drop(_weapon, GlobalPosition + Yaw.Forward(AimYaw) * Pickups.InFront, AimYaw);
+                Carry(sets.WithHandEmptied());
+            }
+            else if (Controls.PickUpPressed && sets.HasFreeSlot
+                && GroundWeapons.In(GetTree()).InReachOf(GlobalPosition, AimYaw) is { } lying)
+            {
+                _pickUpPending = true;
+                GroundWeapons.In(GetTree()).PickUp(lying.Id);
             }
         }
 
         if (!IsDowned && Controls.SkillHeld is { } button && !_animator.IsAttacking && CanUse(button))
         {
-            var skill = _weapon.Skill(button);
+            var skill = _weapon!.Skill(button);
             _mana.TrySpend(skill.ManaCost);
             _cooldowns.Start(button, skill, _clock);
             _swingButton = button;
@@ -382,41 +400,63 @@ public partial class PlayerCharacter : CharacterBody3D
     // On the owner: the weapon sets it carries from now on. The synchronizer takes them to the other machines.
     public void Carry(WeaponSets sets)
     {
-        WeaponId = sets.Active.Id;
-        StowedWeaponId = sets.Stowed.Id;
+        WeaponId = sets.Active?.Id ?? "";
+        StowedWeaponId = sets.Stowed?.Id ?? "";
         ShowWeapons();
+    }
+
+    // The host handed this player the weapon it reached for.
+    internal void OnPickedUp(WeaponDefinition weapon)
+    {
+        _pickUpPending = false;
+        var sets = new WeaponSets(_weapon, _stowed);
+        if (sets.HasFreeSlot)
+        {
+            Carry(sets.WithPickedUp(weapon));
+            return;
+        }
+
+        GD.PushError($"[Player {Name}] no free slot for the {weapon.Name} it was handed; putting it back down");
+        GroundWeapons.In(GetTree()).Drop(weapon, GlobalPosition, AimYaw);
+    }
+
+    // Someone else took it first.
+    internal void OnPickUpRefused()
+    {
+        _pickUpPending = false;
+        PickUpRefused?.Invoke();
     }
 
     // Brings the weapons shown in hand and on the back in line with WeaponId and StowedWeaponId.
     private void ShowWeapons()
     {
-        if (WeaponId == _weapon.Id && StowedWeaponId == _stowed.Id)
+        if (WeaponId == (_weapon?.Id ?? "") && StowedWeaponId == (_stowed?.Id ?? ""))
         {
             return;
         }
 
-        WeaponDefinition inHand, onBack;
+        WeaponDefinition? inHand, onBack;
         try
         {
-            inHand = Weapons.ById(WeaponId);
-            onBack = Weapons.ById(StowedWeaponId);
+            inHand = WeaponId.Length > 0 ? Weapons.ById(WeaponId) : null;
+            onBack = StowedWeaponId.Length > 0 ? Weapons.ById(StowedWeaponId) : null;
         }
         catch (KeyNotFoundException e)
         {
             if (!_reportedUnknownWeapon)
             {
-                GD.PushError($"[Player {Name}] {e.Message}; keeping the {_weapon.Name} and the {_stowed.Name}");
+                GD.PushError($"[Player {Name}] {e.Message}; keeping what it carried");
                 _reportedUnknownWeapon = true;
             }
 
             return;
         }
 
-        var handLook = CombatVisuals.LookFor(inHand);
-        var backLook = CombatVisuals.LookFor(onBack);
+        var handLook = inHand == null ? null : CombatVisuals.LookFor(inHand);
+        var backLook = onBack == null ? null : CombatVisuals.LookFor(onBack);
         if (inHand != _weapon)
         {
-            CharacterRig.HoldWeapon(_hand, handLook.Model, handLook.Grip);
+            CharacterRig.HoldWeapon(_hand, handLook);
             Trail.Retarget();
         }
 
@@ -426,6 +466,7 @@ public partial class PlayerCharacter : CharacterBody3D
         }
 
         Ghosts.SetWeapons(handLook, backLook);
+        _animator.TwoHanded = inHand != null;
         _weapon = inHand;
         _stowed = onBack;
         WeaponsChanged?.Invoke(new WeaponSets(inHand, onBack));
@@ -518,7 +559,7 @@ public partial class PlayerCharacter : CharacterBody3D
     {
         var direction = DashRules.Direction(Yaw.ToGround(Controls!.Move), AimYaw);
         bool spinsOn = _swing is { Channeled: true } && Controls.SkillHeld == _swingButton;
-        _lungeArmed = _swing == _weapon.Primary;
+        _lungeArmed = _weapon != null && _swing == _weapon.Primary;
         _lunged = false;
         if (_swing != null && !spinsOn)
         {
@@ -675,8 +716,9 @@ public partial class PlayerCharacter : CharacterBody3D
     }
 
     // Host: how this player's guard meets an attack coming from `from`, by where it last reported standing and aiming.
-    public GuardOutcome ResolveGuard(Vector3 from) =>
-        _guard.Resolve(_weapon.Guard, GuardClock, Yaw.ToGround(NetPosition), AimYaw, Yaw.ToGround(from));
+    public GuardOutcome ResolveGuard(Vector3 from) => _weapon == null
+        ? GuardOutcome.Unguarded
+        : _guard.Resolve(_weapon.Guard, GuardClock, Yaw.ToGround(NetPosition), AimYaw, Yaw.ToGround(from));
 
     private static MultiplayerSynchronizer CreateSynchronizer()
     {

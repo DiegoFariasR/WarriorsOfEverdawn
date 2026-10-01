@@ -32,8 +32,12 @@ Screenshots (real renderer; off-screen, minimized, unfocused window):
 Measurements:
   swing-survey      Each weapon skill's clip: when the striking point moves fastest (hit time) and how far it reaches
 
+Levels:
+  level-fortresses  Generate the two fortress layouts (GodotClient/config/levels/*.layout.json); --seed N, --out-dir D
+  level-audit       Audit level layouts without Godot: missing files, solids run together, markers or a gate blocked
+
 Drift checks:
-  health            Dashboard: formatting, docs, pending refactors, agent/skill docs, headless timeouts
+  health            Dashboard: formatting, docs, pending refactors, agent/skill docs, headless timeouts, level layouts
   check-docs        Doc links, file:line refs and ./dev.sh commands in Docs/ and the AGENTS/CLAUDE files resolve
   audit-refactors   Refs in Docs/Design/Refactor/pending-refactors.md still resolve (--id N, --by-status)
   lint-agents       .claude/agents, skills and tools-index reference real commands, files, agents and skills
@@ -60,8 +64,8 @@ KNOWN_DISCONNECT_ERROR='Unable to send packet on channel [0-9]+, max channels: 0
 MAX_TWISTED_CHEST_ERROR_DEG=15
 MIN_TWIST_SAMPLES=50
 
-# Playtest: session length, when the host takes a player down, and the leak tolerances. Over three runs of 13-14 waves
-# the node count sampled at each wave stayed within 694-699 (damage numbers on screen) and orphan nodes at 0.
+# Playtest: session length, when the host takes a player down, and the leak tolerances. Over runs of 8-11 waves the
+# node count the leak check compares stayed at 1331-1332 from the second wave on and orphan nodes at 0.
 PLAYTEST_HOST_SECONDS=150
 PLAYTEST_CLIENT_SECONDS=142
 PLAYTEST_DOWN_AT=40
@@ -175,10 +179,10 @@ co_op_session() {
     local failed=0
     run_session "$logs" "$COOP_CLIENTS" "$host_quit" "$client_quit" --wave-scale "$COOP_WAVE_SCALE" "$@" || failed=1
 
-    local damage_taken_total=0 lunge_hits_total=0 spin_dashes_kept=0 spin_dash_tests=0 spin_dashes_seen=0 channelled="" log
+    local damage_taken_total=0 lunge_hits_total=0 hangings_faded_total=0 spin_dashes_kept=0 spin_dash_tests=0 spin_dashes_seen=0 channelled="" log
     for log in $(session_logs); do
         local file="$logs/$log.log"
-        grep -E '^\[(net-check|combat-check|combat-host|anim-check|turn-check|head-check|carry-check|speed-check|skill-check|trail-check|reach-check|flash-check|ui-check|dash-check|spin-dash-check|lunge-check|ranged-check|guard-check)\]' "$file" | sed "s/^/$log: /"
+        grep -E '^\[(net-check|combat-check|combat-host|anim-check|turn-check|head-check|carry-check|speed-check|skill-check|trail-check|reach-check|flash-check|ui-check|dash-check|spin-dash-check|lunge-check|pickup-check|loot-check|map-check|bot-check|ranged-check|guard-check)\]' "$file" | sed "s/^/$log: /"
 
         local passing
         passing=$(awk '/^\[net-check\]/ {
@@ -216,6 +220,9 @@ co_op_session() {
         local lunged
         lunged=$(grep -E '^\[lunge-check\]' "$file" | grep -oE 'lunge_hits=[0-9]+' | cut -d= -f2)
         lunge_hits_total=$((lunge_hits_total + ${lunged:-0}))
+        local hangings_faded
+        hangings_faded=$(grep -E '^\[map-check\]' "$file" | grep -oE 'hangings_faded_max=[0-9]+' | cut -d= -f2)
+        hangings_faded_total=$((hangings_faded_total + ${hangings_faded:-0}))
         local spin_dash
         spin_dash=$(grep -E '^\[spin-dash-check\]' "$file")
         spin_dashes_kept=$((spin_dashes_kept + $(echo "$spin_dash" | grep -oE ' kept=[0-9]+' | cut -d= -f2 || echo 0)))
@@ -255,12 +262,32 @@ co_op_session() {
             "no archer arrows seen, arrows drawn away from their flight, or arrows outliving their flight" || failed=1
 
         # Running, both hands stay on the weapon (0.69 apart in the two-handed stance; 1.14 with the run clip's arms).
-        gate "$log" "$file" carry-check 'v["samples"] + 0 >= 1 && v["hands_apart_running"] + 0 <= 0.85' \
-            "the weapon is carried in one hand while running" || failed=1
+        # Standing with an empty hand they come apart (0.87 in the unarmed idle; 0.69 would be the two-handed idle).
+        gate "$log" "$file" carry-check 'v["samples"] + 0 >= 1 && v["hands_apart_running"] + 0 <= 0.85 && v["unarmed_samples"] + 0 >= 1 && v["hands_apart_standing_unarmed"] + 0 >= 0.8' \
+            "the weapon is carried in one hand while running, or empty hands stand as if holding one" || failed=1
+
+        # Every bot lets go of its weapon and takes it back. Every machine sees weapons put down and taken up (its own and
+        # at least one other's) and what it shows on the ground matches what it was told; an unarmed player starts no
+        # attack; labels show for exactly the weapons in range, offering the weapon while a slot is free.
+        gate "$log" "$file" pickup-check 'v["placed_seen"] + 0 >= 2 && v["taken_seen"] + 0 >= 2 && v["on_ground"] + 0 == v["placed_seen"] - v["taken_seen"] && v["drops_here"] + 0 >= 1 && v["pickups_here"] + 0 >= 1 && v["attacks_unarmed"] + 0 == 0 && v["label_frames"] + 0 >= 1 && v["offer_frames"] + 0 >= 1 && v["label_mismatch_frames"] + 0 == 0' \
+            "weapons not dropped or taken up, unseen by others, attacks while unarmed, or ground labels wrong" || failed=1
+
+        # The fortresses: the player starts inside the allied town, gets out of it and as far as the enemy fortress, and
+        # takes no hit while in the town; no skeleton is ever in the town; every skeleton rises inside the enemy fortress
+        # and some get out of it; walls between the camera and the player fade, and banners and torches are found hanging
+        # on walls to fade with them; nobody had to walk straight for want of a way round the walls.
+        gate "$log" "$file" map-check 'v["started_safe"] + 0 == 1 && v["left_town"] + 0 == 1 && v["nearest_to_fortress_gate"] + 0 <= 20 && v["hits_while_safe"] + 0 == 0 && v["enemies_in_town_frames"] + 0 == 0 && v["rose_outside_fortress"] + 0 == 0 && v["enemies_seen"] + 0 >= 1 && v["enemies_left_fortress"] + 0 >= 1 && v["walls_faded_max"] + 0 >= 1 && v["hangings"] + 0 >= 1 && v["straight_steps_after_start"] + 0 == 0' \
+            "players not starting safe or never leaving town, skeletons in the town or rising outside their fortress or never leaving it, walls never fading, nothing hung on them, or no way found round the walls" || failed=1
+
+        # Monsters leave gold: every machine sees piles fall and be picked up, and what it shows on the ground matches what
+        # it was told, a coin stack for each pile lying and no other (the playtest's leak check leaves gold out for that);
+        # every player has earned gold and souls, and the HUD shows what it has.
+        gate "$log" "$file" loot-check 'v["piles_seen"] + 0 >= 1 && v["piles_taken_seen"] + 0 >= 1 && v["piles_on_ground"] + 0 == v["piles_seen"] - v["piles_taken_seen"] && v["gold_here"] + 0 >= 1 && v["souls_here"] + 0 >= 1 && v["purse_mismatch_frames"] + 0 == 0 && v["pile_model_mismatch_frames"] + 0 == 0' \
+            "no gold dropped or picked up, coin stacks not matching the piles on the ground, none earned, or the HUD showing other amounts" || failed=1
 
         # A dash thrown with the attack button carries a thrust: every bot lunges, every machine sees it, the thrust's hit
-        # window closes within two frames of the dash ending, and the weapon then reaches as far as the lunge's range.
-        gate "$log" "$file" lunge-check 'v["lunges_here"] + 0 >= 1 && v["seen_remote"] + 0 >= 1 && v["land_offset_max"] + 0 <= 0.04 && v["forward_lunges"] + 0 >= 1 && v["reach_off_range"] ^ 2 < 0.0625' \
+        # window closes within two physics frames of the dash ending, and the weapon then reaches as far as the lunge's range.
+        gate "$log" "$file" lunge-check 'v["lunges_here"] + 0 >= 1 && v["seen_remote"] + 0 >= 1 && v["land_offset_frames_max"] + 0 <= 2 && v["forward_lunges"] + 0 >= 1 && v["reach_off_range"] ^ 2 < 0.0625' \
             "no lunges, lunges unseen by others, the thrust landing off the end of its dash, or reaching off its range" || failed=1
 
         # Every bot raises its guard and every machine sees the others do it; a held guard stays up until a dash or going
@@ -269,9 +296,10 @@ co_op_session() {
         gate "$log" "$file" guard-check 'v["raised_here"] + 0 >= 1 && v["seen_remote"] + 0 >= 1 && v["guard_frames"] + 0 >= 1 && v["dropped_while_held"] + 0 == 0 && v["guard_speed_share_max"] + 0 <= 1.01' \
             "guards not raised, not seen by others, dropped while held, or guarded players moving too fast" || failed=1
 
-        # Dashes cover their fixed distance (open arena, so nothing cuts one short); the bot's bursts of three reach the
+        # The longest dash covers the fixed distance and none goes further (a wall can cut one short, so the median may
+        # fall below it); the bot's bursts of three reach the
         # charge limit and get refused beyond it; dashes show on other machines; ghosts appear and clear.
-        gate "$log" "$file" dash-check 'v["dashes"] + 0 >= 1 && (v["distance_median"] - v["expected"]) ^ 2 < 0.1225 && v["max_in_recharge_window"] + 0 == v["charges"] + 0 && v["refused"] + 0 >= 1 && v["remote_dashes_seen"] + 0 >= 1 && v["ghosts_emitted"] + 0 >= 1 && v["ghost_lingering_frames"] + 0 == 0' \
+        gate "$log" "$file" dash-check 'v["dashes"] + 0 >= 1 && (v["distance_max"] - v["expected"]) ^ 2 < 0.1225 && v["distance_median"] + 0 <= v["expected"] + 0.35 && v["max_in_recharge_window"] + 0 == v["charges"] + 0 && v["refused"] + 0 >= 1 && v["remote_dashes_seen"] + 0 >= 1 && v["ghosts_emitted"] + 0 >= 1 && v["ghost_lingering_frames"] + 0 == 0' \
             "dashes missing, off distance, beyond their charges, unseen by others, or ghosts wrong" || failed=1
 
         # Each of the weapon's two skills: the drawn weapon's live reach at its hit tests (median) must match the skill's
@@ -309,6 +337,11 @@ co_op_session() {
     gate host "$logs/host.log" guard-check 'v["blocks"] + 0 >= 1 && v["parries"] + 0 >= 1 && v["enemies_parried"] + 0 >= 1' \
         "guards never blocked or parried, or a parry left the skeleton swinging" || failed=1
 
+    # The host decides loot, and its player is there from the first monster: it has exactly the gold collected (never
+    # more than fell) and one soul for every monster it saw die.
+    gate host "$logs/host.log" loot-check 'v["gold_here"] + 0 == v["gold_collected"] + 0 && v["gold_collected"] + 0 <= v["gold_dropped"] + 0 && v["souls_here"] + 0 == v["deaths_since_here"] + 0' \
+        "the host's player has other gold than was collected, or other souls than monsters died" || failed=1
+
     # The host decides arrow hits; bots keep moving, but arrows still find them (8 of 11 in the first run).
     gate host "$logs/host.log" ranged-check 'v["arrow_hits"] + 0 >= 1' "no arrow hit a player" || failed=1
 
@@ -324,6 +357,11 @@ co_op_session() {
     fi
     if [ "$lunge_hits_total" -lt 1 ]; then
         echo "FAIL: no lunge hit a skeleton on any machine"
+        failed=1
+    fi
+    # Which wall a camera looks through depends on where its bot fights, so this is asked of the session, not each machine.
+    if [ "$hangings_faded_total" -lt 1 ]; then
+        echo "FAIL: no banner or torch faded with its wall on any machine"
         failed=1
     fi
     # Across the session: Spins carried through dashes, still testing for hits on the way, and seen by other machines.
@@ -366,9 +404,11 @@ playtest() {
     local downed_on="" log
     for log in $(session_logs); do
         local file="$logs/$log.log"
-        grep -E '^\[(wave-check|leak-check|down-check)\]' "$file" | sed "s/^/$log: /"
+        grep -E '^\[(wave-check|leak-check|down-check|down-drift)\]' "$file" | sed "s/^/$log: /"
         gate "$log" "$file" wave-check 'v["waves"] + 0 >= 3' "fewer than 3 waves in the session" || failed=1
-        # Node growth compares each later wave with the second, sampled at the same point of each wave.
+        # Node growth compares each later wave with the second: the fewest nodes in each while every player carries
+        # both weapons, leaving out what comes and goes with the fight and has its own check: skeletons and damage
+        # numbers (the two lingering counts), gold on the ground (loot-check), HP bars (ui-check), arrows (ranged-check).
         gate "$log" "$file" leak-check "v[\"corpse_lingering_frames\"] + 0 == 0 && v[\"text_lingering_frames\"] + 0 == 0 && v[\"node_growth\"] != \"NaN\" && v[\"node_growth\"] + 0 <= $MAX_NODE_GROWTH && v[\"orphan_growth\"] + 0 <= $MAX_ORPHAN_GROWTH" \
             "dead skeletons or damage numbers outstaying their time, or nodes piling up from wave to wave" || failed=1
         gate "$log" "$file" down-check 'v["downs"] + 0 >= 1 && v["revives"] + 0 >= 1 && (v["down_seconds_min"] - v["expected_seconds"]) ^ 2 < 0.25 && (v["down_seconds_max"] - v["expected_seconds"]) ^ 2 < 0.25 && v["hp_after_revive_min"] + 0 == v["hp_max"] + 0 && v["hits_while_down"] + 0 == 0' \
@@ -510,6 +550,8 @@ case "${1:-help}" in
     smoke) smoke ;;
     playtest) shift; playtest "$@" ;;
     swing-survey) swing_survey ;;
+    level-fortresses) shift; python "$ROOT/Tools/level_fortresses.py" "$@" ;;
+    level-audit) shift; python "$ROOT/Tools/level_audit.py" "$@" ;;
     screenshot) shift; screenshot "$@" ;;
     health) shift; python "$ROOT/Tools/health.py" "$@" ;;
     check-docs) shift; python "$ROOT/Tools/check_docs.py" "$@" ;;

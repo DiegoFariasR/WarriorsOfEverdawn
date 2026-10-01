@@ -70,7 +70,7 @@ public static class Skills
     // at full extension, since its fastest moment is the wind-up. Ranges follow play, as the sword's does: the weapon's
     // farthest point at the hit, which net-test's reach-check measures live. Swings that lunge through the hips reach
     // less while running, when the legs clip keeps the hips: the staff's Chop 2.07 standing, 1.55 in play (medians of
-    // 1.36 to 1.70 across runs); the scythe's Slice 1.98 standing, 1.8 in play; the thrust 2.78 standing, 2.7 in play.
+    // 1.36 to 1.70 across runs); the scythe's Slice 2.78 standing, 2.7 in play; the thrust 2.78 standing, 2.7 in play.
     public static readonly SkillDefinition StaffHit = new("staff-hit", Damage: 16, Range: 1.55f, HalfArc: 45f * Angles.DegToRad, HitTime: 0.825f)
     {
         Name = "Hit",
@@ -85,26 +85,27 @@ public static class Skills
 
     public static readonly SkillDefinition SpearSpin = SpinOf("spear-spin", damage: 10, range: 2.4f, manaCost: 4);
 
-    public static readonly SkillDefinition ScytheSwing = new("scythe-swing", Damage: 18, Range: 1.8f, HalfArc: 90f * Angles.DegToRad, HitTime: 0.40f)
+    public static readonly SkillDefinition ScytheSwing = new("scythe-swing", Damage: 18, Range: 2.7f, HalfArc: 90f * Angles.DegToRad, HitTime: 0.40f)
     {
         Name = "Swing",
     };
 
-    public static readonly SkillDefinition ScytheSpin = SpinOf("scythe-spin", damage: 12, range: 2.1f, manaCost: 5);
+    public static readonly SkillDefinition ScytheSpin = SpinOf("scythe-spin", damage: 12, range: 3.1f, manaCost: 5);
 
     // Lunges: a dash with the attack button turns the swing into a thrust thrown on the move, whatever the weapon.
     // The stab plays so that it reaches full extension as the dash ends (CombatTiming.LungeSpeed), with its hit window
     // open from the moment the point starts forward, so whatever the dash carries the point into is run through once.
     // Ranges follow play, as the swings' do: each weapon's reach as the window closes, which net-test's lunge-check
-    // measures live. The dash clip leans the hips into the stab, so a lunge reaches further than the survey's
-    // hips-at-rest figure (greatsword 2.38, staff 2.05, spear 2.52, scythe 2.17).
+    // measures live. The dash clip leans the hips into the stab, so the straight weapons reach further in a lunge than
+    // the survey's hips-at-rest figure (greatsword 2.38, staff 2.05, spear 2.52); the scythe's hooked blade reaches
+    // the same either way (2.77).
     public static readonly SkillDefinition GreatswordLunge = LungeOf("greatsword-lunge", Slice.Damage * ThrustDamageFactor, range: 2.6f);
 
     public static readonly SkillDefinition StaffLunge = LungeOf("staff-lunge", StaffHit.Damage * ThrustDamageFactor, range: 2.25f);
 
     public static readonly SkillDefinition SpearLunge = LungeOf("spear-lunge", SpearThrust.Damage, range: 2.75f);
 
-    public static readonly SkillDefinition ScytheLunge = LungeOf("scythe-lunge", ScytheSwing.Damage * ThrustDamageFactor, range: 2.5f);
+    public static readonly SkillDefinition ScytheLunge = LungeOf("scythe-lunge", ScytheSwing.Damage * ThrustDamageFactor, range: 2.8f);
 
     public static readonly SkillDefinition MinionChop = new("minion-chop", Damage: 6, Range: 1.65f, HalfArc: 45f * Angles.DegToRad, HitTime: 0.60f)
     {

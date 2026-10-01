@@ -1,0 +1,1673 @@
+{
+ "version": 1,
+ "assets": {
+  "floor_tile_large": "res://assets/dungeon/floor_tile_large.glb",
+  "wall_window_open": "res://assets/dungeon/wall_window_open.glb",
+  "wall": "res://assets/dungeon/wall.glb",
+  "wall_archedwindow_open": "res://assets/dungeon/wall_archedwindow_open.glb",
+  "pillar": "res://assets/dungeon/pillar.glb",
+  "paladin_statue": "res://assets/props/paladin_statue.glb",
+  "Campfire_Base": "res://assets/props/Campfire_Base.glb",
+  "Campfire_Logs": "res://assets/props/Campfire_Logs.glb",
+  "bench": "res://assets/dungeon/bench.glb",
+  "table_long": "res://assets/dungeon/table_long.glb",
+  "anvil": "res://assets/props/anvil.glb",
+  "Trainingdummy": "res://assets/props/Trainingdummy.glb",
+  "barrel_large": "res://assets/dungeon/barrel_large.glb",
+  "crates_stacked": "res://assets/dungeon/crates_stacked.glb",
+  "keg": "res://assets/dungeon/keg.glb",
+  "box_large": "res://assets/dungeon/box_large.glb",
+  "barrel_small_stack": "res://assets/dungeon/barrel_small_stack.glb",
+  "trunk_large_A": "res://assets/dungeon/trunk_large_A.glb",
+  "post_lantern": "res://assets/props/post_lantern.glb",
+  "banner_shield_blue": "res://assets/dungeon/banner_shield_blue.glb",
+  "banner_blue": "res://assets/dungeon/banner_blue.glb",
+  "torch_mounted": "res://assets/dungeon/torch_mounted.glb",
+  "banner_patternA_blue": "res://assets/dungeon/banner_patternA_blue.glb"
+ },
+ "textures": {
+  "res://assets/dungeon/": "res://assets/textures/dungeon/dungeon_texture.png",
+  "res://assets/dungeon/banner_": "res://assets/textures/dungeon/dungeon_texture.png"
+ },
+ "placements": [
+  {
+   "asset": "floor_tile_large",
+   "position": [
+    -8.0,
+    0.0,
+    28.0
+   ],
+   "rotation": [
+    0.0,
+    -0.707107,
+    0.0,
+    -0.707107
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  {
+   "asset": "floor_tile_large",
+   "position": [
+    -8.0,
+    0.0,
+    24.0
+   ],
+   "rotation": [
+    0.0,
+    -0.707107,
+    0.0,
+    -0.707107
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  {
+   "asset": "floor_tile_large",
+   "position": [
+    -8.0,
+    0.0,
+    20.0
+   ],
+   "rotation": [
+    0.0,
+    -0.707107,
+    0.0,
+    -0.707107
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  {
+   "asset": "floor_tile_large",
+   "position": [
+    -8.0,
+    0.0,
+    16.0
+   ],
+   "rotation": [
+    0.0,
+    0.707107,
+    0.0,
+    -0.707107
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  {
+   "asset": "floor_tile_large",
+   "position": [
+    -4.0,
+    0.0,
+    28.0
+   ],
+   "rotation": [
+    0.0,
+    0.707107,
+    0.0,
+    -0.707107
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  {
+   "asset": "floor_tile_large",
+   "position": [
+    -4.0,
+    0.0,
+    24.0
+   ],
+   "rotation": [
+    0.0,
+    -0.707107,
+    0.0,
+    -0.707107
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  {
+   "asset": "floor_tile_large",
+   "position": [
+    -4.0,
+    0.0,
+    20.0
+   ],
+   "rotation": [
+    0.0,
+    0.707107,
+    0.0,
+    -0.707107
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  {
+   "asset": "floor_tile_large",
+   "position": [
+    -4.0,
+    0.0,
+    16.0
+   ],
+   "rotation": [
+    0.0,
+    1.0,
+    0.0,
+    0.0
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  {
+   "asset": "floor_tile_large",
+   "position": [
+    0.0,
+    0.0,
+    28.0
+   ],
+   "rotation": [
+    0.0,
+    -0.707107,
+    0.0,
+    -0.707107
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  {
+   "asset": "floor_tile_large",
+   "position": [
+    -0.0,
+    0.0,
+    24.0
+   ],
+   "rotation": [
+    0.0,
+    0.0,
+    0.0,
+    -1.0
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  {
+   "asset": "floor_tile_large",
+   "position": [
+    -0.0,
+    0.0,
+    20.0
+   ],
+   "rotation": [
+    0.0,
+    0.707107,
+    0.0,
+    -0.707107
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  {
+   "asset": "floor_tile_large",
+   "position": [
+    0.0,
+    0.0,
+    16.0
+   ],
+   "rotation": [
+    0.0,
+    1.0,
+    0.0,
+    0.0
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  {
+   "asset": "floor_tile_large",
+   "position": [
+    4.0,
+    0.0,
+    28.0
+   ],
+   "rotation": [
+    0.0,
+    1.0,
+    0.0,
+    0.0
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  {
+   "asset": "floor_tile_large",
+   "position": [
+    4.0,
+    0.0,
+    24.0
+   ],
+   "rotation": [
+    0.0,
+    -0.707107,
+    0.0,
+    -0.707107
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  {
+   "asset": "floor_tile_large",
+   "position": [
+    4.0,
+    0.0,
+    20.0
+   ],
+   "rotation": [
+    0.0,
+    -0.707107,
+    0.0,
+    -0.707107
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  {
+   "asset": "floor_tile_large",
+   "position": [
+    4.0,
+    0.0,
+    16.0
+   ],
+   "rotation": [
+    0.0,
+    0.707107,
+    0.0,
+    -0.707107
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  {
+   "asset": "floor_tile_large",
+   "position": [
+    8.0,
+    0.0,
+    28.0
+   ],
+   "rotation": [
+    0.0,
+    1.0,
+    0.0,
+    0.0
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  {
+   "asset": "floor_tile_large",
+   "position": [
+    8.0,
+    0.0,
+    24.0
+   ],
+   "rotation": [
+    0.0,
+    1.0,
+    0.0,
+    0.0
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  {
+   "asset": "floor_tile_large",
+   "position": [
+    8.0,
+    0.0,
+    20.0
+   ],
+   "rotation": [
+    0.0,
+    1.0,
+    0.0,
+    0.0
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  {
+   "asset": "floor_tile_large",
+   "position": [
+    8.0,
+    0.0,
+    16.0
+   ],
+   "rotation": [
+    0.0,
+    1.0,
+    0.0,
+    0.0
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  {
+   "asset": "wall_window_open",
+   "position": [
+    -8.0,
+    0.0,
+    30.0
+   ],
+   "rotation": [
+    0.0,
+    1.0,
+    0.0,
+    0.0
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "solid": true
+  },
+  {
+   "asset": "wall",
+   "position": [
+    -8.0,
+    0.0,
+    14.0
+   ],
+   "rotation": [
+    0.0,
+    1.0,
+    0.0,
+    0.0
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "solid": true
+  },
+  {
+   "asset": "wall",
+   "position": [
+    -4.0,
+    0.0,
+    30.0
+   ],
+   "rotation": [
+    0.0,
+    1.0,
+    0.0,
+    0.0
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "solid": true
+  },
+  {
+   "asset": "wall",
+   "position": [
+    -4.0,
+    0.0,
+    14.0
+   ],
+   "rotation": [
+    0.0,
+    1.0,
+    0.0,
+    0.0
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "solid": true
+  },
+  {
+   "asset": "wall",
+   "position": [
+    -0.0,
+    0.0,
+    30.0
+   ],
+   "rotation": [
+    0.0,
+    1.0,
+    0.0,
+    0.0
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "solid": true
+  },
+  {
+   "asset": "wall_window_open",
+   "position": [
+    4.0,
+    0.0,
+    30.0
+   ],
+   "rotation": [
+    0.0,
+    1.0,
+    0.0,
+    0.0
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "solid": true
+  },
+  {
+   "asset": "wall",
+   "position": [
+    4.0,
+    0.0,
+    14.0
+   ],
+   "rotation": [
+    0.0,
+    1.0,
+    0.0,
+    0.0
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "solid": true
+  },
+  {
+   "asset": "wall",
+   "position": [
+    8.0,
+    0.0,
+    30.0
+   ],
+   "rotation": [
+    0.0,
+    1.0,
+    0.0,
+    0.0
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "solid": true
+  },
+  {
+   "asset": "wall",
+   "position": [
+    8.0,
+    0.0,
+    14.0
+   ],
+   "rotation": [
+    0.0,
+    1.0,
+    0.0,
+    0.0
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "solid": true
+  },
+  {
+   "asset": "wall",
+   "position": [
+    -10.0,
+    0.0,
+    28.0
+   ],
+   "rotation": [
+    0.0,
+    0.707107,
+    0.0,
+    -0.707107
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "solid": true
+  },
+  {
+   "asset": "wall_window_open",
+   "position": [
+    10.0,
+    0.0,
+    28.0
+   ],
+   "rotation": [
+    0.0,
+    0.707107,
+    0.0,
+    -0.707107
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "solid": true
+  },
+  {
+   "asset": "wall",
+   "position": [
+    -10.0,
+    0.0,
+    24.0
+   ],
+   "rotation": [
+    0.0,
+    0.707107,
+    0.0,
+    -0.707107
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "solid": true
+  },
+  {
+   "asset": "wall",
+   "position": [
+    10.0,
+    0.0,
+    24.0
+   ],
+   "rotation": [
+    0.0,
+    0.707107,
+    0.0,
+    -0.707107
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "solid": true
+  },
+  {
+   "asset": "wall_archedwindow_open",
+   "position": [
+    -10.0,
+    0.0,
+    20.0
+   ],
+   "rotation": [
+    0.0,
+    0.707107,
+    0.0,
+    -0.707107
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "solid": true
+  },
+  {
+   "asset": "wall_window_open",
+   "position": [
+    10.0,
+    0.0,
+    20.0
+   ],
+   "rotation": [
+    0.0,
+    0.707107,
+    0.0,
+    -0.707107
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "solid": true
+  },
+  {
+   "asset": "wall",
+   "position": [
+    -10.0,
+    0.0,
+    16.0
+   ],
+   "rotation": [
+    0.0,
+    0.707107,
+    0.0,
+    -0.707107
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "solid": true
+  },
+  {
+   "asset": "wall",
+   "position": [
+    10.0,
+    0.0,
+    16.0
+   ],
+   "rotation": [
+    0.0,
+    0.707107,
+    0.0,
+    -0.707107
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "solid": true
+  },
+  {
+   "asset": "pillar",
+   "position": [
+    -10.0,
+    0.0,
+    30.0
+   ],
+   "rotation": [
+    0.0,
+    1.0,
+    0.0,
+    0.0
+   ],
+   "scale": [
+    1.5,
+    1.5,
+    1.5
+   ],
+   "solid": true
+  },
+  {
+   "asset": "pillar",
+   "position": [
+    -10.0,
+    0.0,
+    14.0
+   ],
+   "rotation": [
+    0.0,
+    1.0,
+    0.0,
+    0.0
+   ],
+   "scale": [
+    1.5,
+    1.5,
+    1.5
+   ],
+   "solid": true
+  },
+  {
+   "asset": "pillar",
+   "position": [
+    -2.4,
+    0.0,
+    14.0
+   ],
+   "rotation": [
+    0.0,
+    1.0,
+    0.0,
+    0.0
+   ],
+   "scale": [
+    1.2,
+    1.2,
+    1.2
+   ],
+   "solid": true
+  },
+  {
+   "asset": "pillar",
+   "position": [
+    10.0,
+    0.0,
+    30.0
+   ],
+   "rotation": [
+    0.0,
+    1.0,
+    0.0,
+    0.0
+   ],
+   "scale": [
+    1.5,
+    1.5,
+    1.5
+   ],
+   "solid": true
+  },
+  {
+   "asset": "pillar",
+   "position": [
+    10.0,
+    0.0,
+    14.0
+   ],
+   "rotation": [
+    0.0,
+    1.0,
+    0.0,
+    0.0
+   ],
+   "scale": [
+    1.5,
+    1.5,
+    1.5
+   ],
+   "solid": true
+  },
+  {
+   "asset": "pillar",
+   "position": [
+    2.4,
+    0.0,
+    14.0
+   ],
+   "rotation": [
+    0.0,
+    1.0,
+    0.0,
+    0.0
+   ],
+   "scale": [
+    1.2,
+    1.2,
+    1.2
+   ],
+   "solid": true
+  },
+  {
+   "asset": "paladin_statue",
+   "position": [
+    2.092,
+    0.0,
+    27.624
+   ],
+   "rotation": [
+    0.0,
+    1.0,
+    0.0,
+    0.0
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "solid": true
+  },
+  {
+   "asset": "Campfire_Base",
+   "position": [
+    -6.917,
+    0.0,
+    21.392
+   ],
+   "rotation": [
+    0.0,
+    1.0,
+    0.0,
+    0.0
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  {
+   "asset": "Campfire_Logs",
+   "position": [
+    -6.875,
+    0.0,
+    21.412
+   ],
+   "rotation": [
+    0.0,
+    1.0,
+    0.0,
+    0.0
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  {
+   "asset": "bench",
+   "position": [
+    -5.4,
+    0.0,
+    19.6
+   ],
+   "rotation": [
+    0.0,
+    1.0,
+    0.0,
+    0.0
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "solid": true
+  },
+  {
+   "asset": "bench",
+   "position": [
+    -7.3,
+    0.0,
+    21.4
+   ],
+   "rotation": [
+    0.0,
+    0.707107,
+    0.0,
+    -0.707107
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "solid": true
+  },
+  {
+   "asset": "table_long",
+   "position": [
+    6.0,
+    0.0,
+    21.8
+   ],
+   "rotation": [
+    0.0,
+    1.0,
+    0.0,
+    0.0
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "solid": true
+  },
+  {
+   "asset": "bench",
+   "position": [
+    4.5,
+    0.0,
+    21.8
+   ],
+   "rotation": [
+    0.0,
+    0.707107,
+    0.0,
+    -0.707107
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "solid": true
+  },
+  {
+   "asset": "bench",
+   "position": [
+    7.5,
+    0.0,
+    21.8
+   ],
+   "rotation": [
+    0.0,
+    0.707107,
+    0.0,
+    -0.707107
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "solid": true
+  },
+  {
+   "asset": "anvil",
+   "position": [
+    -8.0,
+    0.0,
+    23.696
+   ],
+   "rotation": [
+    0.0,
+    0.707107,
+    0.0,
+    -0.707107
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "solid": true
+  },
+  {
+   "asset": "Trainingdummy",
+   "position": [
+    7.9,
+    0.0,
+    24.4
+   ],
+   "rotation": [
+    0.0,
+    0.866025,
+    0.0,
+    0.5
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "solid": true
+  },
+  {
+   "asset": "barrel_large",
+   "position": [
+    -7.9,
+    0.0,
+    16.0
+   ],
+   "rotation": [
+    0.0,
+    1.0,
+    0.0,
+    0.0
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "solid": true
+  },
+  {
+   "asset": "crates_stacked",
+   "position": [
+    -5.649,
+    0.0,
+    15.874
+   ],
+   "rotation": [
+    0.0,
+    0.997564,
+    0.0,
+    -0.069756
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "solid": true
+  },
+  {
+   "asset": "keg",
+   "position": [
+    7.824,
+    0.0,
+    16.1
+   ],
+   "rotation": [
+    0.0,
+    0.707107,
+    0.0,
+    -0.707107
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "solid": true
+  },
+  {
+   "asset": "box_large",
+   "position": [
+    5.6,
+    0.0,
+    15.7
+   ],
+   "rotation": [
+    0.0,
+    0.994522,
+    0.0,
+    0.104528
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "solid": true
+  },
+  {
+   "asset": "barrel_small_stack",
+   "position": [
+    8.5,
+    0.0,
+    18.5
+   ],
+   "rotation": [
+    0.0,
+    0.707107,
+    0.0,
+    -0.707107
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "solid": true
+  },
+  {
+   "asset": "trunk_large_A",
+   "position": [
+    -8.6,
+    0.0,
+    18.2
+   ],
+   "rotation": [
+    0.0,
+    0.707107,
+    0.0,
+    -0.707107
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "solid": true
+  },
+  {
+   "asset": "post_lantern",
+   "position": [
+    -3.9,
+    0.0,
+    15.233
+   ],
+   "rotation": [
+    0.0,
+    0.0,
+    0.0,
+    -1.0
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "solid": true
+  },
+  {
+   "asset": "banner_shield_blue",
+   "position": [
+    -6.0,
+    0.0,
+    14.0
+   ],
+   "rotation": [
+    0.0,
+    1.0,
+    0.0,
+    0.0
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  {
+   "asset": "banner_blue",
+   "position": [
+    -6.0,
+    0.0,
+    14.0
+   ],
+   "rotation": [
+    0.0,
+    0.0,
+    0.0,
+    -1.0
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  {
+   "asset": "torch_mounted",
+   "position": [
+    -4.0,
+    2.3,
+    14.0
+   ],
+   "rotation": [
+    0.0,
+    1.0,
+    0.0,
+    0.0
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  {
+   "asset": "banner_patternA_blue",
+   "position": [
+    -10.0,
+    0.0,
+    26.0
+   ],
+   "rotation": [
+    0.0,
+    0.707107,
+    0.0,
+    -0.707107
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  {
+   "asset": "torch_mounted",
+   "position": [
+    -10.0,
+    2.3,
+    22.0
+   ],
+   "rotation": [
+    0.0,
+    0.707107,
+    0.0,
+    -0.707107
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  {
+   "asset": "banner_blue",
+   "position": [
+    -10.0,
+    0.0,
+    18.0
+   ],
+   "rotation": [
+    0.0,
+    0.707107,
+    0.0,
+    -0.707107
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  {
+   "asset": "banner_patternA_blue",
+   "position": [
+    -6.0,
+    0.0,
+    30.0
+   ],
+   "rotation": [
+    0.0,
+    1.0,
+    0.0,
+    0.0
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  {
+   "asset": "torch_mounted",
+   "position": [
+    -3.0,
+    2.3,
+    30.0
+   ],
+   "rotation": [
+    0.0,
+    1.0,
+    0.0,
+    0.0
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  {
+   "asset": "post_lantern",
+   "position": [
+    3.9,
+    0.0,
+    15.233
+   ],
+   "rotation": [
+    0.0,
+    0.0,
+    0.0,
+    -1.0
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "solid": true
+  },
+  {
+   "asset": "banner_shield_blue",
+   "position": [
+    6.0,
+    0.0,
+    14.0
+   ],
+   "rotation": [
+    0.0,
+    1.0,
+    0.0,
+    0.0
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  {
+   "asset": "banner_blue",
+   "position": [
+    6.0,
+    0.0,
+    14.0
+   ],
+   "rotation": [
+    0.0,
+    0.0,
+    0.0,
+    -1.0
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  {
+   "asset": "torch_mounted",
+   "position": [
+    4.0,
+    2.3,
+    14.0
+   ],
+   "rotation": [
+    0.0,
+    1.0,
+    0.0,
+    0.0
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  {
+   "asset": "banner_patternA_blue",
+   "position": [
+    10.0,
+    0.0,
+    26.0
+   ],
+   "rotation": [
+    0.0,
+    0.707107,
+    0.0,
+    0.707107
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  {
+   "asset": "torch_mounted",
+   "position": [
+    10.0,
+    2.3,
+    22.0
+   ],
+   "rotation": [
+    0.0,
+    0.707107,
+    0.0,
+    0.707107
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  {
+   "asset": "banner_blue",
+   "position": [
+    10.0,
+    0.0,
+    18.0
+   ],
+   "rotation": [
+    0.0,
+    0.707107,
+    0.0,
+    0.707107
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  {
+   "asset": "banner_patternA_blue",
+   "position": [
+    6.0,
+    0.0,
+    30.0
+   ],
+   "rotation": [
+    0.0,
+    1.0,
+    0.0,
+    0.0
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  {
+   "asset": "torch_mounted",
+   "position": [
+    3.0,
+    2.3,
+    30.0
+   ],
+   "rotation": [
+    0.0,
+    1.0,
+    0.0,
+    0.0
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  {
+   "asset": "banner_shield_blue",
+   "position": [
+    0.0,
+    0.0,
+    30.0
+   ],
+   "rotation": [
+    0.0,
+    1.0,
+    0.0,
+    0.0
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  }
+ ],
+ "markers": [
+  {
+   "name": "gate",
+   "position": [
+    0.0,
+    0.0,
+    14.0
+   ]
+  },
+  {
+   "name": "outside-gate",
+   "position": [
+    0.0,
+    0.0,
+    11.0
+   ]
+  },
+  {
+   "name": "player-spawn",
+   "position": [
+    0.0,
+    0.0,
+    19.0
+   ]
+  },
+  {
+   "name": "player-spawn",
+   "position": [
+    1.838,
+    0.0,
+    19.762
+   ]
+  },
+  {
+   "name": "player-spawn",
+   "position": [
+    2.6,
+    0.0,
+    21.6
+   ]
+  },
+  {
+   "name": "player-spawn",
+   "position": [
+    1.838,
+    0.0,
+    23.438
+   ]
+  },
+  {
+   "name": "player-spawn",
+   "position": [
+    0.0,
+    0.0,
+    24.2
+   ]
+  },
+  {
+   "name": "player-spawn",
+   "position": [
+    -1.838,
+    0.0,
+    23.438
+   ]
+  },
+  {
+   "name": "player-spawn",
+   "position": [
+    -2.6,
+    0.0,
+    21.6
+   ]
+  },
+  {
+   "name": "player-spawn",
+   "position": [
+    -1.838,
+    0.0,
+    19.762
+   ]
+  }
+ ],
+ "areas": [
+  {
+   "name": "gate",
+   "min": [
+    -1.5,
+    13.5
+   ],
+   "max": [
+    1.5,
+    14.5
+   ]
+  },
+  {
+   "name": "courtyard",
+   "min": [
+    -9.5,
+    14.5
+   ],
+   "max": [
+    9.5,
+    29.5
+   ]
+  },
+  {
+   "name": "safe",
+   "min": [
+    -9.5,
+    14.5
+   ],
+   "max": [
+    9.5,
+    29.5
+   ]
+  }
+ ],
+ "meshes": []
+}

@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using Godot;
@@ -9,7 +10,7 @@ using WarriorsOfEverdawn.Util;
 namespace WarriorsOfEverdawn.Dev;
 
 // [lunge-check]: a dash thrown with the attack button carries a thrust, every machine sees it, it lands hits, its
-// hit window closes as the dash ends, and the weapon then reaches as far as the lunge's range (each lunge against
+// hit window closes as the dash ends (counted in physics frames, which a slow frame does not stretch), and the weapon then reaches as far as the lunge's range (each lunge against
 // its own weapon's, since bots swap sets). Reach is taken from lunges forward, along the aim: the dash clips to the
 // side and back lean the hips less, and reach about 0.25 short.
 public partial class NetSelfTest
@@ -18,9 +19,9 @@ public partial class NetSelfTest
     private int _lungesSeenRemote;
     private int _lungeHits;
     private bool _lungePending;
-    private float _lungeClosedAt = float.NaN;
-    private float _lungeDashEndedAt = float.NaN;
-    private float _lungeLandOffsetMax;
+    private ulong? _lungeClosedAt;
+    private ulong? _lungeDashEndedAt;
+    private ulong _lungeLandOffsetMax;
     private readonly List<float> _lungeReachOff = new();
     private float _lungeReach;
     private bool _dashingForward;
@@ -42,8 +43,8 @@ public partial class NetSelfTest
             {
                 _lungesHere++;
                 _lungePending = true;
-                _lungeClosedAt = float.NaN;
-                _lungeDashEndedAt = float.NaN;
+                _lungeClosedAt = null;
+                _lungeDashEndedAt = null;
                 _lungeReach = 0f;
             }
         };
@@ -60,13 +61,13 @@ public partial class NetSelfTest
                     _lungeReachOff.Add(_lungeReach - skill.Range);
                 }
 
-                _lungeClosedAt = _time;
+                _lungeClosedAt = Engine.GetPhysicsFrames();
                 SettleLunge();
             }
         };
         player.DashFinished += (_, _) =>
         {
-            _lungeDashEndedAt = _time;
+            _lungeDashEndedAt = Engine.GetPhysicsFrames();
             SettleLunge();
         };
     }
@@ -74,12 +75,12 @@ public partial class NetSelfTest
     // Once a lunge's window has closed and its dash has ended: how far apart the two were.
     private void SettleLunge()
     {
-        if (!_lungePending || float.IsNaN(_lungeClosedAt) || float.IsNaN(_lungeDashEndedAt))
+        if (!_lungePending || _lungeClosedAt is not { } closed || _lungeDashEndedAt is not { } ended)
         {
             return;
         }
 
-        _lungeLandOffsetMax = Mathf.Max(_lungeLandOffsetMax, Mathf.Abs(_lungeClosedAt - _lungeDashEndedAt));
+        _lungeLandOffsetMax = Math.Max(_lungeLandOffsetMax, closed > ended ? closed - ended : ended - closed);
         _lungePending = false;
     }
 
@@ -87,6 +88,6 @@ public partial class NetSelfTest
     {
         float reachOff = _lungeReachOff.Count > 0 ? _lungeReachOff.OrderBy(r => r).ElementAt(_lungeReachOff.Count / 2) : float.NaN;
         GD.Print($"[lunge-check] me={me} lunges_here={_lungesHere} seen_remote={_lungesSeenRemote} lunge_hits={_lungeHits} "
-            + $"land_offset_max={_lungeLandOffsetMax:F3} forward_lunges={_lungeReachOff.Count} reach_off_range={reachOff:F2}");
+            + $"land_offset_frames_max={_lungeLandOffsetMax} forward_lunges={_lungeReachOff.Count} reach_off_range={reachOff:F2}");
     }
 }

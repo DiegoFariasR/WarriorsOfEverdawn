@@ -15,13 +15,13 @@ ambient_light_source = 3
 tonemap_mode = 2
 
 [sub_resource type="PlaneMesh" id="GroundMesh"]
-size = Vector2(60, 60)
+size = Vector2(70, 80)
 
 [sub_resource type="StandardMaterial3D" id="GroundMaterial"]
 albedo_color = Color(0.36, 0.42, 0.3, 1)
 
 [sub_resource type="BoxShape3D" id="GroundShape"]
-size = Vector3(60, 1, 60)
+size = Vector3(70, 1, 80)
 
 [node name="Arena" type="Node3D"]
 script = ExtResource("1_arena")

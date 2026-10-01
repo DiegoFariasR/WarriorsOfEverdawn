@@ -5,6 +5,7 @@ using Godot;
 using WarriorsOfEverdawn.Character;
 using WarriorsOfEverdawn.Core.Combat;
 using WarriorsOfEverdawn.Core.Stats;
+using WarriorsOfEverdawn.Main;
 using WarriorsOfEverdawn.Player;
 using WarriorsOfEverdawn.Util;
 
@@ -98,7 +99,7 @@ public partial class EnemyCharacter : CharacterBody3D
             NetYaw = yaw,
             Hp = definition.MaxHp,
             CollisionLayer = CollisionLayers.Enemies,
-            CollisionMask = CollisionLayers.World | CollisionLayers.Players | CollisionLayers.Enemies,
+            CollisionMask = CollisionLayers.World | CollisionLayers.Players | CollisionLayers.Enemies | CollisionLayers.Ward,
             _health = new Health(definition.MaxHp),
             _shownYaw = yaw,
             _attackClip = CombatVisuals.ClipFor(definition.Attack),
@@ -201,8 +202,15 @@ public partial class EnemyCharacter : CharacterBody3D
         switch (decision.Action)
         {
             case EnemyAction.Chase:
-                NetYaw = Yaw.Approach(NetYaw, targetYaw, TurnRate, delta);
-                return Yaw.Forward(targetYaw) * Definition.MoveSpeed;
+                // Round the walls, not through them: it faces the way it walks.
+                var way = ArenaMap.In(GetTree()).StepToward(this, GlobalPosition + toTarget);
+                if (way == Vector3.Zero)
+                {
+                    return Vector3.Zero;
+                }
+
+                NetYaw = Yaw.Approach(NetYaw, Yaw.Of(way), TurnRate, delta);
+                return way * Definition.MoveSpeed;
             case EnemyAction.Attack:
                 NetYaw = targetYaw;
                 _attackElapsed = 0f;
@@ -246,10 +254,12 @@ public partial class EnemyCharacter : CharacterBody3D
             }
 
             var me = Yaw.ToGround(GlobalPosition);
+            var map = ArenaMap.In(GetTree());
             bool parried = false;
             foreach (var player in GetTree().GetNodesInGroup(PlayerCharacter.Group).OfType<PlayerCharacter>())
             {
-                if (!player.IsDowned && MeleeArc.Hits(me, NetYaw, Definition.Attack, Yaw.ToGround(player.NetPosition), BodySize.Radius))
+                if (!player.IsDowned && !map.IsSafe(player.NetPosition)
+                    && MeleeArc.Hits(me, NetYaw, Definition.Attack, Yaw.ToGround(player.NetPosition), BodySize.Radius))
                 {
                     parried |= player.Vitals.TakeAttack(Definition.Attack.Damage, GlobalPosition) == GuardOutcome.Parried;
                 }
@@ -272,10 +282,14 @@ public partial class EnemyCharacter : CharacterBody3D
         }
     }
 
-    private IEnumerable<EnemyTarget> LivingPlayers() =>
-        GetTree().GetNodesInGroup(PlayerCharacter.Group).OfType<PlayerCharacter>()
-            .Where(p => !p.IsDowned)
+    // The players a skeleton may go for: up, and not inside the allied town.
+    private IEnumerable<EnemyTarget> LivingPlayers()
+    {
+        var map = ArenaMap.In(GetTree());
+        return GetTree().GetNodesInGroup(PlayerCharacter.Group).OfType<PlayerCharacter>()
+            .Where(p => !p.IsDowned && !map.IsSafe(p.GlobalPosition))
             .Select(p => new EnemyTarget(p.PeerId, Yaw.ToGround(p.GlobalPosition)));
+    }
 
     private void Animate(float delta)
     {

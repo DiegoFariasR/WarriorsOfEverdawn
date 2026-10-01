@@ -16,6 +16,7 @@ public static class RigAnimations
     public const float PlaybackSpeed = 2f;
 
     public const string Idle = "melee/Melee_2H_Idle";
+    public const string UnarmedIdle = "melee/Melee_Unarmed_Idle";
     public const string Run = "move/Running_A";
     public const string StrafeLeft = "moveadv/Running_Strafe_Left";
     public const string StrafeRight = "moveadv/Running_Strafe_Right";
@@ -48,7 +49,7 @@ public static class RigAnimations
         ("ranged", "res://assets/animations/Rig_Medium_CombatRanged.glb"),
     };
 
-    private static readonly string[] LoopingClips = { Idle, Run, StrafeLeft, StrafeRight, Backpedal, SkeletonIdle, SkeletonWalk, SpinLoop, Guard };
+    private static readonly string[] LoopingClips = { Idle, UnarmedIdle, Run, StrafeLeft, StrafeRight, Backpedal, SkeletonIdle, SkeletonWalk, SpinLoop, Guard };
 
     // A clip ("library/name", as the mixers name them) straight from its library, for reading its tracks.
     public static Animation Load(string clip)

@@ -1,0 +1,1744 @@
+{
+ "version": 1,
+ "assets": {
+  "floor_dirt_large": "res://assets/dungeon/floor_dirt_large.glb",
+  "wall_cracked": "res://assets/dungeon/wall_cracked.glb",
+  "wall": "res://assets/dungeon/wall.glb",
+  "wall_broken": "res://assets/dungeon/wall_broken.glb",
+  "pillar": "res://assets/dungeon/pillar.glb",
+  "crypt": "res://assets/props/crypt.glb",
+  "grave_A": "res://assets/props/grave_A.glb",
+  "gravestone": "res://assets/props/gravestone.glb",
+  "grave_A_destroyed": "res://assets/props/grave_A_destroyed.glb",
+  "coffin": "res://assets/props/coffin.glb",
+  "coffin_decorated": "res://assets/props/coffin_decorated.glb",
+  "tree_dead_large": "res://assets/props/tree_dead_large.glb",
+  "tree_dead_medium": "res://assets/props/tree_dead_medium.glb",
+  "post_skull": "res://assets/props/post_skull.glb",
+  "banner_shield_red": "res://assets/dungeon/banner_shield_red.glb",
+  "banner_red": "res://assets/dungeon/banner_red.glb",
+  "torch_mounted": "res://assets/dungeon/torch_mounted.glb",
+  "banner_patternB_red": "res://assets/dungeon/banner_patternB_red.glb",
+  "bone_B": "res://assets/props/bone_B.glb",
+  "bone_A": "res://assets/props/bone_A.glb",
+  "bone_C": "res://assets/props/bone_C.glb",
+  "ribcage": "res://assets/props/ribcage.glb",
+  "skull": "res://assets/props/skull.glb"
+ },
+ "textures": {
+  "res://assets/dungeon/": "res://assets/textures/dungeon/alt_texture_5_NightA.png",
+  "res://assets/dungeon/banner_": "res://assets/textures/dungeon/dungeon_texture.png"
+ },
+ "placements": [
+  {
+   "asset": "floor_dirt_large",
+   "position": [
+    -8.0,
+    0.0,
+    -28.0
+   ],
+   "rotation": [
+    0.0,
+    0.707107,
+    0.0,
+    -0.707107
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  {
+   "asset": "floor_dirt_large",
+   "position": [
+    -8.0,
+    0.0,
+    -24.0
+   ],
+   "rotation": [
+    0.0,
+    0.707107,
+    0.0,
+    -0.707107
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  {
+   "asset": "floor_dirt_large",
+   "position": [
+    -8.0,
+    0.0,
+    -20.0
+   ],
+   "rotation": [
+    0.0,
+    0.707107,
+    0.0,
+    -0.707107
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  {
+   "asset": "floor_dirt_large",
+   "position": [
+    -8.0,
+    0.0,
+    -16.0
+   ],
+   "rotation": [
+    0.0,
+    0.707107,
+    0.0,
+    0.707107
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  {
+   "asset": "floor_dirt_large",
+   "position": [
+    -4.0,
+    0.0,
+    -28.0
+   ],
+   "rotation": [
+    0.0,
+    0.707107,
+    0.0,
+    0.707107
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  {
+   "asset": "floor_dirt_large",
+   "position": [
+    -4.0,
+    0.0,
+    -24.0
+   ],
+   "rotation": [
+    0.0,
+    0.707107,
+    0.0,
+    -0.707107
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  {
+   "asset": "floor_dirt_large",
+   "position": [
+    -4.0,
+    0.0,
+    -20.0
+   ],
+   "rotation": [
+    0.0,
+    0.707107,
+    0.0,
+    0.707107
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  {
+   "asset": "floor_dirt_large",
+   "position": [
+    -4.0,
+    0.0,
+    -16.0
+   ],
+   "rotation": [
+    0.0,
+    0.0,
+    0.0,
+    1.0
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  {
+   "asset": "floor_dirt_large",
+   "position": [
+    0.0,
+    0.0,
+    -28.0
+   ],
+   "rotation": [
+    0.0,
+    0.707107,
+    0.0,
+    -0.707107
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  {
+   "asset": "floor_dirt_large",
+   "position": [
+    -0.0,
+    0.0,
+    -24.0
+   ],
+   "rotation": [
+    0.0,
+    1.0,
+    0.0,
+    0.0
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  {
+   "asset": "floor_dirt_large",
+   "position": [
+    -0.0,
+    0.0,
+    -20.0
+   ],
+   "rotation": [
+    0.0,
+    0.707107,
+    0.0,
+    0.707107
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  {
+   "asset": "floor_dirt_large",
+   "position": [
+    0.0,
+    0.0,
+    -16.0
+   ],
+   "rotation": [
+    0.0,
+    0.0,
+    0.0,
+    1.0
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  {
+   "asset": "floor_dirt_large",
+   "position": [
+    4.0,
+    0.0,
+    -28.0
+   ],
+   "rotation": [
+    0.0,
+    0.0,
+    0.0,
+    1.0
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  {
+   "asset": "floor_dirt_large",
+   "position": [
+    4.0,
+    0.0,
+    -24.0
+   ],
+   "rotation": [
+    0.0,
+    0.707107,
+    0.0,
+    -0.707107
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  {
+   "asset": "floor_dirt_large",
+   "position": [
+    4.0,
+    0.0,
+    -20.0
+   ],
+   "rotation": [
+    0.0,
+    0.707107,
+    0.0,
+    -0.707107
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  {
+   "asset": "floor_dirt_large",
+   "position": [
+    4.0,
+    0.0,
+    -16.0
+   ],
+   "rotation": [
+    0.0,
+    0.707107,
+    0.0,
+    0.707107
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  {
+   "asset": "floor_dirt_large",
+   "position": [
+    8.0,
+    0.0,
+    -28.0
+   ],
+   "rotation": [
+    0.0,
+    0.0,
+    0.0,
+    1.0
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  {
+   "asset": "floor_dirt_large",
+   "position": [
+    8.0,
+    0.0,
+    -24.0
+   ],
+   "rotation": [
+    0.0,
+    0.0,
+    0.0,
+    1.0
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  {
+   "asset": "floor_dirt_large",
+   "position": [
+    8.0,
+    0.0,
+    -20.0
+   ],
+   "rotation": [
+    0.0,
+    0.0,
+    0.0,
+    1.0
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  {
+   "asset": "floor_dirt_large",
+   "position": [
+    8.0,
+    0.0,
+    -16.0
+   ],
+   "rotation": [
+    0.0,
+    0.0,
+    0.0,
+    1.0
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  {
+   "asset": "wall_cracked",
+   "position": [
+    -8.0,
+    0.0,
+    -30.0
+   ],
+   "rotation": [
+    0.0,
+    0.0,
+    0.0,
+    1.0
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "solid": true
+  },
+  {
+   "asset": "wall",
+   "position": [
+    -8.0,
+    0.0,
+    -14.0
+   ],
+   "rotation": [
+    0.0,
+    0.0,
+    0.0,
+    1.0
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "solid": true
+  },
+  {
+   "asset": "wall",
+   "position": [
+    -4.0,
+    0.0,
+    -30.0
+   ],
+   "rotation": [
+    0.0,
+    0.0,
+    0.0,
+    1.0
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "solid": true
+  },
+  {
+   "asset": "wall",
+   "position": [
+    -4.0,
+    0.0,
+    -14.0
+   ],
+   "rotation": [
+    0.0,
+    0.0,
+    0.0,
+    1.0
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "solid": true
+  },
+  {
+   "asset": "wall",
+   "position": [
+    0.0,
+    0.0,
+    -30.0
+   ],
+   "rotation": [
+    0.0,
+    0.0,
+    0.0,
+    1.0
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "solid": true
+  },
+  {
+   "asset": "wall_cracked",
+   "position": [
+    4.0,
+    0.0,
+    -30.0
+   ],
+   "rotation": [
+    0.0,
+    0.0,
+    0.0,
+    1.0
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "solid": true
+  },
+  {
+   "asset": "wall",
+   "position": [
+    4.0,
+    0.0,
+    -14.0
+   ],
+   "rotation": [
+    0.0,
+    0.0,
+    0.0,
+    1.0
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "solid": true
+  },
+  {
+   "asset": "wall",
+   "position": [
+    8.0,
+    0.0,
+    -30.0
+   ],
+   "rotation": [
+    0.0,
+    0.0,
+    0.0,
+    1.0
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "solid": true
+  },
+  {
+   "asset": "wall",
+   "position": [
+    8.0,
+    0.0,
+    -14.0
+   ],
+   "rotation": [
+    0.0,
+    0.0,
+    0.0,
+    1.0
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "solid": true
+  },
+  {
+   "asset": "wall",
+   "position": [
+    -10.0,
+    0.0,
+    -28.0
+   ],
+   "rotation": [
+    0.0,
+    0.707107,
+    0.0,
+    0.707107
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "solid": true
+  },
+  {
+   "asset": "wall_cracked",
+   "position": [
+    10.0,
+    0.0,
+    -28.0
+   ],
+   "rotation": [
+    0.0,
+    0.707107,
+    0.0,
+    0.707107
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "solid": true
+  },
+  {
+   "asset": "wall",
+   "position": [
+    -10.0,
+    0.0,
+    -24.0
+   ],
+   "rotation": [
+    0.0,
+    0.707107,
+    0.0,
+    0.707107
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "solid": true
+  },
+  {
+   "asset": "wall",
+   "position": [
+    10.0,
+    0.0,
+    -24.0
+   ],
+   "rotation": [
+    0.0,
+    0.707107,
+    0.0,
+    0.707107
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "solid": true
+  },
+  {
+   "asset": "wall_broken",
+   "position": [
+    -10.0,
+    0.0,
+    -20.0
+   ],
+   "rotation": [
+    0.0,
+    0.707107,
+    0.0,
+    0.707107
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "solid": true
+  },
+  {
+   "asset": "wall_cracked",
+   "position": [
+    10.0,
+    0.0,
+    -20.0
+   ],
+   "rotation": [
+    0.0,
+    0.707107,
+    0.0,
+    0.707107
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "solid": true
+  },
+  {
+   "asset": "wall",
+   "position": [
+    -10.0,
+    0.0,
+    -16.0
+   ],
+   "rotation": [
+    0.0,
+    0.707107,
+    0.0,
+    0.707107
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "solid": true
+  },
+  {
+   "asset": "wall",
+   "position": [
+    10.0,
+    0.0,
+    -16.0
+   ],
+   "rotation": [
+    0.0,
+    0.707107,
+    0.0,
+    0.707107
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "solid": true
+  },
+  {
+   "asset": "pillar",
+   "position": [
+    -10.0,
+    0.0,
+    -30.0
+   ],
+   "rotation": [
+    0.0,
+    0.0,
+    0.0,
+    1.0
+   ],
+   "scale": [
+    1.5,
+    1.5,
+    1.5
+   ],
+   "solid": true
+  },
+  {
+   "asset": "pillar",
+   "position": [
+    -10.0,
+    0.0,
+    -14.0
+   ],
+   "rotation": [
+    0.0,
+    0.0,
+    0.0,
+    1.0
+   ],
+   "scale": [
+    1.5,
+    1.5,
+    1.5
+   ],
+   "solid": true
+  },
+  {
+   "asset": "pillar",
+   "position": [
+    -2.4,
+    0.0,
+    -14.0
+   ],
+   "rotation": [
+    0.0,
+    0.0,
+    0.0,
+    1.0
+   ],
+   "scale": [
+    1.2,
+    1.2,
+    1.2
+   ],
+   "solid": true
+  },
+  {
+   "asset": "pillar",
+   "position": [
+    10.0,
+    0.0,
+    -30.0
+   ],
+   "rotation": [
+    0.0,
+    0.0,
+    0.0,
+    1.0
+   ],
+   "scale": [
+    1.5,
+    1.5,
+    1.5
+   ],
+   "solid": true
+  },
+  {
+   "asset": "pillar",
+   "position": [
+    10.0,
+    0.0,
+    -14.0
+   ],
+   "rotation": [
+    0.0,
+    0.0,
+    0.0,
+    1.0
+   ],
+   "scale": [
+    1.5,
+    1.5,
+    1.5
+   ],
+   "solid": true
+  },
+  {
+   "asset": "pillar",
+   "position": [
+    2.4,
+    0.0,
+    -14.0
+   ],
+   "rotation": [
+    0.0,
+    0.0,
+    0.0,
+    1.0
+   ],
+   "scale": [
+    1.2,
+    1.2,
+    1.2
+   ],
+   "solid": true
+  },
+  {
+   "asset": "crypt",
+   "position": [
+    0.0,
+    0.0,
+    -25.2
+   ],
+   "rotation": [
+    0.0,
+    0.0,
+    0.0,
+    1.0
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "solid": true
+  },
+  {
+   "asset": "grave_A",
+   "position": [
+    -6.4,
+    0.0,
+    -28.0
+   ],
+   "rotation": [
+    0.0,
+    0.0,
+    0.0,
+    1.0
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "solid": true
+  },
+  {
+   "asset": "gravestone",
+   "position": [
+    -8.4,
+    0.0,
+    -25.6
+   ],
+   "rotation": [
+    0.0,
+    -0.104528,
+    0.0,
+    0.994522
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "solid": true
+  },
+  {
+   "asset": "grave_A_destroyed",
+   "position": [
+    -6.229,
+    0.0,
+    -24.128
+   ],
+   "rotation": [
+    0.0,
+    0.069756,
+    0.0,
+    0.997564
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "solid": true
+  },
+  {
+   "asset": "grave_A_destroyed",
+   "position": [
+    6.361,
+    0.0,
+    -27.932
+   ],
+   "rotation": [
+    0.0,
+    0.0,
+    0.0,
+    1.0
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "solid": true
+  },
+  {
+   "asset": "gravestone",
+   "position": [
+    8.4,
+    0.0,
+    -25.6
+   ],
+   "rotation": [
+    0.0,
+    0.104528,
+    0.0,
+    0.994522
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "solid": true
+  },
+  {
+   "asset": "grave_A",
+   "position": [
+    6.2,
+    0.0,
+    -24.2
+   ],
+   "rotation": [
+    0.0,
+    -0.069756,
+    0.0,
+    0.997564
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "solid": true
+  },
+  {
+   "asset": "coffin",
+   "position": [
+    -8.0,
+    0.0,
+    -21.2
+   ],
+   "rotation": [
+    0.0,
+    0.130526,
+    0.0,
+    0.991445
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "solid": true
+  },
+  {
+   "asset": "coffin_decorated",
+   "position": [
+    8.0,
+    0.0,
+    -21.6
+   ],
+   "rotation": [
+    0.0,
+    -0.173648,
+    0.0,
+    0.984808
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "solid": true
+  },
+  {
+   "asset": "tree_dead_large",
+   "position": [
+    -7.829,
+    0.0,
+    -16.062
+   ],
+   "rotation": [
+    0.0,
+    0.0,
+    0.0,
+    1.0
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "solid": true
+  },
+  {
+   "asset": "tree_dead_medium",
+   "position": [
+    8.521,
+    0.0,
+    -15.931
+   ],
+   "rotation": [
+    0.0,
+    0.939693,
+    0.0,
+    0.34202
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "solid": true
+  },
+  {
+   "asset": "post_skull",
+   "position": [
+    -3.901,
+    0.0,
+    -15.233
+   ],
+   "rotation": [
+    0.0,
+    1.0,
+    0.0,
+    0.0
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "solid": true
+  },
+  {
+   "asset": "banner_shield_red",
+   "position": [
+    -6.0,
+    0.0,
+    -14.0
+   ],
+   "rotation": [
+    0.0,
+    0.0,
+    0.0,
+    1.0
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  {
+   "asset": "banner_red",
+   "position": [
+    -6.0,
+    0.0,
+    -14.0
+   ],
+   "rotation": [
+    0.0,
+    1.0,
+    0.0,
+    0.0
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  {
+   "asset": "torch_mounted",
+   "position": [
+    -4.0,
+    2.3,
+    -14.0
+   ],
+   "rotation": [
+    0.0,
+    0.0,
+    0.0,
+    1.0
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  {
+   "asset": "banner_patternB_red",
+   "position": [
+    -10.0,
+    0.0,
+    -26.0
+   ],
+   "rotation": [
+    0.0,
+    0.707107,
+    0.0,
+    0.707107
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  {
+   "asset": "torch_mounted",
+   "position": [
+    -10.0,
+    2.3,
+    -22.0
+   ],
+   "rotation": [
+    0.0,
+    0.707107,
+    0.0,
+    0.707107
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  {
+   "asset": "banner_red",
+   "position": [
+    -10.0,
+    0.0,
+    -18.0
+   ],
+   "rotation": [
+    0.0,
+    0.707107,
+    0.0,
+    0.707107
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  {
+   "asset": "post_skull",
+   "position": [
+    3.899,
+    0.0,
+    -15.233
+   ],
+   "rotation": [
+    0.0,
+    1.0,
+    0.0,
+    0.0
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "solid": true
+  },
+  {
+   "asset": "banner_shield_red",
+   "position": [
+    6.0,
+    0.0,
+    -14.0
+   ],
+   "rotation": [
+    0.0,
+    0.0,
+    0.0,
+    1.0
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  {
+   "asset": "banner_red",
+   "position": [
+    6.0,
+    0.0,
+    -14.0
+   ],
+   "rotation": [
+    0.0,
+    1.0,
+    0.0,
+    0.0
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  {
+   "asset": "torch_mounted",
+   "position": [
+    4.0,
+    2.3,
+    -14.0
+   ],
+   "rotation": [
+    0.0,
+    0.0,
+    0.0,
+    1.0
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  {
+   "asset": "banner_patternB_red",
+   "position": [
+    10.0,
+    0.0,
+    -26.0
+   ],
+   "rotation": [
+    0.0,
+    -0.707107,
+    0.0,
+    0.707107
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  {
+   "asset": "torch_mounted",
+   "position": [
+    10.0,
+    2.3,
+    -22.0
+   ],
+   "rotation": [
+    0.0,
+    -0.707107,
+    0.0,
+    0.707107
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  {
+   "asset": "banner_red",
+   "position": [
+    10.0,
+    0.0,
+    -18.0
+   ],
+   "rotation": [
+    0.0,
+    -0.707107,
+    0.0,
+    0.707107
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  {
+   "asset": "bone_B",
+   "position": [
+    -3.457,
+    0.0,
+    -18.697
+   ],
+   "rotation": [
+    0.0,
+    0.835984,
+    0.0,
+    -0.548754
+   ],
+   "scale": [
+    1.328,
+    1.328,
+    1.328
+   ]
+  },
+  {
+   "asset": "bone_A",
+   "position": [
+    2.582,
+    0.0,
+    -19.512
+   ],
+   "rotation": [
+    0.0,
+    0.948525,
+    0.0,
+    0.316702
+   ],
+   "scale": [
+    1.244,
+    1.244,
+    1.244
+   ]
+  },
+  {
+   "asset": "bone_C",
+   "position": [
+    -1.181,
+    0.0,
+    -16.495
+   ],
+   "rotation": [
+    0.0,
+    0.871562,
+    0.0,
+    0.490285
+   ],
+   "scale": [
+    1.387,
+    1.387,
+    1.387
+   ]
+  },
+  {
+   "asset": "bone_A",
+   "position": [
+    5.078,
+    0.0,
+    -17.245
+   ],
+   "rotation": [
+    0.0,
+    0.362251,
+    0.0,
+    0.932081
+   ],
+   "scale": [
+    1.348,
+    1.348,
+    1.348
+   ]
+  },
+  {
+   "asset": "bone_A",
+   "position": [
+    -5.493,
+    0.0,
+    -20.221
+   ],
+   "rotation": [
+    0.0,
+    0.999143,
+    0.0,
+    0.041384
+   ],
+   "scale": [
+    1.609,
+    1.609,
+    1.609
+   ]
+  },
+  {
+   "asset": "bone_A",
+   "position": [
+    1.368,
+    0.0,
+    -15.586
+   ],
+   "rotation": [
+    0.0,
+    0.746162,
+    0.0,
+    -0.665764
+   ],
+   "scale": [
+    1.279,
+    1.279,
+    1.279
+   ]
+  },
+  {
+   "asset": "ribcage",
+   "position": [
+    -4.589,
+    0.0,
+    -16.838
+   ],
+   "rotation": [
+    0.0,
+    0.619996,
+    0.0,
+    0.784605
+   ],
+   "scale": [
+    0.881,
+    0.881,
+    0.881
+   ]
+  },
+  {
+   "asset": "ribcage",
+   "position": [
+    4.148,
+    0.0,
+    -15.868
+   ],
+   "rotation": [
+    0.0,
+    0.555067,
+    0.0,
+    0.831806
+   ],
+   "scale": [
+    1.099,
+    1.099,
+    1.099
+   ]
+  },
+  {
+   "asset": "skull",
+   "position": [
+    5.327,
+    0.0,
+    -19.816
+   ],
+   "rotation": [
+    0.0,
+    0.983183,
+    0.0,
+    0.182622
+   ],
+   "scale": [
+    0.803,
+    0.803,
+    0.803
+   ]
+  }
+ ],
+ "markers": [
+  {
+   "name": "gate",
+   "position": [
+    0.0,
+    0.0,
+    -14.0
+   ]
+  },
+  {
+   "name": "outside-gate",
+   "position": [
+    0.0,
+    0.0,
+    -11.0
+   ]
+  },
+  {
+   "name": "enemy-spawn",
+   "position": [
+    -5.4,
+    0.0,
+    -20.4
+   ]
+  },
+  {
+   "name": "enemy-spawn",
+   "position": [
+    -3.6,
+    0.0,
+    -20.4
+   ]
+  },
+  {
+   "name": "enemy-spawn",
+   "position": [
+    -1.8,
+    0.0,
+    -20.4
+   ]
+  },
+  {
+   "name": "enemy-spawn",
+   "position": [
+    0.0,
+    0.0,
+    -20.4
+   ]
+  },
+  {
+   "name": "enemy-spawn",
+   "position": [
+    1.8,
+    0.0,
+    -20.4
+   ]
+  },
+  {
+   "name": "enemy-spawn",
+   "position": [
+    3.6,
+    0.0,
+    -20.4
+   ]
+  },
+  {
+   "name": "enemy-spawn",
+   "position": [
+    5.4,
+    0.0,
+    -20.4
+   ]
+  },
+  {
+   "name": "enemy-spawn",
+   "position": [
+    -5.4,
+    0.0,
+    -19.1
+   ]
+  },
+  {
+   "name": "enemy-spawn",
+   "position": [
+    -3.6,
+    0.0,
+    -19.1
+   ]
+  },
+  {
+   "name": "enemy-spawn",
+   "position": [
+    -1.8,
+    0.0,
+    -19.1
+   ]
+  },
+  {
+   "name": "enemy-spawn",
+   "position": [
+    0.0,
+    0.0,
+    -19.1
+   ]
+  },
+  {
+   "name": "enemy-spawn",
+   "position": [
+    1.8,
+    0.0,
+    -19.1
+   ]
+  },
+  {
+   "name": "enemy-spawn",
+   "position": [
+    3.6,
+    0.0,
+    -19.1
+   ]
+  },
+  {
+   "name": "enemy-spawn",
+   "position": [
+    5.4,
+    0.0,
+    -19.1
+   ]
+  },
+  {
+   "name": "enemy-spawn",
+   "position": [
+    -5.4,
+    0.0,
+    -17.8
+   ]
+  },
+  {
+   "name": "enemy-spawn",
+   "position": [
+    -3.6,
+    0.0,
+    -17.8
+   ]
+  },
+  {
+   "name": "enemy-spawn",
+   "position": [
+    -1.8,
+    0.0,
+    -17.8
+   ]
+  },
+  {
+   "name": "enemy-spawn",
+   "position": [
+    0.0,
+    0.0,
+    -17.8
+   ]
+  },
+  {
+   "name": "enemy-spawn",
+   "position": [
+    1.8,
+    0.0,
+    -17.8
+   ]
+  },
+  {
+   "name": "enemy-spawn",
+   "position": [
+    3.6,
+    0.0,
+    -17.8
+   ]
+  },
+  {
+   "name": "enemy-spawn",
+   "position": [
+    5.4,
+    0.0,
+    -17.8
+   ]
+  }
+ ],
+ "areas": [
+  {
+   "name": "gate",
+   "min": [
+    -1.5,
+    -14.5
+   ],
+   "max": [
+    1.5,
+    -13.5
+   ]
+  },
+  {
+   "name": "courtyard",
+   "min": [
+    -9.5,
+    -29.5
+   ],
+   "max": [
+    9.5,
+    -14.5
+   ]
+  }
+ ],
+ "meshes": []
+}

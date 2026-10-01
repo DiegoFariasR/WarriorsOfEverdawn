@@ -2,13 +2,15 @@ using System;
 using System.Collections.Generic;
 using Godot;
 using WarriorsOfEverdawn.Core.Combat;
+using WarriorsOfEverdawn.Core.Loot;
 using WarriorsOfEverdawn.Core.Stats;
 using WarriorsOfEverdawn.Main;
 using WarriorsOfEverdawn.Util;
 
 namespace WarriorsOfEverdawn.Player;
 
-// A player's HP, owned by the host even though the player's movement is owned by its own peer.
+// What the host keeps for a player, even though the player's movement is owned by its own peer: its HP, and the gold
+// and souls it has earned.
 public partial class PlayerVitals : Node
 {
     private static readonly Color DamageColor = new(1f, 0.35f, 0.3f);
@@ -16,9 +18,16 @@ public partial class PlayerVitals : Node
     private static readonly Color BlockColor = new(0.8f, 0.88f, 1f);
 
     private readonly Health _health = new(PlayerRules.MaxHp);
+    private readonly Purse _purse = new();
 
     [Export]
     public int Hp { get; set; } = PlayerRules.MaxHp;
+
+    [Export]
+    public int Gold { get; set; }
+
+    [Export]
+    public int Souls { get; set; }
 
     public event Action<int>? Hit;
 
@@ -34,10 +43,14 @@ public partial class PlayerVitals : Node
     {
         var vitals = new PlayerVitals { Name = "Vitals" };
         var config = new SceneReplicationConfig();
-        var hp = new NodePath($".:{PropertyName.Hp}");
-        config.AddProperty(hp);
-        config.PropertySetSpawn(hp, true);
-        config.PropertySetReplicationMode(hp, SceneReplicationConfig.ReplicationMode.OnChange);
+        foreach (var property in new[] { PropertyName.Hp, PropertyName.Gold, PropertyName.Souls })
+        {
+            var path = new NodePath($".:{property}");
+            config.AddProperty(path);
+            config.PropertySetSpawn(path, true);
+            config.PropertySetReplicationMode(path, SceneReplicationConfig.ReplicationMode.OnChange);
+        }
+
         vitals.AddChild(new MultiplayerSynchronizer { Name = "Sync", ReplicationConfig = config });
         return vitals;
     }
@@ -53,13 +66,27 @@ public partial class PlayerVitals : Node
             Rpc(MethodName.ShowGuarded, (int)outcome);
         }
 
-        int through = Guard.DamageThrough(Player.Weapon.Guard, outcome, damage);
+        int through = Player.Weapon is { } weapon ? Guard.DamageThrough(weapon.Guard, outcome, damage) : damage;
         if (through > 0)
         {
             TakeHit(through);
         }
 
         return outcome;
+    }
+
+    // Host only.
+    public void EarnGold(int amount)
+    {
+        _purse.EarnGold(amount);
+        Gold = _purse.Gold;
+    }
+
+    // Host only.
+    public void EarnSouls(int amount)
+    {
+        _purse.EarnSouls(amount);
+        Souls = _purse.Souls;
     }
 
     // Damage no guard can stop.
@@ -134,7 +161,7 @@ public partial class PlayerVitals : Node
 
         _health.RestoreFull();
         Hp = _health.Current;
-        Rpc(MethodName.Revived, Vector3.Zero);
+        Rpc(MethodName.Revived, ArenaMap.In(GetTree()).RevivePointFor(Player.PeerId));
     }
 
     [Rpc(MultiplayerApi.RpcMode.Authority, CallLocal = true, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]

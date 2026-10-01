@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Godot;
 using WarriorsOfEverdawn.Core.Combat;
+using WarriorsOfEverdawn.Main;
 using WarriorsOfEverdawn.Player;
 using WarriorsOfEverdawn.Util;
 
@@ -59,8 +60,9 @@ public partial class Arrows : Node
             // The latest position each player reported, as for skeletons' swings (Docs/Design/multiplayer.md).
             if (Multiplayer.IsServer())
             {
+                var map = ArenaMap.In(GetTree());
                 var victim = GetTree().GetNodesInGroup(PlayerCharacter.Group).OfType<PlayerCharacter>()
-                    .FirstOrDefault(p => !p.IsDowned && Projectiles.Hits(Yaw.ToGround(before), Yaw.ToGround(flight.Position), Yaw.ToGround(p.NetPosition), BodySize.Radius, projectile));
+                    .FirstOrDefault(p => !p.IsDowned && !map.IsSafe(p.NetPosition) && Projectiles.Hits(Yaw.ToGround(before), Yaw.ToGround(flight.Position), Yaw.ToGround(p.NetPosition), BodySize.Radius, projectile));
                 if (victim != null)
                 {
                     // Guarded against where it was loosed from; a parry stops it like a block, with no one to stagger.

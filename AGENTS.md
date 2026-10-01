@@ -92,14 +92,16 @@ Two occurrences = copy is fine. Three = extract a helper unless the shapes diver
 | `./dev.sh test` | Run `Core.Tests` |
 | `./dev.sh format` | `dotnet format` the solution |
 | `./dev.sh import` | Headless asset import; run after copying assets in |
-| `./dev.sh net-test` | Headless host + 3 bot clients, one per weapon, about 50 s against tripled waves; asserts every machine shows each player's weapons in hand and on the back and sees the bots swap sets, movement, attacks, hits, kills and damage reach every peer, the chest stays on the aim, turning respects its limit, heads are at their scale, swings play at the attack speed, Spin lands, roots and turns the body, weapon trails and hit blinks show and clear, the blade tip at hit time matches each range, the HUD shows real HP for the player and every skeleton, dashes keep their distance, charges and ghosts, a held Spin carries on through a dash, lunges land as their dash ends and reach their range, weapons are carried in both hands, arrows are drawn where they fly, and guards go up, stay up while held, slow the player, block and parry |
+| `./dev.sh net-test` | Headless host + 3 bot clients, one per weapon, about 50 s against tripled waves; asserts every machine shows each player's weapons in hand and on the back and sees the bots swap sets, weapons dropped lie on the ground everywhere until taken up and are labelled when close, skeletons leave gold and souls that every player earns, players start in the safe town and waves rise in the enemy fortress and find their way out, movement, attacks, hits, kills and damage reach every peer, the chest stays on the aim, turning respects its limit, heads are at their scale, swings play at the attack speed, Spin lands, roots and turns the body, weapon trails and hit blinks show and clear, the blade tip at hit time matches each range, the HUD shows real HP for the player and every skeleton, dashes keep their distance, charges and ghosts, a held Spin carries on through a dash, lunges land as their dash ends and reach their range, weapons are carried in both hands, arrows are drawn where they fly, and guards go up, stay up while held, slow the player, block and parry |
 | `./dev.sh pvp-test` | Headless PvP host + 1 bot client, no skeletons; asserts players hit, damage and see each other |
 | `./dev.sh camera-test` | Headless; in every camera mode, W must move the character up the screen and D right; the HUD sits on screen without overlaps |
 | `./dev.sh smoke` | `camera-test`, `net-test` and `pvp-test` in turn; the regression gate for client changes |
 | `./dev.sh playtest` | `net-test` run for 2.5 minutes with a player taken down on cue: every net-test gate, plus waves keep coming, the dead and damage numbers are removed on time, the node count stays flat across waves, and a downed player stays put and gets back up at full HP. `--screenshots N` captures frames through the session. For changes to anything that lives across a session |
 | `./dev.sh swing-survey` | Each weapon skill's clip followed through the hand: when the weapon moves fastest, when it reaches furthest, and how far, standing and moving. Where Core's hit times come from |
 | `./dev.sh screenshot` | A bot plays solo in an off-screen, minimized window; saves `_staging/screenshot.png` after `--at` seconds, or a series with `--frames N --interval S`; `--camera 1-4`, `--no-ui`, `--no-enemies`, `--weapon <id>`, `--back-weapon <id>`. Read the image to check what the game draws |
-| `./dev.sh health` | Drift dashboard: formatting, doc references, pending refactors, agent and skill docs, headless timeouts |
+| `./dev.sh level-fortresses` | Regenerates the two fortress layouts from `Tools/level_fortresses.py` (deterministic; `--seed N`); run after changing the generator, then `level-audit` |
+| `./dev.sh level-audit` | Audits `GodotClient/config/levels/*.layout.json` without Godot: missing files, solids run into each other, a marker or a gate blocked, pieces off the ground |
+| `./dev.sh health` | Drift dashboard: formatting, doc references, pending refactors, agent and skill docs, headless timeouts, level layouts |
 | `./dev.sh run`, `./dev.sh host`, `./dev.sh join [address]`, `./dev.sh editor` | User only; blocked for AI sessions |
 
 `./dev.sh help` lists every command; [.claude/tools-index.md](.claude/tools-index.md) says which to reach for when.
@@ -114,6 +116,7 @@ Check `Docs/Design/` before implementing a mechanic. Open questions there are un
 
 - [Docs/Design/locomotion.md](Docs/Design/locomotion.md) -- facing model, leg direction selection, upper/lower body animation split, clip chest bias, dash.
 - [Docs/Design/multiplayer.md](Docs/Design/multiplayer.md) -- authority, what is replicated, connecting, testing, known engine issue.
+- [Docs/Design/level-layouts.md](Docs/Design/level-layouts.md) -- the map: the allied town and the enemy fortress, how they are generated, audited and loaded (Everdawn's level-layout technique), what they do in play.
 - [Docs/Design/combat.md](Docs/Design/combat.md) -- hit rules and measured hit times, skills, enemies, waves, player HP and respawn.
 - [Docs/Design/camera.md](Docs/Design/camera.md) -- the four camera modes (C cycles) and the controls each one uses.
 - [Docs/Design/ui.md](Docs/Design/ui.md) -- HUD style (ported from Everdawn), elements, what stats and mana do so far, font licences.

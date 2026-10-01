@@ -2,17 +2,19 @@ using System.Collections.Generic;
 using System.Linq;
 using Godot;
 using WarriorsOfEverdawn.Core.Combat;
+using WarriorsOfEverdawn.Main;
 using WarriorsOfEverdawn.Player;
 
 namespace WarriorsOfEverdawn.Dev;
 
 // [down-check]: a player who goes down stays put, can't attack and takes no hits, gets back up after the respawn delay
-// at the arena centre with full HP, and every machine sees both. The playtest takes one player down on cue (--down-at).
+// in the allied town with full HP, and every machine sees both. The playtest takes one player down on cue (--down-at).
 public partial class NetSelfTest
 {
     // HP comes back through the synchronizer, which can land a little after the revive RPC. In a crowd a blow can
     // land in that time, so the damage taken since getting up is added back before comparing with full HP.
     private const float ReviveHpDelay = 0.5f;
+    private const float DriftWorthPrinting = 0.005f;
 
     private readonly Dictionary<string, float> _wentDownAt = new();
     private readonly Dictionary<string, Vector3> _fellAt = new();
@@ -65,6 +67,10 @@ public partial class NetSelfTest
                 _downs++;
                 _localDowns += player.IsMultiplayerAuthority() ? 1 : 0;
                 _wentDownAt[name] = _time;
+
+                // Counted from going down, not from the revive being noticed here: a blow can land in the frame a
+                // player gets up, and none lands while it is down.
+                _hitSinceRevive[name] = 0;
                 _fellAt[name] = player.GlobalPosition;
             }
             else if (!down && wasDown)
@@ -72,10 +78,9 @@ public partial class NetSelfTest
                 _revives++;
                 _downSeconds.Add(_time - _wentDownAt[name]);
                 _hpChecks.Add((player, _time + ReviveHpDelay));
-                _hitSinceRevive[name] = 0;
                 if (player.IsMultiplayerAuthority())
                 {
-                    var offset = player.GlobalPosition;
+                    var offset = player.GlobalPosition - ArenaMap.In(GetTree()).RevivePointFor(player.PeerId);
                     _reviveDistanceMax = Mathf.Max(_reviveDistanceMax, new Vector2(offset.X, offset.Z).Length());
                 }
             }
@@ -86,7 +91,18 @@ public partial class NetSelfTest
             if (down && player.IsMultiplayerAuthority())
             {
                 var drift = player.GlobalPosition - _fellAt[name];
+                float before = _downDriftMax;
                 _downDriftMax = Mathf.Max(_downDriftMax, new Vector2(drift.X, drift.Z).Length());
+
+                // Seen once (0.26 m) in some 70 downs and not again: what moved the body is printed as it happens.
+                if (_downDriftMax > before + DriftWorthPrinting)
+                {
+                    var touching = Enumerable.Range(0, player.GetSlideCollisionCount())
+                        .Select(i => player.GetSlideCollision(i))
+                        .Select(c => $"{(c.GetCollider() as Node)?.Name}@{c.GetNormal()}");
+                    GD.Print($"[down-drift] me={Multiplayer.GetUniqueId()} since_down={_time - _wentDownAt[name]:F3} drift={drift} at={player.GlobalPosition} "
+                        + $"velocity={player.Velocity} dashing={player.IsDashing} mask={player.CollisionMask} touching=[{string.Join(";", touching)}]");
+                }
             }
         }
 

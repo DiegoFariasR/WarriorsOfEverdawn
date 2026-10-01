@@ -88,12 +88,25 @@ public static class CharacterRig
     private static Transform3D ScaledAround(Transform3D transform, Vector3 pivot, float scale) =>
         new(transform.Basis.Scaled(Vector3.One * scale), pivot * (1f - scale) + transform.Origin * scale);
 
-    public static BoneAttachment3D AttachToHand(Node3D body, string weaponPath) => AttachToHand(body, weaponPath, Vector3.Zero);
+    // A weapon modelled to be held at its origin, as it is.
+    public static BoneAttachment3D AttachToHand(Node3D body, string weaponPath)
+    {
+        var hand = NewHand(body);
+        HoldWeapon(hand, weaponPath, Vector3.Zero);
+        return hand;
+    }
 
-    public static BoneAttachment3D AttachToHand(Node3D body, string weaponPath, Vector3 grip)
+    // The look's weapon in the right hand; an empty hand, with no look.
+    public static BoneAttachment3D AttachToHand(Node3D body, WeaponLook? look)
+    {
+        var hand = NewHand(body);
+        HoldWeapon(hand, look);
+        return hand;
+    }
+
+    private static BoneAttachment3D NewHand(Node3D body)
     {
         var hand = new BoneAttachment3D { Name = "RightHand", BoneName = HandBone };
-        HoldWeapon(hand, weaponPath, grip);
         body.GetNode<Skeleton3D>(RigAnimations.SkeletonPath).AddChild(hand);
         return hand;
     }
@@ -114,28 +127,54 @@ public static class CharacterRig
         return back;
     }
 
-    // Replaces whatever is carried on the back, placed as its look says.
-    public static void HoldOnBack(BoneAttachment3D back, WeaponLook look)
+    // Replaces whatever is carried on the back, placed as its look says; nothing, with no look.
+    public static void HoldOnBack(BoneAttachment3D back, WeaponLook? look)
     {
-        var weapon = HoldWeapon(back, look.Model, look.BackGrip);
+        if (look == null)
+        {
+            Empty(back);
+            return;
+        }
+
+        var weapon = HoldWeapon(back, look.Model, look.BackGrip, look.Scale);
         weapon.Transform = new Transform3D(Basis.FromEuler(look.BackRotation), look.BackPosition) * weapon.Transform;
     }
 
-    // Replaces whatever the hand holds. The grip is the point on the weapon, in its own space, that the hand closes
-    // on: the origin for weapons modelled to be held there.
-    public static Node3D HoldWeapon(BoneAttachment3D hand, string weaponPath, Vector3 grip)
+    // Replaces whatever the hand holds with the look's weapon, at its grip; an empty hand, with no look.
+    public static void HoldWeapon(BoneAttachment3D hand, WeaponLook? look)
     {
-        foreach (var held in hand.GetChildren())
+        if (look == null)
         {
-            hand.RemoveChild(held);
-            held.QueueFree();
+            Empty(hand);
         }
+        else
+        {
+            HoldWeapon(hand, look.Model, look.Grip, look.Scale, look.HandTurn);
+        }
+    }
+
+    // Replaces whatever the hand holds. The grip is the point on the weapon, in its own space, that the hand closes
+    // on: the origin for weapons modelled to be held there. The weapon is drawn `scale` times its modelled size and
+    // turned `turn` about its own length.
+    public static Node3D HoldWeapon(BoneAttachment3D hand, string weaponPath, Vector3 grip, float scale = 1f, float turn = 0f)
+    {
+        Empty(hand);
 
         // The hand slot bone is already the grip point.
         var weapon = Assets.InstantiateAtOrigin(weaponPath);
-        weapon.Position = -grip;
+        weapon.Basis = Basis.FromEuler(new Vector3(0f, turn, 0f)).Scaled(Vector3.One * scale);
+        weapon.Position = -(weapon.Basis * grip);
         hand.AddChild(weapon);
         return weapon;
+    }
+
+    private static void Empty(BoneAttachment3D slot)
+    {
+        foreach (var held in slot.GetChildren())
+        {
+            slot.RemoveChild(held);
+            held.QueueFree();
+        }
     }
 
     // Every vertex of the held weapon, in the hand's space.

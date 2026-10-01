@@ -9,9 +9,12 @@ Solo and multiplayer are one code path. Up to 8 players, hosted by one of them (
 | A player's movement and aim | That player's machine |
 | Whether a player's own swings hit | That player's machine |
 | Enemy AI and movement, HP, damage (computed by `Core`), deaths, spawns | Host |
+| The map (walls, spawn spots, the safe town) | Nobody: every machine builds it from the same two layout files |
 | Player HP, going down, getting back up | Host |
+| Gold on the ground, and each player's gold and souls | Host |
 | A player's mana and skill use | That player's machine |
 | A player's weapons, in hand and on the back | That player's machine |
+| Weapons lying on the ground, and who gets one that is reached for | Host |
 | Raising and lowering a player's guard | That player's machine |
 | Whether a guard blocks or parries | Host, by its own copy of the guard |
 | Whether a player's swing hits another player (PvP) | The attacker's machine |
@@ -29,8 +32,11 @@ No lockstep: nothing needs to be deterministic across machines. State is sent, n
 - **Attacks:** reliable RPC `StartAttack(skillId)` from the owner to every peer; a held Spin ends with reliable `EndChannel`. Revolutions in between need no messages: every peer loops the clip itself.
 - **Dashes:** the owner moves its own character through the dash and sends one reliable `StartDash(direction, spinsOn)`; every peer plays the clip and leaves the ghosts, or with `spinsOn` leaves the body to the Spin in progress. A lunge adds reliable `StartLunge(skillId, landsIn)`: every peer plays the stab so that it is fully extended `landsIn` seconds on, when its own copy of the dash ends.
 - **Guard:** reliable `RaiseGuard` and `LowerGuard` from the owner to every peer. Every machine times the guard by its own clock (no clock sync), and the host's copy decides each attack against it: the parry window runs from when the raise reached the host, so a client parries a little later than it sees ([combat.md](combat.md), "Guard"). The host shows the outcome with `ShowGuarded`, and a parried skeleton with `ShowParried`.
-- **Player HP:** a host-owned `Vitals` child on each player syncs `Hp` on change. Reliable RPCs from the host: `ShowHit`, `ShowGuarded(outcome)`, `Downed`, `Revived(position)`.
+- **Player HP, gold and souls:** a host-owned `Vitals` child on each player syncs `Hp`, `Gold` and `Souls` on change. Reliable RPCs from the host: `ShowHit`, `ShowGuarded(outcome)`, `Downed`, `Revived(position)`.
 - **Enemies:** a second host `MultiplayerSpawner` (`EnemySpawner`). Per enemy, 10 times a second: `NetPosition`, `NetYaw`, `NetMoving`, `Hp`. Reliable RPCs from the host: `PlayAttack`, `ShowHit`, `ShowParried`, `Die`.
+- **Weapons on the ground** (`GroundWeapons`, a node at the same path on every machine): a player's machine sends the host `RequestDrop(weaponId, at, yaw)` or `RequestPickUp(id)`. The host answers everyone with `Place(id, weaponId, at, yaw)` or `Take(id, byPeer)`, and the machine of `byPeer` puts the weapon in its player's free slot; a request for a weapon already gone gets `Refuse` back. The requester keeps its slots as they are until the answer comes. A joining machine is sent a `Place` for each weapon already down. An empty slot replicates as an empty weapon id.
+- **Gold on the ground** (`Loot`, a node at the same path on every machine): the host sends everyone `Place(id, amount, at)` as a monster dies and `Take(id, byPeer)` when a player's reported position comes within reach of the pile; no machine asks for anything. A joining machine is sent a `Place` for each pile already down.
+- **The map** needs no messages: every machine loads the same layouts and bakes the same navigation mesh ([level-layouts.md](level-layouts.md)). Whether a player is in the safe town is decided on the host, from the position the player last reported.
 - **Arrows:** one reliable RPC from the host, `Arrows.Fly(id, attackId, from, direction)`, and every machine flies its own copy along the same straight line, ending it itself at its maximum distance. The host tests the hits and sends `Arrows.End(id)` only when one hits a player. `Arrows` is a node at the same path on every machine, which is what its RPCs need.
 - **A player's hit on an enemy:** reliable RPC `RequestDamage(skillId)` from the attacker to the host only. The host applies `Core` damage and broadcasts the result.
 - **Never skeleton poses.** Every machine derives the leg clip, body turn and torso twist from velocity and aim ([locomotion.md](locomotion.md)).

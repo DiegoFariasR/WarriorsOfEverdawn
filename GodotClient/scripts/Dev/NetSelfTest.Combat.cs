@@ -36,7 +36,8 @@ public partial class NetSelfTest
 
     private void PrintCombatChecks(long me)
     {
-        GD.Print($"[combat-check] me={me} hits_sent={_hitsSent} enemy_deaths_seen={_enemyDeathsSeen} damage_taken={_damageTaken}");
+        GD.Print($"[combat-check] me={me} hits_sent={_hitsSent} enemy_deaths_seen={_enemyDeathsSeen} damage_taken={_damageTaken} "
+            + $"hits_by_skill={string.Join(",", _hitsBySkill.OrderBy(h => h.Key).Select(h => $"{h.Key}:{h.Value}"))}");
         if (Multiplayer.IsServer())
         {
             GD.Print($"[combat-host] damage_by_peer={string.Join(",", _enemyDamageByPeer.OrderBy(p => p.Key).Select(p => $"{p.Key}:{p.Value}"))}");

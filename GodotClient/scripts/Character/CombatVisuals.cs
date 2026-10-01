@@ -39,9 +39,14 @@ public static class CombatVisuals
             BackRotation = new Vector3(Mathf.DegToRad(-10f), 0f, Mathf.DegToRad(-50f)),
         },
 
-        // Held low on the shaft, as a scythe is swung; at the model's origin most of the shaft sat above the hand.
-        [Weapons.Scythe.Id] = new("res://assets/weapons/scythe.glb", new Vector3(0f, -0.55f, 0f))
+        // A war scythe for both hands: the model is a short one, so it is drawn bigger, and held a little below its
+        // origin so both hands sit on the shaft with some to spare beneath them. The model's blade sticks out to -X,
+        // which in the hand trails behind every swing and points back at the wielder in the stance (swing-survey's
+        // head_leads read -0.84); half a turn about the shaft puts it in front.
+        [Weapons.Scythe.Id] = new("res://assets/weapons/scythe.glb", new Vector3(0f, -0.3f, 0f))
         {
+            Scale = 1.35f,
+            HandTurn = Mathf.Pi,
             BackGrip = new Vector3(0f, 0.23f, 0f),
             BackPosition = PolePosition,
             BackRotation = new Vector3(Mathf.DegToRad(-10f), 0f, Mathf.DegToRad(30f)),
@@ -111,9 +116,14 @@ public sealed record EnemyLook(string Model, string Weapon)
 
 // A weapon's model and the point on it (in its own space) the hand holds (CharacterRig.HoldWeapon). Carried on the
 // back (CharacterRig.HoldOnBack), BackGrip is the point on it that goes to BackPosition, turned by BackRotation, all in
-// the chest bone's space.
+// the chest bone's space. Scale draws it bigger or smaller than modelled, wherever it is; HandTurn turns it about its
+// own length in the hand, for a head that sticks out to one side.
 public sealed record WeaponLook(string Model, Vector3 Grip)
 {
+    public float Scale { get; init; } = 1f;
+
+    public float HandTurn { get; init; }
+
     public Vector3 BackGrip { get; init; }
 
     public Vector3 BackPosition { get; init; }

@@ -63,10 +63,10 @@ public partial class NetSelfTest
             return;
         }
 
-        if (_wasGuarding)
+        if (_wasGuarding && local.Weapon is { } weapon)
         {
             _guardFrames++;
-            float limit = MoveSpeed.Run * local.Weapon.Guard.MoveSpeedFactor;
+            float limit = MoveSpeed.Run * weapon.Guard.MoveSpeedFactor;
             _guardSpeedShareMax = Mathf.Max(_guardSpeedShareMax, new Vector2(local.NetVelocity.X, local.NetVelocity.Z).Length() / limit);
         }
 

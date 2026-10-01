@@ -12,7 +12,7 @@ namespace WarriorsOfEverdawn.Dev;
 
 // [anim-check]: the chest on the aim, with and without the torso twist. [speed-check]: ground speed per leg clip and
 // swing playback at the attack speed. [turn-check]: turning within its limit. [head-check]: head sizes.
-// [carry-check]: both hands stay on the weapon while running.
+// [carry-check]: both hands stay on the weapon while running, and come apart standing with an empty hand.
 public partial class NetSelfTest
 {
     // Only frames where the twist does real work count toward the with/without comparison; below this the
@@ -37,6 +37,8 @@ public partial class NetSelfTest
     private float _enemyHead = float.NaN;
     private float _enemyHeadgear = float.NaN;
     private readonly List<float> _handsApartRunning = new();
+    private readonly List<float> _handsApartStanding = new();
+    private readonly List<float> _handsApartUnarmed = new();
 
     private void TrackBody(PlayerCharacter player)
     {
@@ -59,7 +61,8 @@ public partial class NetSelfTest
         GD.Print($"[head-check] me={me} head_expected={CharacterRig.HeadScale:F3} headgear_expected={CharacterRig.HeadgearScale:F3} "
             + $"player_head={_playerHead:F3} player_headgear={_playerHeadgear:F3} enemy_head={_enemyHead:F3} enemy_headgear={_enemyHeadgear:F3}");
         float handsApart = _handsApartRunning.Count > 0 ? _handsApartRunning.OrderBy(d => d).ElementAt(_handsApartRunning.Count / 2) : float.NaN;
-        GD.Print($"[carry-check] me={me} hands_apart_running={handsApart:F2} samples={_handsApartRunning.Count}");
+        GD.Print($"[carry-check] me={me} hands_apart_running={handsApart:F2} samples={_handsApartRunning.Count} "
+            + $"hands_apart_standing={Median(_handsApartStanding):F2} hands_apart_standing_unarmed={Median(_handsApartUnarmed):F2} unarmed_samples={_handsApartUnarmed.Count}");
         GD.Print($"[turn-check] me={me} max_turn_deg_s={Mathf.RadToDeg(_maxTurnRate):F0} limit_deg_s={Mathf.RadToDeg(Turning.MaxRate):F0} frames_at_limit={_turnLimitedFrames}");
     }
 
@@ -100,9 +103,11 @@ public partial class NetSelfTest
     }
 
     // How far apart the hands are while running with nothing else playing: a two-handed weapon keeps them together.
+    // Running with empty hands is left out: the arms swing then, and a bot taken down unarmed runs a long way back to
+    // its weapon from the town.
     private void MeasureCarry(PlayerCharacter player)
     {
-        if (player.Legs == null || player.Animator.IsAttacking || player.IsDashing || player.IsDowned)
+        if (player.Animator.IsAttacking || player.IsDashing || player.IsDowned || (player.Legs != null && player.Weapon == null))
         {
             return;
         }
@@ -110,8 +115,11 @@ public partial class NetSelfTest
         var skeleton = player.Skeleton;
         var left = skeleton.GetBoneGlobalPose(skeleton.FindBone("hand.l")).Origin;
         var right = skeleton.GetBoneGlobalPose(skeleton.FindBone("hand.r")).Origin;
-        _handsApartRunning.Add(left.DistanceTo(right));
+        var samples = player.Legs != null ? _handsApartRunning : player.Weapon != null ? _handsApartStanding : _handsApartUnarmed;
+        samples.Add(left.DistanceTo(right));
     }
+
+    private static float Median(List<float> values) => values.Count > 0 ? values.OrderBy(v => v).ElementAt(values.Count / 2) : float.NaN;
 
     // Clip seconds per real second while a swing plays. Frames where the clip restarts or sits clamped at its end
     // are skipped, so only steady playback counts.

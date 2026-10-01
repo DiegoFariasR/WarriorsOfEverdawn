@@ -24,6 +24,7 @@ public sealed class CharacterAnimator
     private const float DashFadeOut = 0.06f;
 
     private const string IdleState = "idle";
+    private const string UnarmedIdleState = "idle_unarmed";
 
     // The bones the legs clip keeps while a swing plays over a moving body.
     public static readonly IReadOnlyList<string> LowerBones = new[]
@@ -46,6 +47,7 @@ public sealed class CharacterAnimator
     private static readonly (string State, string Clip, Vector3 Travel)[] LegClips =
     {
         (IdleState, RigAnimations.Idle, Vector3.Zero),
+        (UnarmedIdleState, RigAnimations.UnarmedIdle, Vector3.Zero),
         (nameof(LegDirection.Forward), RigAnimations.Run, Vector3.Back),
         (nameof(LegDirection.Left), RigAnimations.StrafeLeft, Vector3.Right),
         (nameof(LegDirection.Right), RigAnimations.StrafeRight, Vector3.Left),
@@ -105,7 +107,7 @@ public sealed class CharacterAnimator
 
         foreach (var (state, clip, travel) in LegClips)
         {
-            if (state != IdleState)
+            if (travel != Vector3.Zero)
             {
                 var animation = _tree.GetAnimation(clip);
                 _chestYawByState[state] = ClipMotion.MeanChestYaw(skeleton, clip, animation);
@@ -115,6 +117,9 @@ public sealed class CharacterAnimator
     }
 
     public TorsoTwistModifier Twist { get; }
+
+    // False with empty hands: the arms then swing with the leg clip, and standing uses the unarmed idle.
+    public bool TwoHanded { get; set; } = true;
 
     public bool IsAttacking => _attackTime < _attackLength;
 
@@ -190,7 +195,7 @@ public sealed class CharacterAnimator
 
     public void Update(float delta, LegDirection? legs, float speed, float twist)
     {
-        string state = legs?.ToString() ?? IdleState;
+        string state = legs?.ToString() ?? (TwoHanded ? IdleState : UnarmedIdleState);
         if (state != _legState)
         {
             _tree.Set(LegsRequest, state);
@@ -210,7 +215,7 @@ public sealed class CharacterAnimator
 
         // The legs clips swing the arms as if empty-handed; over them the arms keep the stance, both hands on the
         // weapon. Standing, the legs clip is the stance itself.
-        _tree.Set(StanceAmount, 1f - _stillness);
+        _tree.Set(StanceAmount, TwoHanded ? 1f - _stillness : 0f);
         AttackWeight = attackWeight;
         _tree.Set(UpperAmount, attackWeight);
         _tree.Set(LowerAmount, attackWeight * (_fullBodyAttack ? 1f : _stillness));

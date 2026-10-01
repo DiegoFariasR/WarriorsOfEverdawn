@@ -98,6 +98,14 @@ def summarize_harness_json(out: str, tool_name: str, unit: str) -> tuple[str, in
     return row, 0 if payload.get("severity") == "advisory" else 1
 
 
+def summarize_level_audit(out: str, exit_code: int) -> tuple[str, int]:
+    audited = len(re.findall(r"^\[level-audit\] \S+: ", out, flags=re.M))
+    failing = len(re.findall(r"^\[level-audit\] \S+: \d+ problem", out, flags=re.M))
+    if audited == 0:
+        return "no layouts audited", 1
+    return ("clean" if failing == 0 else f"{failing} of {audited} layout(s) with problems"), (1 if failing or exit_code else 0)
+
+
 CHECKS = [
     Check(
         label="Formatting",
@@ -123,6 +131,11 @@ CHECKS = [
         label="Godot launch timeouts",
         cmd=[sys.executable, str(ROOT / "Tools" / "check_godot_timeouts.py"), "--summary"],
         summarize=summarize_godot_timeouts,
+    ),
+    Check(
+        label="Level layouts",
+        cmd=[sys.executable, str(ROOT / "Tools" / "level_audit.py")],
+        summarize=summarize_level_audit,
     ),
 ]
 

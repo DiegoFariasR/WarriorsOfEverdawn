@@ -13,7 +13,6 @@ public partial class Arena : Node3D
 {
     public const int MaxPlayers = 8;
 
-    private const float SpawnRingRadius = 3f;
     private const float BotSwapMargin = 5f;
 
     private Node3D _players = null!;
@@ -22,6 +21,7 @@ public partial class Arena : Node3D
     private Node3D _enemies = null!;
     private ArenaCamera _camera = null!;
     private Hud _hud = null!;
+    private ArenaMap _map = null!;
     private LaunchOptions _options = null!;
     private NetSelfTest? _selfTest;
     private int _nextSpawnSlot;
@@ -52,9 +52,24 @@ public partial class Arena : Node3D
         _enemySpawner = GetNode<MultiplayerSpawner>("EnemySpawner");
         _spawner.SpawnFunction = Callable.From<Variant, Node>(BuildPlayer);
         _enemySpawner.SpawnFunction = Callable.From<Variant, Node>(BuildEnemy);
+        try
+        {
+            _map = new ArenaMap { Name = ArenaMap.NodeName, Camera = _camera };
+            AddChild(_map);
+            _map.Build();
+        }
+        catch (Exception e) when (e is InvalidOperationException or FormatException)
+        {
+            Fail(e.Message);
+            return;
+        }
+
         AddChild(new Arrows { Name = Arrows.NodeName });
+        AddChild(new GroundWeapons { Name = GroundWeapons.NodeName });
+        AddChild(new Loot { Name = Loot.NodeName });
         _hud = new Hud { Name = "Hud", Visible = !_options.NoUi };
         _hud.Bars.Camera = _camera;
+        _hud.GroundLabels.Camera = _camera;
         AddChild(_hud);
         _camera.ModeChanged += mode => _hud.ShowNotice($"Camera {mode.Label()}  -  C to change, wheel to zoom");
         _camera.SetMode(_options.Camera ?? CameraModes.Default);
@@ -148,6 +163,8 @@ public partial class Arena : Node3D
         {
             GD.Print($"[net] peer {id} joined");
             RpcId(id, MethodName.ReceiveRules, SessionRules.Pvp);
+            GroundWeapons.In(GetTree()).SendAllTo(id);
+            Loot.In(GetTree()).SendAllTo(id);
             SpawnPlayerFor(id);
         };
         Multiplayer.PeerDisconnected += id =>
@@ -194,9 +211,7 @@ public partial class Arena : Node3D
 
     private void SpawnPlayerFor(long peerId)
     {
-        float angle = _nextSpawnSlot++ % MaxPlayers * Mathf.Tau / MaxPlayers;
-        var position = new Vector3(Mathf.Sin(angle), 0f, Mathf.Cos(angle)) * SpawnRingRadius;
-        _spawner.Spawn(new Godot.Collections.Array { peerId, position });
+        _spawner.Spawn(new Godot.Collections.Array { peerId, _map.PlayerSpawnFor(_nextSpawnSlot++) });
     }
 
     // Runs on every peer: on the host through Spawn(), on clients when the spawn replicates.
@@ -228,7 +243,9 @@ public partial class Arena : Node3D
         }
 
         _camera.Target = player;
+        _map.CameraSubject = player;
         _hud.Player = player;
+        _hud.GroundLabels.Player = player;
     }
 
     private void Quit(int exitCode)

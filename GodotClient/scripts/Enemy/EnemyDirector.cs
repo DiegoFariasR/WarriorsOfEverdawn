@@ -1,6 +1,7 @@
 using System.Linq;
 using Godot;
 using WarriorsOfEverdawn.Core.Combat;
+using WarriorsOfEverdawn.Main;
 using WarriorsOfEverdawn.Util;
 
 namespace WarriorsOfEverdawn.Enemy;
@@ -11,8 +12,8 @@ public partial class EnemyDirector : Node
 {
     private const float FirstWaveDelay = 1f;
     private const float WaveGap = 3f;
-    private const float SpawnRadiusMin = 11f;
-    private const float SpawnRadiusMax = 15f;
+    // More skeletons than the fortress has spots share them, a little apart.
+    private const float SharedSpotJitter = 0.5f;
 
     private static readonly EnemyDefinition[] Wave =
     {
@@ -65,12 +66,21 @@ public partial class EnemyDirector : Node
     {
         _wavesSent++;
         GD.Print($"[combat] wave {_wavesSent}: {Wave.Length * _waveScale} skeletons");
+        // They rise inside the enemy fortress, on its spawn spots in a random order, facing its gate.
+        var map = ArenaMap.In(GetTree());
+        var spots = map.EnemySpawns.OrderBy(_ => _random.Randi()).ToList();
+        var toGate = map.FortressGate - new Vector3(map.Fortress.Centre.X, 0f, map.Fortress.Centre.Y);
+        int placed = 0;
         foreach (var enemy in Enumerable.Repeat(Wave, _waveScale).SelectMany(wave => wave))
         {
-            float angle = _random.RandfRange(0f, Mathf.Tau);
-            float radius = _random.RandfRange(SpawnRadiusMin, SpawnRadiusMax);
-            var position = new Vector3(Mathf.Sin(angle), 0f, Mathf.Cos(angle)) * radius;
-            _spawner.Spawn(new Godot.Collections.Array { $"enemy{_nextId++}", enemy.Id, position, Yaw.Of(-position) });
+            var position = spots[placed % spots.Count];
+            if (placed >= spots.Count)
+            {
+                position += new Vector3(_random.RandfRange(-SharedSpotJitter, SharedSpotJitter), 0f, _random.RandfRange(-SharedSpotJitter, SharedSpotJitter));
+            }
+
+            placed++;
+            _spawner.Spawn(new Godot.Collections.Array { $"enemy{_nextId++}", enemy.Id, position, Yaw.Of(toGate) });
         }
     }
 }

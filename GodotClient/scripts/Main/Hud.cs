@@ -24,7 +24,13 @@ public partial class Hud : CanvasLayer
     private readonly Label _notice = UiTheme.MakeLabel("", UiTheme.Words, 20, UiTheme.GoldHi, outline: 6);
     private readonly Label _status = UiTheme.MakeLabel("", UiTheme.Words, 13, UiTheme.StatusFallen, outline: 3);
     private readonly Label[] _statValues = new Label[3];
+    private readonly Label _gold = UiTheme.MakeLabel("0", UiTheme.Numbers, 16, UiTheme.GoldHi);
+    private readonly Label _souls = UiTheme.MakeLabel("0", UiTheme.Numbers, 16, SoulText);
     private readonly (Label Name, Label Cost, Label Cooldown, ColorRect Dim)[] _slots = new (Label, Label, Label, ColorRect)[SkillSlots.Length];
+
+    private const string NoSkill = "-";
+
+    private static readonly Color SoulText = new(0.72f, 0.9f, 1f);
 
     // Everdawn's MP colour, for mana costs on the skill bar.
     private static readonly Color ManaText = new(0.55f, 0.78f, 1f);
@@ -45,6 +51,8 @@ public partial class Hud : CanvasLayer
 
     public OverheadBars Bars { get; } = new() { Name = "OverheadBars" };
 
+    public GroundWeaponLabels GroundLabels { get; } = new() { Name = "GroundWeaponLabels" };
+
     public Control PlayerFrame { get; private set; } = null!;
 
     public Control SkillBar { get; private set; } = null!;
@@ -53,9 +61,14 @@ public partial class Hud : CanvasLayer
 
     public int ShownMana => (int)_mana.Value;
 
+    public string ShownGold => _gold.Text;
+
+    public string ShownSouls => _souls.Text;
+
     public override void _Ready()
     {
         AddChild(Bars);
+        AddChild(GroundLabels);
         PlayerFrame = BuildPlayerFrame();
         AddChild(PlayerFrame);
         SkillBar = BuildSkillBar();
@@ -88,15 +101,15 @@ public partial class Hud : CanvasLayer
             // The first weapons are simply shown; a change is announced.
             if (_shownSets != null)
             {
-                ShowNotice($"{Player.Weapon.Name} in hand, {Player.StowedWeapon.Name} on your back  -  X swaps, Q changes");
+                ShowNotice($"{NameOf(Player.Weapon, "Nothing")} in hand, {NameOf(Player.StowedWeapon, "nothing")} on your back  -  X swaps, G drops");
             }
 
             ShowSkills(Player.Weapon);
-            _backWeapon.Text = Player.StowedWeapon.Name;
+            _backWeapon.Text = NameOf(Player.StowedWeapon, "Empty");
             _shownSets = new WeaponSets(Player.Weapon, Player.StowedWeapon);
         }
 
-        _name.Text = $"Knight  -  {Player.Weapon.Name}" + (SessionRules.Pvp ? "  -  PvP" : "");
+        _name.Text = $"Knight  -  {NameOf(Player.Weapon, "Unarmed")}" + (SessionRules.Pvp ? "  -  PvP" : "");
         int hp = Player.Vitals.Hp;
         _health.Value = hp;
         _healthText.Text = $"{hp} / {PlayerRules.MaxHp}";
@@ -106,6 +119,8 @@ public partial class Hud : CanvasLayer
         _statValues[0].Text = Player.Stats.Str.ToString();
         _statValues[1].Text = Player.Stats.Wis.ToString();
         _statValues[2].Text = Player.Stats.Agi.ToString();
+        _gold.Text = Player.Vitals.Gold.ToString();
+        _souls.Text = Player.Vitals.Souls.ToString();
         _status.Text = Player.IsDowned ? "Down - back up in a moment" : "";
 
         int charges = Player.DashCharges;
@@ -115,7 +130,7 @@ public partial class Hud : CanvasLayer
         }
 
         // Lit while the guard is up, dimmed while it recovers.
-        _guardName.Text = Player.Weapon.Guard.Name;
+        _guardName.Text = Player.Weapon?.Guard.Name ?? NoSkill;
         _guardName.Modulate = Player.IsGuarding ? UiTheme.GoldHi : Colors.White;
         _guardDim.Visible = Player.GuardRecoveryLeft > 0f;
 
@@ -163,6 +178,20 @@ public partial class Hud : CanvasLayer
         }
 
         column.AddChild(stats);
+
+        // Earned, with nothing to spend them on yet.
+        var purse = new HBoxContainer();
+        purse.AddThemeConstantOverride("separation", 18);
+        foreach (var (name, value) in new[] { ("Gold", _gold), ("Souls", _souls) })
+        {
+            var earned = new HBoxContainer();
+            earned.AddThemeConstantOverride("separation", 5);
+            earned.AddChild(UiTheme.MakeLabel(name, UiTheme.Words, 13, UiTheme.TextMain));
+            earned.AddChild(value);
+            purse.AddChild(earned);
+        }
+
+        column.AddChild(purse);
         column.AddChild(_status);
         return frame;
     }
@@ -290,14 +319,17 @@ public partial class Hud : CanvasLayer
         return slot;
     }
 
-    private void ShowSkills(WeaponDefinition weapon)
+    // With an empty hand the slots have no skill to name; they stay dimmed, since nothing can be used.
+    private void ShowSkills(WeaponDefinition? weapon)
     {
         for (int i = 0; i < SkillSlots.Length; i++)
         {
-            var skill = weapon.Skill(SkillSlots[i].Skill);
-            _slots[i].Name.Text = skill.Name;
-            _slots[i].Cost.Text = skill.ManaCost > 0 ? $"{skill.ManaCost} MP{(skill.Channeled ? " / turn" : "")}" : "";
-            _slots[i].Cost.Visible = skill.ManaCost > 0;
+            var skill = weapon?.Skill(SkillSlots[i].Skill);
+            _slots[i].Name.Text = skill?.Name ?? NoSkill;
+            _slots[i].Cost.Text = skill is { ManaCost: > 0 } ? $"{skill.ManaCost} MP{(skill.Channeled ? " / turn" : "")}" : "";
+            _slots[i].Cost.Visible = skill is { ManaCost: > 0 };
         }
     }
+
+    private static string NameOf(WeaponDefinition? weapon, string empty) => weapon?.Name ?? empty;
 }

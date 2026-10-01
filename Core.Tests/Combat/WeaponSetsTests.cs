@@ -21,9 +21,56 @@ public class WeaponSetsTests
     }
 
     [Fact]
-    public void Both_sets_holding_the_same_weapon_fails_loudly()
+    public void Dropping_empties_the_hand_and_leaves_the_back_alone()
     {
-        Assert.Throws<ArgumentException>(() => new WeaponSets(Weapons.Spear, Weapons.Spear));
+        var sets = new WeaponSets(Weapons.Quarterstaff, Weapons.Scythe).WithHandEmptied();
+
+        Assert.Null(sets.Active);
+        Assert.Same(Weapons.Scythe, sets.Stowed);
+        Assert.True(sets.HasFreeSlot);
+    }
+
+    [Fact]
+    public void A_weapon_picked_up_goes_to_the_hand_first_and_then_to_the_back()
+    {
+        var empty = new WeaponSets(null, null);
+
+        var one = empty.WithPickedUp(Weapons.Spear);
+        var two = one.WithPickedUp(Weapons.Scythe);
+
+        Assert.Equal(new WeaponSets(Weapons.Spear, null), one);
+        Assert.Equal(new WeaponSets(Weapons.Spear, Weapons.Scythe), two);
+        Assert.Equal(new WeaponSets(Weapons.Scythe, Weapons.Spear), new WeaponSets(null, Weapons.Spear).WithPickedUp(Weapons.Scythe));
+    }
+
+    [Fact]
+    public void Picking_up_with_both_slots_full_fails_loudly()
+    {
+        var full = new WeaponSets(Weapons.Greatsword, Weapons.Spear);
+
+        Assert.False(full.HasFreeSlot);
+        Assert.Throws<InvalidOperationException>(() => full.WithPickedUp(Weapons.Scythe));
+    }
+
+    [Fact]
+    public void Swapping_works_with_an_empty_slot()
+    {
+        var sets = new WeaponSets(null, Weapons.Spear).Swapped();
+
+        Assert.Equal(new WeaponSets(Weapons.Spear, null), sets);
+    }
+
+    [Fact]
+    public void Changing_the_weapon_in_an_empty_hand_takes_one_the_back_does_not_hold()
+    {
+        foreach (var stowed in Weapons.All)
+        {
+            var sets = new WeaponSets(null, stowed).WithNextActive();
+
+            Assert.NotNull(sets.Active);
+            Assert.NotSame(stowed, sets.Active);
+            Assert.Same(stowed, sets.Stowed);
+        }
     }
 
     [Fact]
@@ -37,7 +84,7 @@ public class WeaponSetsTests
             {
                 sets = sets.WithNextActive();
                 Assert.Same(stowed, sets.Stowed);
-                inHand.Add(sets.Active);
+                inHand.Add(sets.Active!);
             }
 
             Assert.Equal(Weapons.All.Where(w => w != stowed).OrderBy(w => w.Id), inHand.OrderBy(w => w.Id));
@@ -55,6 +102,6 @@ public class WeaponSetsTests
             Assert.NotSame(weapon, sets.Stowed);
         }
 
-        Assert.Equal(WeaponSets.Default, WeaponSets.StartingWith(WeaponSets.Default.Active));
+        Assert.Equal(WeaponSets.Default, WeaponSets.StartingWith(WeaponSets.Default.Active!));
     }
 }

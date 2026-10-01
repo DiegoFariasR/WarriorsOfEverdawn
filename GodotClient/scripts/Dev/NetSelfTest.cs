@@ -17,6 +17,9 @@ public partial class NetSelfTest : Node
 {
     private const float SampleInterval = 0.5f;
 
+    // What net-check prints for an empty slot.
+    private const string NoWeapon = "none";
+
     private readonly Node3D _players;
     private readonly Hud _hud;
     private readonly Dictionary<string, Observation> _seen = new();
@@ -45,6 +48,14 @@ public partial class NetSelfTest : Node
         Arrows.HitPlayer += OnArrowHit;
         PlayerVitals.Guarded += OnGuarded;
         EnemyCharacter.Parried += OnEnemyParried;
+        EnemyCharacter.Died += CountDeathForLoot;
+    }
+
+    public override void _Ready()
+    {
+        TrackGround();
+        TrackLoot();
+        TrackMap();
     }
 
     public override void _ExitTree()
@@ -57,6 +68,7 @@ public partial class NetSelfTest : Node
         Arrows.HitPlayer -= OnArrowHit;
         PlayerVitals.Guarded -= OnGuarded;
         EnemyCharacter.Parried -= OnEnemyParried;
+        EnemyCharacter.Died -= CountDeathForLoot;
     }
 
     public override void _PhysicsProcess(double delta)
@@ -91,8 +103,8 @@ public partial class NetSelfTest : Node
             }
 
             seen.Last = position;
-            seen.Weapon = player.Weapon.Id;
-            seen.Back = player.StowedWeapon.Id;
+            seen.Weapon = player.Weapon?.Id ?? NoWeapon;
+            seen.Back = player.StowedWeapon?.Id ?? NoWeapon;
             if (player.Legs is { } legs)
             {
                 seen.Legs.Add(legs);
@@ -112,6 +124,10 @@ public partial class NetSelfTest : Node
         MeasureTrails((float)delta);
         MeasureFlashes();
         MeasureHud();
+        MeasurePickups();
+        MeasureLoot();
+        MeasureMap();
+        MeasureBot((float)delta);
         MeasureSession((float)delta);
         MeasureDowns();
         MeasureArrows();
@@ -136,6 +152,10 @@ public partial class NetSelfTest : Node
         PrintRangedCheck(me);
         PrintGuardCheck(me);
         PrintLungeCheck(me);
+        PrintPickupCheck(me);
+        PrintLootCheck(me);
+        PrintMapCheck(me);
+        PrintBotCheck(me);
     }
 
     private void Track(PlayerCharacter player)
@@ -154,6 +174,8 @@ public partial class NetSelfTest : Node
         }
 
         TrackCombat(player);
+        TrackSafety(player);
+        TrackPickups(player);
         TrackBody(player);
         TrackSpin(player);
         TrackWeapon(player);

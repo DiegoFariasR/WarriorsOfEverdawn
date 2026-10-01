@@ -24,14 +24,14 @@ public partial class GhostTrail : Node
 
     private readonly Node3D _source;
     private readonly string _modelPath;
-    private WeaponLook _inHand;
-    private WeaponLook _onBack;
+    private WeaponLook? _inHand;
+    private WeaponLook? _onBack;
     private readonly List<Ghost> _pool = new();
     private Skeleton3D _sourceSkeleton = null!;
     private float _emitLeft;
     private float _sinceEmit;
 
-    public GhostTrail(Node3D sourceBody, string modelPath, WeaponLook inHand, WeaponLook onBack)
+    public GhostTrail(Node3D sourceBody, string modelPath, WeaponLook? inHand, WeaponLook? onBack)
     {
         _source = sourceBody;
         _modelPath = modelPath;
@@ -41,7 +41,7 @@ public partial class GhostTrail : Node
 
     // Godot needs a parameterless constructor to instantiate script classes itself.
     public GhostTrail()
-        : this(null!, "", null!, null!)
+        : this(null!, "", null, null)
     {
     }
 
@@ -59,7 +59,7 @@ public partial class GhostTrail : Node
     }
 
     // Ghosts carry the character's weapons too, in hand and on the back, so a change means a new pool.
-    public void SetWeapons(WeaponLook inHand, WeaponLook onBack)
+    public void SetWeapons(WeaponLook? inHand, WeaponLook? onBack)
     {
         if (inHand == _inHand && onBack == _onBack)
         {
@@ -151,8 +151,16 @@ public partial class GhostTrail : Node
         // TopLevel: a ghost stays where it was left while the character moves on.
         var root = new Node3D { Name = "Ghost", TopLevel = true, Visible = false };
         var body = Assets.Instantiate(_modelPath);
-        CharacterRig.AttachToHand(body, _inHand.Model, _inHand.Grip);
-        CharacterRig.AttachToBack(body, _onBack);
+        if (_inHand != null)
+        {
+            CharacterRig.AttachToHand(body, _inHand);
+        }
+
+        if (_onBack != null)
+        {
+            CharacterRig.AttachToBack(body, _onBack);
+        }
+
         CharacterRig.ShrinkHead(body);
         root.AddChild(body);
         AddChild(root);

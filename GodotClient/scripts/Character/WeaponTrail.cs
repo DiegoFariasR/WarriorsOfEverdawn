@@ -81,10 +81,10 @@ public partial class WeaponTrail : MeshInstance3D
         Retarget();
     }
 
-    // After the hand takes a different weapon: the trail follows the new one's striking point.
+    // After the hand takes a different weapon: the trail follows the new one's striking point. An empty hand has none.
     public void Retarget()
     {
-        _points = CharacterRig.WeaponPoints(_hand);
+        _points = _hand.GetChildCount() > 0 ? CharacterRig.WeaponPoints(_hand) : System.Array.Empty<Vector3>();
         TipPoint = CharacterRig.WeaponTip(_points);
         _edgeCount = 0;
     }
