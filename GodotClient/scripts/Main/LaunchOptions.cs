@@ -1,5 +1,8 @@
 using System;
+using System.Collections.Generic;
 using System.Globalization;
+using System.Linq;
+using WarriorsOfEverdawn.Core.Combat;
 
 namespace WarriorsOfEverdawn.Main;
 
@@ -10,16 +13,62 @@ public enum SessionMode
     Join,
 }
 
+// When to capture the window and how many frames. At and Interval are seconds of play.
+public sealed record ScreenshotOptions(float At, int Frames, float Interval)
+{
+    public static readonly ScreenshotOptions Default = new(At: 6f, Frames: 1, Interval: 0.5f);
+}
+
 // User arguments, passed after "--" on the Godot command line.
-public sealed record LaunchOptions(
-    SessionMode Mode, string Address, int Port, bool Bot, float QuitAfter, bool CameraCheck, bool Pvp, bool NoEnemies)
+public sealed record LaunchOptions
 {
     public const int DefaultPort = 7777;
 
+    public SessionMode Mode { get; init; } = SessionMode.Solo;
+
+    public string Address { get; init; } = "127.0.0.1";
+
+    public int Port { get; init; } = DefaultPort;
+
+    public bool Bot { get; init; }
+
+    public float QuitAfter { get; init; }
+
+    public bool CameraCheck { get; init; }
+
+    public bool Pvp { get; init; }
+
+    public bool NoEnemies { get; init; }
+
+    // Keeps an AI-launched window minimized and unfocused, so it never covers the user's work.
+    public bool AiPlaytest { get; init; }
+
+    public ScreenshotOptions? Screenshot { get; init; }
+
+    public bool NoUi { get; init; }
+
+    public CameraMode? Camera { get; init; }
+
+    // Host only, for the playtest: seconds in, one player is taken down through the normal damage path.
+    public float DownAt { get; init; }
+
+    // Host only, for test sessions with several players: each wave brings this many times its skeletons. Waves are
+    // not scaled by player count yet (Docs/Design/combat.md, open questions).
+    public int WaveScale { get; init; } = 1;
+
+    // The weapons this machine's player starts with, in hand and on the back.
+    public WeaponDefinition? Weapon { get; init; }
+
+    public WeaponDefinition? BackWeapon { get; init; }
+
+    // From --weapon and --back-weapon; null when neither is given.
+    public WeaponSets? Sets { get; init; }
+
+    public bool SwingSurvey { get; init; }
+
     public static LaunchOptions Parse(string[] args)
     {
-        var options = new LaunchOptions(
-            SessionMode.Solo, "127.0.0.1", DefaultPort, Bot: false, QuitAfter: 0f, CameraCheck: false, Pvp: false, NoEnemies: false);
+        var options = new LaunchOptions();
         for (int i = 0; i < args.Length; i++)
         {
             options = args[i] switch
@@ -31,12 +80,68 @@ public sealed record LaunchOptions(
                 "--camera-check" => options with { CameraCheck = true },
                 "--pvp" => options with { Pvp = true },
                 "--no-enemies" => options with { NoEnemies = true },
-                "--quit-after" => options with { QuitAfter = float.Parse(ValueAfter(args, ref i), CultureInfo.InvariantCulture) },
+                "--quit-after" => options with { QuitAfter = FloatAfter(args, ref i) },
+                "--ai-playtest" => options with { AiPlaytest = true },
+                "--screenshot" => options with { Screenshot = options.Screenshot ?? ScreenshotOptions.Default },
+                "--shot-at" => options with { Screenshot = ShotOf(options) with { At = FloatAfter(args, ref i) } },
+                "--shots" => options with { Screenshot = ShotOf(options) with { Frames = PositiveIntAfter(args, ref i) } },
+                "--shot-interval" => options with { Screenshot = ShotOf(options) with { Interval = FloatAfter(args, ref i) } },
+                "--no-ui" => options with { NoUi = true },
+                "--camera" => options with { Camera = CameraAfter(args, ref i) },
+                "--down-at" => options with { DownAt = FloatAfter(args, ref i) },
+                "--wave-scale" => options with { WaveScale = PositiveIntAfter(args, ref i) },
+                "--weapon" => options with { Weapon = WeaponAfter(args, ref i) },
+                "--back-weapon" => options with { BackWeapon = WeaponAfter(args, ref i) },
+                "--swing-survey" => options with { SwingSurvey = true },
                 _ => throw new ArgumentException($"Unknown launch argument '{args[i]}'"),
             };
         }
 
-        return options;
+        return options.Weapon == null && options.BackWeapon == null ? options : options with { Sets = SetsOf(options) };
+    }
+
+    private static WeaponSets SetsOf(LaunchOptions options)
+    {
+        if (options.BackWeapon is not { } back)
+        {
+            return WeaponSets.StartingWith(options.Weapon!);
+        }
+
+        var inHand = options.Weapon ?? (back == WeaponSets.Default.Active ? WeaponSets.Default.Stowed : WeaponSets.Default.Active);
+        return inHand != back ? new WeaponSets(inHand, back) : throw new ArgumentException($"--weapon and --back-weapon are both '{back.Id}'; the two sets must differ");
+    }
+
+    private static ScreenshotOptions ShotOf(LaunchOptions options) => options.Screenshot ?? ScreenshotOptions.Default;
+
+    private static float FloatAfter(string[] args, ref int i) => float.Parse(ValueAfter(args, ref i), CultureInfo.InvariantCulture);
+
+    private static int PositiveIntAfter(string[] args, ref int i)
+    {
+        string flag = args[i];
+        int value = int.Parse(ValueAfter(args, ref i), CultureInfo.InvariantCulture);
+        return value > 0 ? value : throw new ArgumentException($"{flag} needs a number above 0, got {value}");
+    }
+
+    // Numbered as the player sees them: 1 to 4, the order C cycles through.
+    private static CameraMode CameraAfter(string[] args, ref int i)
+    {
+        int number = int.Parse(ValueAfter(args, ref i), CultureInfo.InvariantCulture);
+        return number is >= 1 and <= CameraModes.Count
+            ? (CameraMode)(number - 1)
+            : throw new ArgumentException($"--camera needs 1 to {CameraModes.Count}, got {number}");
+    }
+
+    private static WeaponDefinition WeaponAfter(string[] args, ref int i)
+    {
+        string id = ValueAfter(args, ref i);
+        try
+        {
+            return Weapons.ById(id);
+        }
+        catch (KeyNotFoundException)
+        {
+            throw new ArgumentException($"--weapon '{id}' is not one of {string.Join(", ", Weapons.All.Select(w => w.Id))}");
+        }
     }
 
     private static string ValueAfter(string[] args, ref int i)

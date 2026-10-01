@@ -23,15 +23,14 @@ public partial class HitFlash : Node
     private static readonly Color Tint = new(1f, 0.3f, 0.3f);
 
     private readonly ShaderMaterial _material;
-    private readonly GeometryInstance3D[] _meshes;
+    private readonly Node3D _body;
+    private readonly List<GeometryInstance3D> _overlaid = new();
     private Tween? _tween;
     private float _age = float.PositiveInfinity;
 
     public HitFlash(Node3D body)
     {
-        _meshes = body.FindChildren("*", nameof(GeometryInstance3D), recursive: true, owned: false)
-            .OfType<GeometryInstance3D>()
-            .ToArray();
+        _body = body;
         _material = new ShaderMaterial { Shader = Assets.Load<Shader>(ShaderPath) };
         _material.SetShaderParameter("tint", Tint);
         _material.SetShaderParameter("noise_scale", 6f);
@@ -43,13 +42,13 @@ public partial class HitFlash : Node
     // Godot needs a parameterless constructor to instantiate script classes itself.
     public HitFlash()
     {
-        _meshes = Array.Empty<GeometryInstance3D>();
+        _body = null!;
         _material = new ShaderMaterial();
     }
 
     public static event Action<HitFlash>? Started;
 
-    public bool Showing => _meshes.Length > 0 && _meshes[0].MaterialOverlay != null;
+    public bool Showing => _overlaid.Count > 0;
 
     // Seconds since the latest flash began.
     public float Age => _age;
@@ -57,7 +56,11 @@ public partial class HitFlash : Node
     public void Flash()
     {
         _tween?.Kill();
-        foreach (var mesh in _meshes)
+        Clear();
+
+        // Gathered on each flash: the weapon a player holds can change between hits.
+        _overlaid.AddRange(_body.FindChildren("*", nameof(GeometryInstance3D), recursive: true, owned: false).OfType<GeometryInstance3D>());
+        foreach (var mesh in _overlaid)
         {
             mesh.MaterialOverlay = _material;
         }
@@ -79,11 +82,14 @@ public partial class HitFlash : Node
         _age += (float)delta;
     }
 
+    // A weapon swapped out mid-flash is already gone, so only meshes still alive are cleared.
     private void Clear()
     {
-        foreach (var mesh in _meshes)
+        foreach (var mesh in _overlaid.Where(IsInstanceValid))
         {
             mesh.MaterialOverlay = null;
         }
+
+        _overlaid.Clear();
     }
 }

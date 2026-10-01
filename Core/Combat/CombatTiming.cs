@@ -11,4 +11,8 @@ public static class CombatTiming
 
     // Real time the hit window closes; the same as HitDelay for a single-moment swing.
     public static float HitWindowEnd(SkillDefinition skill, float attackSpeed) => (skill.SweepEnd ?? skill.HitTime) / attackSpeed;
+
+    // A lunge ignores the attack speed: it plays at whatever speed closes its hit window as the dash carrying it
+    // ends, landsIn seconds from now.
+    public static float LungeSpeed(SkillDefinition lunge, float landsIn) => (lunge.SweepEnd ?? lunge.HitTime) / landsIn;
 }

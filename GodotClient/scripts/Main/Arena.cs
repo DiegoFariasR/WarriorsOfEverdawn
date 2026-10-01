@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using Godot;
 using WarriorsOfEverdawn.Core.Combat;
 using WarriorsOfEverdawn.Dev;
@@ -13,6 +14,7 @@ public partial class Arena : Node3D
     public const int MaxPlayers = 8;
 
     private const float SpawnRingRadius = 3f;
+    private const float BotSwapMargin = 5f;
 
     private Node3D _players = null!;
     private MultiplayerSpawner _spawner = null!;
@@ -26,20 +28,6 @@ public partial class Arena : Node3D
 
     public override void _Ready()
     {
-        _players = GetNode<Node3D>("Players");
-        _spawner = GetNode<MultiplayerSpawner>("PlayerSpawner");
-        _camera = GetNode<ArenaCamera>("Camera");
-        _enemies = GetNode<Node3D>("Enemies");
-        _enemySpawner = GetNode<MultiplayerSpawner>("EnemySpawner");
-        _spawner.SpawnFunction = Callable.From<Variant, Node>(BuildPlayer);
-        _enemySpawner.SpawnFunction = Callable.From<Variant, Node>(BuildEnemy);
-        _hud = new Hud { Name = "Hud" };
-        _hud.Bars.Camera = _camera;
-        AddChild(_hud);
-        _camera.ModeChanged += mode => _hud.ShowNotice($"Camera {mode.Label()}  -  C to change, wheel to zoom");
-        _camera.SetMode(CameraModes.Default);
-        _players.ChildEnteredTree += OnPlayerEntered;
-
         try
         {
             _options = LaunchOptions.Parse(OS.GetCmdlineUserArgs());
@@ -50,10 +38,43 @@ public partial class Arena : Node3D
             return;
         }
 
+        if (_options.AiPlaytest)
+        {
+            DisplayServer.WindowSetFlag(DisplayServer.WindowFlags.NoFocus, true);
+            DisplayServer.WindowSetMode(DisplayServer.WindowMode.Minimized);
+            GD.Print("[window] --ai-playtest: minimized, no focus");
+        }
+
+        _players = GetNode<Node3D>("Players");
+        _spawner = GetNode<MultiplayerSpawner>("PlayerSpawner");
+        _camera = GetNode<ArenaCamera>("Camera");
+        _enemies = GetNode<Node3D>("Enemies");
+        _enemySpawner = GetNode<MultiplayerSpawner>("EnemySpawner");
+        _spawner.SpawnFunction = Callable.From<Variant, Node>(BuildPlayer);
+        _enemySpawner.SpawnFunction = Callable.From<Variant, Node>(BuildEnemy);
+        AddChild(new Arrows { Name = Arrows.NodeName });
+        _hud = new Hud { Name = "Hud", Visible = !_options.NoUi };
+        _hud.Bars.Camera = _camera;
+        AddChild(_hud);
+        _camera.ModeChanged += mode => _hud.ShowNotice($"Camera {mode.Label()}  -  C to change, wheel to zoom");
+        _camera.SetMode(_options.Camera ?? CameraModes.Default);
+        _players.ChildEnteredTree += OnPlayerEntered;
+
         if (_options.Bot)
         {
             _selfTest = new NetSelfTest(_players, _hud) { Name = "NetSelfTest" };
             AddChild(_selfTest);
+        }
+
+        if (_options.Screenshot is { } shot)
+        {
+            // With --quit-after the session length is set elsewhere (the playtest), so the last frame doesn't end it.
+            AddChild(new ScreenshotCapture(shot, Quit, quitWhenDone: _options.QuitAfter <= 0f) { Name = "ScreenshotCapture" });
+        }
+
+        if (_options.SwingSurvey)
+        {
+            AddChild(new SwingSurvey(Quit) { Name = "SwingSurvey" });
         }
 
         if (_options.CameraCheck)
@@ -88,8 +109,28 @@ public partial class Arena : Node3D
 
         if (_options.Mode != SessionMode.Join && !_options.NoEnemies)
         {
-            AddChild(new EnemyDirector(_enemySpawner, _enemies) { Name = "EnemyDirector" });
+            AddChild(new EnemyDirector(_enemySpawner, _enemies, _options.WaveScale) { Name = "EnemyDirector" });
         }
+
+        if (_options.Mode != SessionMode.Join && _options.DownAt > 0f)
+        {
+            GetTree().CreateTimer(_options.DownAt).Timeout += DownOnePlayer;
+        }
+    }
+
+    // --down-at: a client's player when there is one, so the down and the revive also cross the network.
+    private void DownOnePlayer()
+    {
+        var up = _players.GetChildren().OfType<PlayerCharacter>().Where(p => !p.IsDowned).ToList();
+        var target = up.Where(p => p.PeerId != Multiplayer.GetUniqueId()).OrderBy(p => p.PeerId).FirstOrDefault() ?? up.FirstOrDefault();
+        if (target == null)
+        {
+            GD.PushError("[net] --down-at: no player is up to take down");
+            return;
+        }
+
+        GD.Print($"[net] --down-at: taking down player {target.Name}");
+        target.Vitals.TakeHit(target.Vitals.Hp);
     }
 
     private void StartHost()
@@ -178,7 +219,14 @@ public partial class Arena : Node3D
             return;
         }
 
-        player.Controls = _options.Bot ? new BotControls(Multiplayer.GetUniqueId()) : new HumanControls(_camera);
+        // A bot's last swap finishes before a timed session ends (BotControls).
+        float swapUntil = _options.QuitAfter > 0f ? _options.QuitAfter - BotSwapMargin : float.PositiveInfinity;
+        player.Controls = _options.Bot ? new BotControls(Multiplayer.GetUniqueId(), swapUntil) : new HumanControls(_camera);
+        if (_options.Sets is { } sets)
+        {
+            player.Carry(sets);
+        }
+
         _camera.Target = player;
         _hud.Player = player;
     }

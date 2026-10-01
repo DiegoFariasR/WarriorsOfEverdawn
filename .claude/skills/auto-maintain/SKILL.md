@@ -14,7 +14,7 @@ Composes [/refactor](../refactor/SKILL.md), [/polish](../polish/SKILL.md) and th
 
 ## Hard exclusions (refuse if asked otherwise)
 
-- **No gameplay-number changes.** Do not edit the values in `Core/Combat/` (damage, ranges, arcs, hit times, cooldowns, mana costs, enemy stats, waves), `Core/Locomotion/` (speeds, turn rate, dodge distance and charges) or `Core/Stats/` (stat formulas). Moving a number without changing it is allowed.
+- **No gameplay-number changes.** Do not edit the values in `Core/Combat/` (damage, ranges, arcs, hit times, cooldowns, mana costs, enemy stats, waves), `Core/Locomotion/` (speeds, turn rate, dash distance and charges) or `Core/Stats/` (stat formulas). Moving a number without changing it is allowed.
 - **No visual changes.** Do not edit `.tscn`, `.gdshader`, materials, environment, or `UiTheme` colour / font / size values. Routing existing literals through existing `UiTheme` helpers IS allowed, as long as the values stay the same.
 - **No control or network-ownership changes.** Do not change input mappings in `project.godot`, what each camera mode does with the controls, or which machine owns a piece of state (`Docs/Design/multiplayer.md`).
 - **No assets.** Do not copy, import or edit anything under `GodotClient/assets/`.
@@ -117,7 +117,7 @@ Each landed item (or phase) increments `items_landed`; stale-closed entries don'
 **Decline rule (NON-NEGOTIABLE).** If the agent fails to land a candidate (a verification regression that reverts cleanly, or scope blowing past one budget unit), it MUST, before returning, do ONE of:
 
 1. **Propose a phase split**: add a `## Phases` block with concrete `ready` sub-steps and attempt the first phase in its next iteration.
-2. **Reclassify with a concrete blocker**: set `**Status:** needs-clarification` and add a `**Blocker:**` question a human can answer in 1-3 sentences (e.g. `**Blocker:** Splitting NetSelfTest moved the dodge check after the spin check, and dodge-check now sees 0 refused dodges in 2 of 3 runs. Is the check order meaningful, or should the gate change?`). "Needs review" and "too risky" are not blockers.
+2. **Reclassify with a concrete blocker**: set `**Status:** needs-clarification` and add a `**Blocker:**` question a human can answer in 1-3 sentences (e.g. `**Blocker:** Splitting NetSelfTest moved the dash check after the spin check, and dash-check now sees 0 refused dashes in 2 of 3 runs. Is the check order meaningful, or should the gate change?`). "Needs review" and "too risky" are not blockers.
 
 At most one phase split per candidate attempt, then land or reclassify.
 
@@ -141,7 +141,7 @@ Spawn one `polish-engineer` for ONE round (area `all`), passing the prior-rounds
    `Core/` is on the list because the self-tests measure Core's numbers live (reach, turn limit, speeds). If smoke fails, revert the run's Phase 3 polish changes first (identified from `git diff`) and re-run; Phase 2 refactors came through `/refactor`'s own verification and are not auto-reverted. If it still fails, report `early-failure` with the failing gates.
 3. `./dev.sh health` — compare with the baseline file; new drift is reported, not blocking.
 
-**Headless rule (NON-NEGOTIABLE).** The self-tests pass `--headless` and a timeout themselves. Never run `./dev.sh run`, `editor`, `host` or `join`, and never launch the Godot executable yourself; the `.claude/hooks/headless_guard.py` hook blocks them anyway. Headless runs draw nothing, so there is no visual check to add.
+**Headless rule (NON-NEGOTIABLE).** The self-tests pass `--headless` and a timeout themselves. Never run `./dev.sh run`, `editor`, `host` or `join`, and never launch the Godot executable yourself; the `.claude/hooks/headless_guard.py` hook blocks them anyway. This run makes no visual changes, so it has no use for `./dev.sh screenshot`: bot-driven captures differ from run to run and make no regression gate.
 
 ### Phase 5 — Final report (always runs, even on early exit)
 

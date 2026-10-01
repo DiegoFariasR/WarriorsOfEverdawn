@@ -7,7 +7,7 @@ public static class FloatingText
 {
     private const float StartHeight = 2.8f;
     private const float Rise = 1f;
-    private const float Duration = 0.8f;
+    public const float Duration = 0.8f;
 
     public static void Spawn(Node3D anchor, string text, Color color)
     {

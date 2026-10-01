@@ -6,9 +6,9 @@ Living reference for AI assistants working on this project. Update it when a dec
 
 ## Project Overview
 
-Action RPG, played solo or together by up to 8 players (one of them hosts), co-op or PvP. The player picks one weapon; each weapon has two skills. Diablo-style framing with fewer enemies. Controls: WASD + mouse to aim, or controller; click-to-move is planned ([camera.md](Docs/Design/camera.md)).
+Action RPG, played solo or together by up to 8 players (one of them hosts), co-op or PvP. The player picks one weapon; each weapon has two skills, a lunge (a dash thrown with the attack button) and a guard. Diablo-style framing with fewer enemies. Controls: WASD + mouse to aim, or controller; click-to-move is planned ([camera.md](Docs/Design/camera.md)).
 
-First slice: the two-handed sword (Slice and Spin) against waves of the base KayKit skeletons.
+Weapons so far: greatsword, quarterstaff, spear and scythe, each with a primary swing and a held Spin, against waves of the base KayKit skeletons ([combat.md](Docs/Design/combat.md)).
 
 The client is **Godot 4.7.2 .NET** (`GodotClient/`); rules that need no engine live in plain C# (`Core/`). Art comes from Everdawn (`../Everdawn`), copied in as needed.
 
@@ -18,14 +18,14 @@ The client is **Godot 4.7.2 .NET** (`GodotClient/`); rules that need no engine l
 
 ### NEVER launch Godot with a visible window from AI automation
 
-Every AI-spawned Godot process MUST include `--headless`. There is no minimized-window mode here yet (Everdawn's `--ai-playtest` was not ported), so there is no exception.
+Every AI-spawned Godot process MUST include `--headless`. Exception: `--ai-playtest`, only when a window is genuinely required to capture what the game draws (`./dev.sh screenshot`); the window opens off-screen, minimized and unfocused.
 
 Forbidden — `.claude/hooks/headless_guard.py` BLOCKS these (if you see "BLOCKED:" in stderr, the call is the bug, not the hook):
 
 - `./dev.sh run` / `editor` / `host` / `join`
-- Direct Godot executable / `$GODOT` invocation without `--headless`
+- Direct Godot executable / `$GODOT` invocation without `--headless` or `--ai-playtest`
 
-**Every `--headless` launch in `dev.sh` MUST be wrapped with `timeout N`** (or carry an explicit `--quit` flag, or a `# allow-hang: <reason>` opt-out on the same or preceding line). `./dev.sh check-godot-timeouts` (part of `./dev.sh health`) is the gate.
+**Every AI-run launch in `dev.sh` (`--headless` or `--ai-playtest`) MUST be wrapped with `timeout N`** (or carry an explicit `--quit` flag, or a `# allow-hang: <reason>` opt-out on the same or preceding line). `./dev.sh check-godot-timeouts` (part of `./dev.sh health`) is the gate.
 
 Rationale and the list of already-correct launchers: [Docs/ops/headless-launch.md](Docs/ops/headless-launch.md).
 
@@ -34,7 +34,7 @@ Rationale and the list of already-correct launchers: [Docs/ops/headless-launch.m
 ## Architecture Rules
 
 ### Core (plain C#, no Godot dependency)
-`WarriorsOfEverdawn.Core`: rules that can be tested without the engine -- stats and mana, damage, skill and enemy definitions, hit arcs and timing, stagger, dodge charges, leg-direction selection, turning and move speeds, enemy AI decisions. Never reference Godot types. Scope rules: [Core/AGENTS.md](Core/AGENTS.md).
+`WarriorsOfEverdawn.Core`: rules that can be tested without the engine -- stats and mana, damage, skill and enemy definitions, hit arcs and timing, stagger, dash charges, leg-direction selection, turning and move speeds, enemy AI decisions. Never reference Godot types. Scope rules: [Core/AGENTS.md](Core/AGENTS.md).
 
 ### GodotClient (real-time play)
 `WarriorsOfEverdawn.csproj`: input, movement, collision, camera, animation, VFX, HUD, networking, and the headless self-tests. Before adding rules logic to a Godot node, check whether it belongs in `Core`. Scope rules, script layout and asset pipeline: [GodotClient/AGENTS.md](GodotClient/AGENTS.md).
@@ -70,7 +70,7 @@ Only comment:
 
 ### Test conventions
 
-When a test asserts a value derived from a constant (`MoveSpeed.Run`, `StatRules.ManaPerWis`, `DodgeRules.Distance`, ...), reference the constant in the expected expression — don't bake the resolved literal. A retune then touches one file instead of every test that pinned the old number. Same for theory inputs that exist only to land on a clean expected number.
+When a test asserts a value derived from a constant (`MoveSpeed.Run`, `StatRules.ManaPerWis`, `DashRules.Distance`, ...), reference the constant in the expected expression — don't bake the resolved literal. A retune then touches one file instead of every test that pinned the old number. Same for theory inputs that exist only to land on a clean expected number.
 
 **Test helper hygiene.** When a test helper grows past 5 optional parameters, or the same `new ClassName(...)` literal appears in 3+ sites within one file, extract a fixture or builder.
 
@@ -92,16 +92,19 @@ Two occurrences = copy is fine. Three = extract a helper unless the shapes diver
 | `./dev.sh test` | Run `Core.Tests` |
 | `./dev.sh format` | `dotnet format` the solution |
 | `./dev.sh import` | Headless asset import; run after copying assets in |
-| `./dev.sh net-test` | Headless host + 2 bot clients, about 25 s; asserts movement, attacks, hits, kills and damage reach every peer, the chest stays on the aim, turning respects its limit, heads are at their scale, swings play at the attack speed, Spin lands, roots and turns the body, weapon trails and hit blinks show and clear, the blade tip at hit time matches each range, the HUD shows real HP for the player and every skeleton, and dodges keep their distance, charges and ghosts |
+| `./dev.sh net-test` | Headless host + 3 bot clients, one per weapon, about 50 s against tripled waves; asserts every machine shows each player's weapons in hand and on the back and sees the bots swap sets, movement, attacks, hits, kills and damage reach every peer, the chest stays on the aim, turning respects its limit, heads are at their scale, swings play at the attack speed, Spin lands, roots and turns the body, weapon trails and hit blinks show and clear, the blade tip at hit time matches each range, the HUD shows real HP for the player and every skeleton, dashes keep their distance, charges and ghosts, a held Spin carries on through a dash, lunges land as their dash ends and reach their range, weapons are carried in both hands, arrows are drawn where they fly, and guards go up, stay up while held, slow the player, block and parry |
 | `./dev.sh pvp-test` | Headless PvP host + 1 bot client, no skeletons; asserts players hit, damage and see each other |
 | `./dev.sh camera-test` | Headless; in every camera mode, W must move the character up the screen and D right; the HUD sits on screen without overlaps |
 | `./dev.sh smoke` | `camera-test`, `net-test` and `pvp-test` in turn; the regression gate for client changes |
+| `./dev.sh playtest` | `net-test` run for 2.5 minutes with a player taken down on cue: every net-test gate, plus waves keep coming, the dead and damage numbers are removed on time, the node count stays flat across waves, and a downed player stays put and gets back up at full HP. `--screenshots N` captures frames through the session. For changes to anything that lives across a session |
+| `./dev.sh swing-survey` | Each weapon skill's clip followed through the hand: when the weapon moves fastest, when it reaches furthest, and how far, standing and moving. Where Core's hit times come from |
+| `./dev.sh screenshot` | A bot plays solo in an off-screen, minimized window; saves `_staging/screenshot.png` after `--at` seconds, or a series with `--frames N --interval S`; `--camera 1-4`, `--no-ui`, `--no-enemies`, `--weapon <id>`, `--back-weapon <id>`. Read the image to check what the game draws |
 | `./dev.sh health` | Drift dashboard: formatting, doc references, pending refactors, agent and skill docs, headless timeouts |
 | `./dev.sh run`, `./dev.sh host`, `./dev.sh join [address]`, `./dev.sh editor` | User only; blocked for AI sessions |
 
 `./dev.sh help` lists every command; [.claude/tools-index.md](.claude/tools-index.md) says which to reach for when.
 
-There is no screenshot pipeline: headless runs draw nothing, so visual checks are the user's. AI sessions verify with `./dev.sh test` and the self-tests, whose `[*-check]` lines measure what can be measured (chest angle, head scale, blade reach, trail and flash lifetimes, HUD values).
+Two kinds of verification, for two kinds of claim. The self-tests' `[*-check]` lines measure what can be measured (chest angle, head scale, blade reach, trail and flash lifetimes, HUD values); headless runs draw nothing, so they cannot say how anything looks. For that, capture with `./dev.sh screenshot` and look at the image (`python Tools/zoom_region.py` crops and enlarges a small element). How motion feels in play stays the user's to judge.
 
 ---
 
@@ -109,7 +112,7 @@ There is no screenshot pipeline: headless runs draw nothing, so visual checks ar
 
 Check `Docs/Design/` before implementing a mechanic. Open questions there are undecided -- ask before assuming.
 
-- [Docs/Design/locomotion.md](Docs/Design/locomotion.md) -- facing model, leg direction selection, upper/lower body animation split, clip chest bias, dodge.
+- [Docs/Design/locomotion.md](Docs/Design/locomotion.md) -- facing model, leg direction selection, upper/lower body animation split, clip chest bias, dash.
 - [Docs/Design/multiplayer.md](Docs/Design/multiplayer.md) -- authority, what is replicated, connecting, testing, known engine issue.
 - [Docs/Design/combat.md](Docs/Design/combat.md) -- hit rules and measured hit times, skills, enemies, waves, player HP and respawn.
 - [Docs/Design/camera.md](Docs/Design/camera.md) -- the four camera modes (C cycles) and the controls each one uses.
@@ -165,7 +168,7 @@ Check `Docs/Design/` before implementing a mechanic. Open questions there are un
 ### Accuracy
 10. **Say "I don't know" when uncertain.** Never fabricate. Cite sources (file + line, doc section, measured log line). Do not assert things you have not read.
 11. **Quote verbatim** when exact wording matters.
-12. **Run an isolation test before defending a change as innocent.** When a user reports a symptom that persists after a change, do not argue logically that the change "can't" be the cause -- propose a concrete test (stash A/B, revert, a measured check) and run it. A green headless check is not proof of what the user sees: the head-size fix read 0.75 in the logs while heads looked unchanged in game.
+12. **Run an isolation test before defending a change as innocent.** When a user reports a symptom that persists after a change, do not argue logically that the change "can't" be the cause -- propose a concrete test (stash A/B, revert, a measured check) and run it. A green headless check is not proof of what the user sees: the head-size fix read 0.75 in the logs while heads looked unchanged in game. Check a visible change in a screenshot before calling it done.
 
 ### Before Closing
 13. **Update `Docs/Design/`** when a mechanic lands or a decision changes; keep each doc's "Verified by" paragraph in step with its gates.

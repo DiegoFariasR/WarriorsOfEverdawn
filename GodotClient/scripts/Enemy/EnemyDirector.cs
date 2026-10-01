@@ -18,24 +18,27 @@ public partial class EnemyDirector : Node
     {
         Enemies.SkeletonMinion, Enemies.SkeletonMinion, Enemies.SkeletonMinion,
         Enemies.SkeletonWarrior, Enemies.SkeletonWarrior,
+        Enemies.SkeletonArcher, Enemies.SkeletonArcher,
     };
 
     private readonly MultiplayerSpawner _spawner;
     private readonly Node3D _enemies;
     private readonly RandomNumberGenerator _random = new();
+    private readonly int _waveScale;
     private float _untilNextWave = FirstWaveDelay;
     private int _wavesSent;
     private int _nextId;
 
-    public EnemyDirector(MultiplayerSpawner spawner, Node3D enemies)
+    public EnemyDirector(MultiplayerSpawner spawner, Node3D enemies, int waveScale)
     {
         _spawner = spawner;
         _enemies = enemies;
+        _waveScale = waveScale;
     }
 
     // Godot needs a parameterless constructor to instantiate script classes itself.
     public EnemyDirector()
-        : this(null!, null!)
+        : this(null!, null!, 1)
     {
     }
 
@@ -61,8 +64,8 @@ public partial class EnemyDirector : Node
     private void SendWave()
     {
         _wavesSent++;
-        GD.Print($"[combat] wave {_wavesSent}: {Wave.Length} skeletons");
-        foreach (var enemy in Wave)
+        GD.Print($"[combat] wave {_wavesSent}: {Wave.Length * _waveScale} skeletons");
+        foreach (var enemy in Enumerable.Repeat(Wave, _waveScale).SelectMany(wave => wave))
         {
             float angle = _random.RandfRange(0f, Mathf.Tau);
             float radius = _random.RandfRange(SpawnRadiusMin, SpawnRadiusMax);

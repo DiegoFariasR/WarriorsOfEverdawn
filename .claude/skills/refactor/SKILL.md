@@ -47,6 +47,7 @@ A bare integer is **always a count**. To pick item 3 say `/refactor --item 3` --
    - `./dev.sh build`
    - `./dev.sh test`
    - `./dev.sh smoke` if anything under `GodotClient/`, `Core/` or `dev.sh` changed (the self-tests measure Core's numbers live)
+   - `./dev.sh playtest` if the change touched `Enemy/EnemyDirector.cs`, death and removal in `Enemy/EnemyCharacter.cs`, `Player/PlayerVitals.cs`, down and revive in `Player/PlayerCharacter.cs`, `Util/FloatingText.cs`, or anything that adds nodes while playing
    - Any extra check the entry names.
 
    On a failure you can't fix within the entry's scope, revert the iteration's changes and follow the decline rule below.

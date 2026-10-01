@@ -15,4 +15,8 @@ public static class MoveSpeed
     // swing like Spin turns the body, facing (and so backpedalling) means nothing.
     public static float For(LegDirection direction, SkillDefinition? activeSkill) =>
         activeSkill is { MoveSpeedFactor: < 1f } slowing ? Run * slowing.MoveSpeedFactor : For(direction);
+
+    // A raised guard slows every direction by its share; backpedalling behind it stays the slowest.
+    public static float For(LegDirection direction, SkillDefinition? activeSkill, GuardDefinition? raisedGuard) =>
+        raisedGuard is { } guard ? For(direction) * guard.MoveSpeedFactor : For(direction, activeSkill);
 }

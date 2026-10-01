@@ -1,12 +1,14 @@
 #!/usr/bin/env python
 """
-Check that every --headless Godot launch in dev.sh has a wall-clock
+Check that every AI-run Godot launch in dev.sh has a wall-clock
 `timeout N` wrapper, an explicit `--quit` flag, or an `# allow-hang:
 <reason>` opt-out comment. Copied from Everdawn, where a hung headless
 run once sat for 15+ minutes before anyone noticed.
 
-A launch is `"$GODOT" --headless ...` or `"${game[@]}" ...`, the
-array `run_session` builds with --headless in it.
+A launch is `"$GODOT" --headless ...`, `"${game[@]}" ...` (the array
+`run_session` builds with --headless in it), or a `"$GODOT" ...` line
+carrying `--ai-playtest` (the minimized-window screenshot run, which
+can hang the same way).
 
 Out of scope (deliberately):
 - User-only launches (./dev.sh editor, run, host, join): foreground
@@ -16,8 +18,8 @@ Usage:
     python Tools/check_godot_timeouts.py [--summary]
 
 Exit codes:
-    0 -- every --headless launch is wrapped
-    1 -- at least one unwrapped --headless launch
+    0 -- every AI-run launch is wrapped
+    1 -- at least one unwrapped AI-run launch
 """
 from __future__ import annotations
 
@@ -31,11 +33,11 @@ from _check_harness import make_argparser
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 DEV_SH = ROOT / "dev.sh"
 
-HEADLESS_PATTERN = re.compile(r'"\$GODOT"\s+--headless\b|\$GODOT\s+--headless\b|"\$\{game\[@\]\}"')
+HEADLESS_PATTERN = re.compile(r'"\$GODOT"\s+--headless\b|\$GODOT\s+--headless\b|"\$\{game\[@\]\}"|"\$GODOT".*\s--ai-playtest\b')
 # `local game=("$GODOT" --headless ...)` defines the launch; it does not start a process.
 ARRAY_DEFINITION = re.compile(r'\w+=\(\s*"\$GODOT"')
 OK_PATTERNS = (
-    re.compile(r"\btimeout\s+\d+\b"),    # `timeout 120 "$GODOT" --headless ...`
+    re.compile(r"\btimeout\s+(\d+\b|\"?\$\{?\w+\}?\"?)"),  # `timeout 120 "$GODOT" ...`, or a limit held in a variable
     re.compile(r"\s--quit(?![\w-])"),    # explicit engine-side quit (import path); not the game's --quit-after
 )
 ALLOW_HANG = re.compile(r"#\s*allow-hang:\s*\S")
@@ -87,7 +89,7 @@ def main(argv: list[str]) -> int:
 
     if not summary_mode:
         for lineno, snippet in issues:
-            print(f"dev.sh:{lineno}: --headless launch without 'timeout N' / '--quit' / '# allow-hang:' opt-out")
+            print(f"dev.sh:{lineno}: AI-run Godot launch without 'timeout N' / '--quit' / '# allow-hang:' opt-out")
             print(f"  {snippet[:240]}")
     print(f"[check-godot-timeouts] {len(issues)} unwrapped --headless launch(es)")
     return 1

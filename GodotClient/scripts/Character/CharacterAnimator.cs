@@ -5,9 +5,11 @@ using WarriorsOfEverdawn.Core.Locomotion;
 
 namespace WarriorsOfEverdawn.Character;
 
-// Legs play a directional locomotion clip at the rate that matches the ground speed; attacks layer on top at the
-// character's attack speed, a dodge over those, and death over everything. The attack drives the upper body always and the lower body only
-// while standing still, since some swings (Slice, Stab) rotate through the hips.
+// Legs play a directional locomotion clip at the rate that matches the ground speed, with the arms kept in the
+// two-handed stance; attacks layer on top at their own speed, a dash over those, and death over everything. The
+// attack drives the upper body always and the lower body only while standing still, since some swings (Slice, Stab)
+// rotate through the hips. A dash drives the whole body unless it leaves the upper body to a thrust, or all of it
+// to a Spin that carries on through it.
 // Design: Docs/Design/locomotion.md.
 public sealed class CharacterAnimator
 {
@@ -18,24 +20,27 @@ public sealed class CharacterAnimator
     private const float MinLegSpeedScale = 0.3f;
     private const float DeathBlend = 0.15f;
     private const float CancelFade = 0.05f;
-    private const float DodgeFadeIn = 0.03f;
-    private const float DodgeFadeOut = 0.06f;
+    private const float DashFadeIn = 0.03f;
+    private const float DashFadeOut = 0.06f;
 
     private const string IdleState = "idle";
 
-    private static readonly string[] LowerBones =
+    // The bones the legs clip keeps while a swing plays over a moving body.
+    public static readonly IReadOnlyList<string> LowerBones = new[]
     {
         "root", "hips",
         "upperleg.l", "lowerleg.l", "foot.l", "toes.l",
         "upperleg.r", "lowerleg.r", "foot.r", "toes.r",
     };
 
-    private static readonly string[] UpperBones =
+    // Both arms hang off the chest, so their poses from one clip keep the hands together over another clip's chest.
+    private static readonly string[] ArmBones =
     {
-        "spine", "chest", "head",
         "upperarm.l", "lowerarm.l", "wrist.l", "hand.l", "handslot.l",
         "upperarm.r", "lowerarm.r", "wrist.r", "hand.r", "handslot.r",
     };
+
+    private static readonly string[] UpperBones = new[] { "spine", "chest", "head" }.Concat(ArmBones).ToArray();
 
     // Travel is the clip's direction of motion in skeleton space: KayKit faces +Z, and +X is its left.
     private static readonly (string State, string Clip, Vector3 Travel)[] LegClips =
@@ -49,16 +54,20 @@ public sealed class CharacterAnimator
 
     private static readonly StringName LegsRequest = "parameters/legs/transition_request";
     private static readonly StringName LegsScale = "parameters/legs_speed/scale";
-    private static readonly StringName LowerAmount = "parameters/lower_mix/blend_amount";
-    private static readonly StringName UpperAmount = "parameters/upper_mix/blend_amount";
+    private static readonly StringName StanceAmount = "parameters/stance_mix/blend_amount";
+    private static readonly StringName LowerAmount = "parameters/attack_lower_mix/blend_amount";
+    private static readonly StringName UpperAmount = "parameters/attack_upper_mix/blend_amount";
     private static readonly StringName LowerSeek = "parameters/attack_lower_seek/seek_request";
     private static readonly StringName UpperSeek = "parameters/attack_upper_seek/seek_request";
     private static readonly StringName DeathAmount = "parameters/death_mix/blend_amount";
     private static readonly StringName DeathSeek = "parameters/death_seek/seek_request";
     private static readonly StringName AttackProgress = "parameters/attack_upper/current_position";
-    private static readonly StringName DodgeAmount = "parameters/dodge_mix/blend_amount";
-    private static readonly StringName DodgeSeek = "parameters/dodge_seek/seek_request";
-    private static readonly StringName DodgeSpeed = "parameters/dodge_speed/scale";
+    private static readonly StringName DashLowerAmount = "parameters/dash_lower_mix/blend_amount";
+    private static readonly StringName DashUpperAmount = "parameters/dash_upper_mix/blend_amount";
+    private static readonly StringName DashLowerSeek = "parameters/dash_lower_seek/seek_request";
+    private static readonly StringName DashUpperSeek = "parameters/dash_upper_seek/seek_request";
+    private static readonly StringName DashLowerSpeed = "parameters/dash_lower_speed/scale";
+    private static readonly StringName DashUpperSpeed = "parameters/dash_upper_speed/scale";
     private static readonly StringName LowerAttackSpeed = "parameters/attack_lower_speed/scale";
     private static readonly StringName UpperAttackSpeed = "parameters/attack_upper_speed/scale";
 
@@ -71,9 +80,12 @@ public sealed class CharacterAnimator
     private float _attackTime;
     private float _attackLength;
     private bool _fullBodyAttack;
-    private readonly AnimationNodeAnimation _dodge = new() { Animation = RigAnimations.Idle };
-    private float _dodgeTime;
-    private float _dodgeLength;
+    private readonly AnimationNodeAnimation _dashLower = new() { Animation = RigAnimations.Idle };
+    private readonly AnimationNodeAnimation _dashUpper = new() { Animation = RigAnimations.Idle };
+    private float _dashTime;
+    private float _dashLength;
+    private bool _dashHoldsLegs = true;
+    private bool _dashHoldsUpperBody = true;
     private float _chestBias;
     private bool _dying;
     private float _deathWeight;
@@ -106,7 +118,7 @@ public sealed class CharacterAnimator
 
     public bool IsAttacking => _attackTime < _attackLength;
 
-    public bool IsDodging => _dodgeTime < _dodgeLength;
+    public bool IsDashing => _dashTime < _dashLength;
 
     public IReadOnlyDictionary<string, float> GroundSpeedByLegs => _groundSpeedByState;
 
@@ -143,17 +155,35 @@ public sealed class CharacterAnimator
     // Fades a looping swing out from where it is now.
     public void EndLoop() => _attackLength = Mathf.Min(_attackLength, _attackTime + AttackFadeOut);
 
-    // Drops whatever swing is playing, quickly, so something else (a dodge) can take over.
+    // Drops whatever swing is playing, quickly, so something else (a dash) can take over.
     public void CancelAttack() => _attackLength = Mathf.Min(_attackLength, _attackTime + CancelFade);
 
-    // Plays a dodge clip squeezed or stretched to last exactly duration.
-    public void PlayDodge(StringName clip, float duration)
+    // Plays a dash clip squeezed or stretched to last exactly duration.
+    public void PlayDash(StringName clip, float duration)
     {
-        _dodge.Animation = clip;
-        _tree.Set(DodgeSeek, 0.0);
-        _tree.Set(DodgeSpeed, _tree.GetAnimation(clip).Length / duration);
-        _dodgeTime = 0f;
-        _dodgeLength = duration;
+        float speed = (float)_tree.GetAnimation(clip).Length / duration;
+        _dashLower.Animation = clip;
+        _dashUpper.Animation = clip;
+        _tree.Set(DashLowerSeek, 0.0);
+        _tree.Set(DashUpperSeek, 0.0);
+        _tree.Set(DashLowerSpeed, speed);
+        _tree.Set(DashUpperSpeed, speed);
+        _dashTime = 0f;
+        _dashLength = duration;
+        _dashHoldsLegs = true;
+        _dashHoldsUpperBody = true;
+    }
+
+    // For the rest of this dash the legs keep its clip and the upper body goes back to the attack layer: a thrust
+    // thrown on the move.
+    public void LeaveUpperBodyToAttack() => _dashHoldsUpperBody = false;
+
+    // For the rest of this dash its clip does not show at all: the attack layer keeps the whole body (a Spin that
+    // carries on through the dash).
+    public void LeaveBodyToAttack()
+    {
+        _dashHoldsLegs = false;
+        _dashHoldsUpperBody = false;
     }
 
     public void Revive() => _dying = false;
@@ -178,6 +208,9 @@ public sealed class CharacterAnimator
                 * Mathf.Clamp((_attackLength - _attackTime) / AttackFadeOut, 0f, 1f);
         }
 
+        // The legs clips swing the arms as if empty-handed; over them the arms keep the stance, both hands on the
+        // weapon. Standing, the legs clip is the stance itself.
+        _tree.Set(StanceAmount, 1f - _stillness);
         AttackWeight = attackWeight;
         _tree.Set(UpperAmount, attackWeight);
         _tree.Set(LowerAmount, attackWeight * (_fullBodyAttack ? 1f : _stillness));
@@ -187,19 +220,21 @@ public sealed class CharacterAnimator
         // The idle stance keeps its authored chest angle.
         float bias = legs == null ? 0f : _chestYawByState[state];
         _chestBias = Mathf.Lerp(_chestBias, bias, 1f - Mathf.Exp(-delta / LegCrossfade));
-        float dodgeWeight = 0f;
-        if (IsDodging)
+        float dashWeight = 0f;
+        if (IsDashing)
         {
-            _dodgeTime += delta;
-            dodgeWeight = Mathf.Min(1f, _dodgeTime / DodgeFadeIn) * Mathf.Clamp((_dodgeLength - _dodgeTime) / DodgeFadeOut, 0f, 1f);
+            _dashTime += delta;
+            dashWeight = Mathf.Min(1f, _dashTime / DashFadeIn) * Mathf.Clamp((_dashLength - _dashTime) / DashFadeOut, 0f, 1f);
         }
 
-        _tree.Set(DodgeAmount, dodgeWeight);
+        float dashUpperWeight = _dashHoldsUpperBody ? dashWeight : 0f;
+        _tree.Set(DashLowerAmount, _dashHoldsLegs ? dashWeight : 0f);
+        _tree.Set(DashUpperAmount, dashUpperWeight);
         _deathWeight = Mathf.MoveToward(_deathWeight, _dying ? 1f : 0f, delta / DeathBlend);
         _tree.Set(DeathAmount, _deathWeight);
         // A full-body swing (Spin) turns the body itself, so the torso twist toward the aim gives way to it.
         float swingOwnsTorso = _fullBodyAttack ? attackWeight : 0f;
-        Twist.Twist = (twist - _chestBias * (1f - attackWeight)) * (1f - _deathWeight) * (1f - dodgeWeight) * (1f - swingOwnsTorso);
+        Twist.Twist = (twist - _chestBias * (1f - attackWeight)) * (1f - _deathWeight) * (1f - dashUpperWeight) * (1f - swingOwnsTorso);
     }
 
     private AnimationNodeBlendTree BuildTree()
@@ -219,39 +254,29 @@ public sealed class CharacterAnimator
         root.AddNode("legs_speed", new AnimationNodeTimeScale());
         root.ConnectNode("legs_speed", 0, "legs");
 
-        AddAttackLayer(root, "lower", _attackLower, LowerBones, below: "legs_speed");
-        AddAttackLayer(root, "upper", _attackUpper, UpperBones, below: "lower_mix");
+        AddLayer(root, "stance", new AnimationNodeAnimation { Animation = RigAnimations.Idle }, ArmBones, below: "legs_speed");
+        AddLayer(root, "attack_lower", _attackLower, LowerBones, below: "stance_mix");
+        AddLayer(root, "attack_upper", _attackUpper, UpperBones, below: "attack_lower_mix");
+
+        // Not the root bone: the dash clips carry their own root travel (0.25-0.65), and the code already moves the
+        // character the full dash distance.
+        AddLayer(root, "dash_lower", _dashLower, LowerBones.Where(b => b != "root"), below: "attack_upper_mix");
+        AddLayer(root, "dash_upper", _dashUpper, UpperBones, below: "dash_lower_mix");
 
         root.AddNode("death", new AnimationNodeAnimation { Animation = RigAnimations.PlayerDeath });
         root.AddNode("death_seek", new AnimationNodeTimeSeek());
         root.ConnectNode("death_seek", 0, "death");
         root.AddNode("death_speed", new AnimationNodeTimeScale());
         root.ConnectNode("death_speed", 0, "death_seek");
-        // Everything but the root bone: the dodge clips carry their own root travel (0.25-0.65), and the code already
-        // moves the character the full dodge distance.
-        var dodgeMix = new AnimationNodeBlend2 { FilterEnabled = true };
-        foreach (var bone in LowerBones.Where(b => b != "root").Concat(UpperBones))
-        {
-            dodgeMix.SetFilterPath($"{RigAnimations.SkeletonPath}:{bone}", true);
-        }
-
-        root.AddNode("dodge", _dodge);
-        root.AddNode("dodge_seek", new AnimationNodeTimeSeek());
-        root.ConnectNode("dodge_seek", 0, "dodge");
-        root.AddNode("dodge_speed", new AnimationNodeTimeScale());
-        root.ConnectNode("dodge_speed", 0, "dodge_seek");
-        root.AddNode("dodge_mix", dodgeMix);
-        root.ConnectNode("dodge_mix", 0, "upper_mix");
-        root.ConnectNode("dodge_mix", 1, "dodge_speed");
-
         root.AddNode("death_mix", new AnimationNodeBlend2());
-        root.ConnectNode("death_mix", 0, "dodge_mix");
+        root.ConnectNode("death_mix", 0, "dash_upper_mix");
         root.ConnectNode("death_mix", 1, "death_speed");
         root.ConnectNode("output", 0, "death_mix");
         return root;
     }
 
-    private static void AddAttackLayer(AnimationNodeBlendTree root, string layer, AnimationNodeAnimation clip, string[] bones, string below)
+    // A clip with its own seek and speed, mixed over what is below it on the given bones only.
+    private static void AddLayer(AnimationNodeBlendTree root, string layer, AnimationNodeAnimation clip, IEnumerable<string> bones, string below)
     {
         var mix = new AnimationNodeBlend2 { FilterEnabled = true };
         foreach (var bone in bones)
@@ -259,13 +284,13 @@ public sealed class CharacterAnimator
             mix.SetFilterPath($"{RigAnimations.SkeletonPath}:{bone}", true);
         }
 
-        root.AddNode($"attack_{layer}", clip);
-        root.AddNode($"attack_{layer}_seek", new AnimationNodeTimeSeek());
-        root.ConnectNode($"attack_{layer}_seek", 0, $"attack_{layer}");
-        root.AddNode($"attack_{layer}_speed", new AnimationNodeTimeScale());
-        root.ConnectNode($"attack_{layer}_speed", 0, $"attack_{layer}_seek");
+        root.AddNode(layer, clip);
+        root.AddNode($"{layer}_seek", new AnimationNodeTimeSeek());
+        root.ConnectNode($"{layer}_seek", 0, layer);
+        root.AddNode($"{layer}_speed", new AnimationNodeTimeScale());
+        root.ConnectNode($"{layer}_speed", 0, $"{layer}_seek");
         root.AddNode($"{layer}_mix", mix);
         root.ConnectNode($"{layer}_mix", 0, below);
-        root.ConnectNode($"{layer}_mix", 1, $"attack_{layer}_speed");
+        root.ConnectNode($"{layer}_mix", 1, $"{layer}_speed");
     }
 }

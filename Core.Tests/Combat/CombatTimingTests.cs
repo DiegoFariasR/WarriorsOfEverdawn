@@ -23,6 +23,20 @@ public class CombatTimingTests
         Assert.True(CombatTiming.HitWindowEnd(sweep, Speed) > CombatTiming.HitDelay(sweep, Speed));
     }
 
+    [Theory]
+    [InlineData(0.3f)]
+    [InlineData(0.2f)]
+    public void A_lunge_closes_its_window_exactly_as_its_dash_ends(float landsIn)
+    {
+        foreach (var weapon in Weapons.All)
+        {
+            float speed = CombatTiming.LungeSpeed(weapon.Lunge, landsIn);
+
+            Assert.Equal(landsIn, CombatTiming.HitWindowEnd(weapon.Lunge, speed), precision: 5);
+            Assert.True(CombatTiming.HitDelay(weapon.Lunge, speed) < landsIn, weapon.Id);
+        }
+    }
+
     [Fact]
     public void Hits_land_at_the_clip_hit_time_scaled_by_the_attack_speed()
     {

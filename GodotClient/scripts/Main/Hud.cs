@@ -24,18 +24,22 @@ public partial class Hud : CanvasLayer
     private readonly Label _notice = UiTheme.MakeLabel("", UiTheme.Words, 20, UiTheme.GoldHi, outline: 6);
     private readonly Label _status = UiTheme.MakeLabel("", UiTheme.Words, 13, UiTheme.StatusFallen, outline: 3);
     private readonly Label[] _statValues = new Label[3];
-    private readonly (Label Cooldown, ColorRect Dim)[] _slots = new (Label, ColorRect)[SkillSlots.Length];
+    private readonly (Label Name, Label Cost, Label Cooldown, ColorRect Dim)[] _slots = new (Label, Label, Label, ColorRect)[SkillSlots.Length];
 
     // Everdawn's MP colour, for mana costs on the skill bar.
     private static readonly Color ManaText = new(0.55f, 0.78f, 1f);
     private Label _name = null!;
-    private readonly ColorRect[] _dodgePips = new ColorRect[DodgeRules.Charges];
-    private Label _dodgeRecharge = null!;
+    private readonly ColorRect[] _dashPips = new ColorRect[DashRules.Charges];
+    private Label _dashRecharge = null!;
     private ProgressBar _health = null!;
     private Label _healthText = null!;
     private ProgressBar _mana = null!;
     private Label _manaText = null!;
     private float _noticeLeft;
+    private WeaponSets? _shownSets;
+    private Label _guardName = null!;
+    private ColorRect _guardDim = null!;
+    private Label _backWeapon = null!;
 
     public PlayerCharacter? Player { get; set; }
 
@@ -79,7 +83,20 @@ public partial class Hud : CanvasLayer
             return;
         }
 
-        _name.Text = SessionRules.Pvp ? "Knight  -  PvP" : "Knight";
+        if (_shownSets == null || Player.Weapon != _shownSets.Active || Player.StowedWeapon != _shownSets.Stowed)
+        {
+            // The first weapons are simply shown; a change is announced.
+            if (_shownSets != null)
+            {
+                ShowNotice($"{Player.Weapon.Name} in hand, {Player.StowedWeapon.Name} on your back  -  X swaps, Q changes");
+            }
+
+            ShowSkills(Player.Weapon);
+            _backWeapon.Text = Player.StowedWeapon.Name;
+            _shownSets = new WeaponSets(Player.Weapon, Player.StowedWeapon);
+        }
+
+        _name.Text = $"Knight  -  {Player.Weapon.Name}" + (SessionRules.Pvp ? "  -  PvP" : "");
         int hp = Player.Vitals.Hp;
         _health.Value = hp;
         _healthText.Text = $"{hp} / {PlayerRules.MaxHp}";
@@ -91,13 +108,18 @@ public partial class Hud : CanvasLayer
         _statValues[2].Text = Player.Stats.Agi.ToString();
         _status.Text = Player.IsDowned ? "Down - back up in a moment" : "";
 
-        int charges = Player.DodgeCharges;
-        for (int i = 0; i < _dodgePips.Length; i++)
+        int charges = Player.DashCharges;
+        for (int i = 0; i < _dashPips.Length; i++)
         {
-            _dodgePips[i].Color = i < charges ? UiTheme.GoldHi : new Color(UiTheme.WoodDk, 0.9f);
+            _dashPips[i].Color = i < charges ? UiTheme.GoldHi : new Color(UiTheme.WoodDk, 0.9f);
         }
 
-        _dodgeRecharge.Text = charges < DodgeRules.Charges ? $"{Player.NextDodgeIn:F1}" : "";
+        // Lit while the guard is up, dimmed while it recovers.
+        _guardName.Text = Player.Weapon.Guard.Name;
+        _guardName.Modulate = Player.IsGuarding ? UiTheme.GoldHi : Colors.White;
+        _guardDim.Visible = Player.GuardRecoveryLeft > 0f;
+
+        _dashRecharge.Text = charges < DashRules.Charges ? $"{Player.NextDashIn:F1}" : "";
 
         for (int i = 0; i < SkillSlots.Length; i++)
         {
@@ -162,25 +184,20 @@ public partial class Hud : CanvasLayer
 
         for (int i = 0; i < SkillSlots.Length; i++)
         {
-            var (skill, key) = SkillSlots[i];
+            var key = SkillSlots[i].Key;
             var slot = new PanelContainer { CustomMinimumSize = new Vector2(140f, 62f), MouseFilter = Control.MouseFilterEnum.Ignore };
             slot.AddThemeStyleboxOverride("panel", UiTheme.Panel(UiTheme.WoodDk, UiTheme.Gold, radius: 4, margin: 6f, borderWidth: 2));
 
             var column = new VBoxContainer { Alignment = BoxContainer.AlignmentMode.Center };
             var keyLabel = UiTheme.MakeLabel(key, UiTheme.Numbers, 12, UiTheme.GoldDk);
             keyLabel.HorizontalAlignment = HorizontalAlignment.Center;
-            var name = UiTheme.MakeLabel(Capitalised(PlayerCharacter.SkillSet[skill].Id), UiTheme.Words, 15, UiTheme.TextMain);
+            var name = UiTheme.MakeLabel("", UiTheme.Words, 15, UiTheme.TextMain);
             name.HorizontalAlignment = HorizontalAlignment.Center;
+            var cost = UiTheme.MakeLabel("", UiTheme.Numbers, 12, ManaText);
+            cost.HorizontalAlignment = HorizontalAlignment.Center;
             column.AddChild(keyLabel);
             column.AddChild(name);
-            int manaCost = PlayerCharacter.SkillSet[skill].ManaCost;
-            if (manaCost > 0)
-            {
-                string per = PlayerCharacter.SkillSet[skill].Channeled ? " / turn" : "";
-                var cost = UiTheme.MakeLabel($"{manaCost} MP{per}", UiTheme.Numbers, 12, ManaText);
-                cost.HorizontalAlignment = HorizontalAlignment.Center;
-                column.AddChild(cost);
-            }
+            column.AddChild(cost);
 
             slot.AddChild(column);
 
@@ -191,43 +208,96 @@ public partial class Hud : CanvasLayer
             cooldown.VerticalAlignment = VerticalAlignment.Center;
             slot.AddChild(cooldown);
 
-            _slots[i] = (cooldown, dim);
+            _slots[i] = (name, cost, cooldown, dim);
             bar.AddChild(slot);
         }
 
-        bar.AddChild(BuildDodgeSlot());
+        bar.AddChild(BuildGuardSlot());
+        bar.AddChild(BuildDashSlot());
+        bar.AddChild(BuildSwapSlot());
         return bar;
     }
 
-    // A pip per charge, lit while available, and the seconds until the next one comes back.
-    private Control BuildDodgeSlot()
+    // A pip per charge, lit while available, the seconds until the next one comes back, and the lunge it turns into.
+    private Control BuildDashSlot()
     {
         var slot = new PanelContainer { CustomMinimumSize = new Vector2(110f, 62f), MouseFilter = Control.MouseFilterEnum.Ignore };
         slot.AddThemeStyleboxOverride("panel", UiTheme.Panel(UiTheme.WoodDk, UiTheme.Gold, radius: 4, margin: 6f, borderWidth: 2));
         var column = new VBoxContainer { Alignment = BoxContainer.AlignmentMode.Center };
         var key = UiTheme.MakeLabel("SPACE", UiTheme.Numbers, 12, UiTheme.GoldDk);
         key.HorizontalAlignment = HorizontalAlignment.Center;
-        var name = UiTheme.MakeLabel("Dodge", UiTheme.Words, 15, UiTheme.TextMain);
+        var name = UiTheme.MakeLabel("Dash", UiTheme.Words, 15, UiTheme.TextMain);
         name.HorizontalAlignment = HorizontalAlignment.Center;
         var pips = new HBoxContainer { Alignment = BoxContainer.AlignmentMode.Center };
         pips.AddThemeConstantOverride("separation", 6);
-        for (int i = 0; i < _dodgePips.Length; i++)
+        for (int i = 0; i < _dashPips.Length; i++)
         {
-            _dodgePips[i] = new ColorRect { CustomMinimumSize = new Vector2(16f, 6f), MouseFilter = Control.MouseFilterEnum.Ignore };
-            pips.AddChild(_dodgePips[i]);
+            _dashPips[i] = new ColorRect { CustomMinimumSize = new Vector2(16f, 6f), MouseFilter = Control.MouseFilterEnum.Ignore };
+            pips.AddChild(_dashPips[i]);
         }
 
+        var hint = UiTheme.MakeLabel("+ LMB: lunge", UiTheme.Words, 11, UiTheme.GoldDk);
+        hint.HorizontalAlignment = HorizontalAlignment.Center;
         column.AddChild(key);
         column.AddChild(name);
         column.AddChild(pips);
+        column.AddChild(hint);
         slot.AddChild(column);
 
-        _dodgeRecharge = UiTheme.MakeLabel("", UiTheme.Numbers, 14, Colors.White, outline: 3);
-        _dodgeRecharge.HorizontalAlignment = HorizontalAlignment.Right;
-        _dodgeRecharge.VerticalAlignment = VerticalAlignment.Top;
-        slot.AddChild(_dodgeRecharge);
+        _dashRecharge = UiTheme.MakeLabel("", UiTheme.Numbers, 14, Colors.White, outline: 3);
+        _dashRecharge.HorizontalAlignment = HorizontalAlignment.Right;
+        _dashRecharge.VerticalAlignment = VerticalAlignment.Top;
+        slot.AddChild(_dashRecharge);
         return slot;
     }
 
-    private static string Capitalised(string id) => char.ToUpperInvariant(id[0]) + id[1..];
+    private Control BuildGuardSlot()
+    {
+        var slot = new PanelContainer { CustomMinimumSize = new Vector2(110f, 62f), MouseFilter = Control.MouseFilterEnum.Ignore };
+        slot.AddThemeStyleboxOverride("panel", UiTheme.Panel(UiTheme.WoodDk, UiTheme.Gold, radius: 4, margin: 6f, borderWidth: 2));
+        var column = new VBoxContainer { Alignment = BoxContainer.AlignmentMode.Center };
+        var key = UiTheme.MakeLabel("SHIFT", UiTheme.Numbers, 12, UiTheme.GoldDk);
+        key.HorizontalAlignment = HorizontalAlignment.Center;
+        _guardName = UiTheme.MakeLabel("", UiTheme.Words, 15, UiTheme.TextMain);
+        _guardName.HorizontalAlignment = HorizontalAlignment.Center;
+        var hint = UiTheme.MakeLabel("hold", UiTheme.Words, 11, UiTheme.GoldDk);
+        hint.HorizontalAlignment = HorizontalAlignment.Center;
+        column.AddChild(key);
+        column.AddChild(_guardName);
+        column.AddChild(hint);
+        slot.AddChild(column);
+        _guardDim = new ColorRect { Color = new Color(0f, 0f, 0f, 0.55f), Visible = false, MouseFilter = Control.MouseFilterEnum.Ignore };
+        slot.AddChild(_guardDim);
+        return slot;
+    }
+
+    // The other weapon set, on the back: what X swaps to.
+    private Control BuildSwapSlot()
+    {
+        var slot = new PanelContainer { CustomMinimumSize = new Vector2(120f, 62f), MouseFilter = Control.MouseFilterEnum.Ignore };
+        slot.AddThemeStyleboxOverride("panel", UiTheme.Panel(UiTheme.WoodDk, UiTheme.Gold, radius: 4, margin: 6f, borderWidth: 2));
+        var column = new VBoxContainer { Alignment = BoxContainer.AlignmentMode.Center };
+        var key = UiTheme.MakeLabel("X", UiTheme.Numbers, 12, UiTheme.GoldDk);
+        key.HorizontalAlignment = HorizontalAlignment.Center;
+        _backWeapon = UiTheme.MakeLabel("", UiTheme.Words, 15, UiTheme.TextMain);
+        _backWeapon.HorizontalAlignment = HorizontalAlignment.Center;
+        var hint = UiTheme.MakeLabel("on your back", UiTheme.Words, 11, UiTheme.GoldDk);
+        hint.HorizontalAlignment = HorizontalAlignment.Center;
+        column.AddChild(key);
+        column.AddChild(_backWeapon);
+        column.AddChild(hint);
+        slot.AddChild(column);
+        return slot;
+    }
+
+    private void ShowSkills(WeaponDefinition weapon)
+    {
+        for (int i = 0; i < SkillSlots.Length; i++)
+        {
+            var skill = weapon.Skill(SkillSlots[i].Skill);
+            _slots[i].Name.Text = skill.Name;
+            _slots[i].Cost.Text = skill.ManaCost > 0 ? $"{skill.ManaCost} MP{(skill.Channeled ? " / turn" : "")}" : "";
+            _slots[i].Cost.Visible = skill.ManaCost > 0;
+        }
+    }
 }

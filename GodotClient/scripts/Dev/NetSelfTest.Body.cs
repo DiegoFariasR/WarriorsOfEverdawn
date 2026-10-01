@@ -1,0 +1,205 @@
+using System.Collections.Generic;
+using System.Linq;
+using Godot;
+using WarriorsOfEverdawn.Character;
+using WarriorsOfEverdawn.Core;
+using WarriorsOfEverdawn.Core.Locomotion;
+using WarriorsOfEverdawn.Enemy;
+using WarriorsOfEverdawn.Player;
+using WarriorsOfEverdawn.Util;
+
+namespace WarriorsOfEverdawn.Dev;
+
+// [anim-check]: the chest on the aim, with and without the torso twist. [speed-check]: ground speed per leg clip and
+// swing playback at the attack speed. [turn-check]: turning within its limit. [head-check]: head sizes.
+// [carry-check]: both hands stay on the weapon while running.
+public partial class NetSelfTest
+{
+    // Only frames where the twist does real work count toward the with/without comparison; below this the
+    // clips' own chest sway dominates both numbers.
+    private const float SignificantTwist = 20f * Mathf.Pi / 180f;
+
+    private readonly Dictionary<LegDirection, (float Sum, int Count)> _torsoSignedByLegs = new();
+    private readonly List<float> _swingRates = new();
+    private float _torsoErrorSum;
+    private float _torsoErrorMax;
+    private int _torsoSamples;
+    private float _twistedErrorSum;
+    private float _untwistedErrorSum;
+    private int _twistedSamples;
+    private float? _lastSwingPosition;
+    private string _groundSpeeds = "";
+    private float? _lastAim;
+    private float _maxTurnRate;
+    private int _turnLimitedFrames;
+    private float _playerHead = float.NaN;
+    private float _playerHeadgear = float.NaN;
+    private float _enemyHead = float.NaN;
+    private float _enemyHeadgear = float.NaN;
+    private readonly List<float> _handsApartRunning = new();
+
+    private void TrackBody(PlayerCharacter player)
+    {
+        var twist = player.Animator.Twist;
+        twist.ModificationProcessed += () => MeasureTorso(player, twist);
+        twist.ModificationProcessed += () => MeasureCarry(player);
+        MeasureHeads(player.Skeleton, out _playerHead, out _playerHeadgear);
+    }
+
+    private void PrintBodyChecks(long me)
+    {
+        float mean = _torsoSamples > 0 ? _torsoErrorSum / _torsoSamples : float.NaN;
+        var byLegs = string.Join(",", _torsoSignedByLegs.OrderBy(p => p.Key).Select(p => $"{p.Key}:{Mathf.RadToDeg(p.Value.Sum / p.Value.Count):+0.0;-0.0}"));
+        float withTwist = _twistedSamples > 0 ? _twistedErrorSum / _twistedSamples : float.NaN;
+        float withoutTwist = _twistedSamples > 0 ? _untwistedErrorSum / _twistedSamples : float.NaN;
+        GD.Print($"[anim-check] me={me} torso_vs_aim_mean_deg={Mathf.RadToDeg(mean):F1} torso_vs_aim_max_deg={Mathf.RadToDeg(_torsoErrorMax):F1} samples={_torsoSamples} "
+            + $"twist_samples={_twistedSamples} with_twist_deg={Mathf.RadToDeg(withTwist):F1} without_twist_deg={Mathf.RadToDeg(withoutTwist):F1} signed_by_legs={byLegs}");
+        float swingRate = _swingRates.Count > 0 ? _swingRates.OrderBy(r => r).ElementAt(_swingRates.Count / 2) : float.NaN;
+        GD.Print($"[speed-check] me={me} ground_speed={_groundSpeeds} swing_playback_rate={swingRate:F2} expected={LocalPlayer()?.AttackSpeed:F2} samples={_swingRates.Count}");
+        GD.Print($"[head-check] me={me} head_expected={CharacterRig.HeadScale:F3} headgear_expected={CharacterRig.HeadgearScale:F3} "
+            + $"player_head={_playerHead:F3} player_headgear={_playerHeadgear:F3} enemy_head={_enemyHead:F3} enemy_headgear={_enemyHeadgear:F3}");
+        float handsApart = _handsApartRunning.Count > 0 ? _handsApartRunning.OrderBy(d => d).ElementAt(_handsApartRunning.Count / 2) : float.NaN;
+        GD.Print($"[carry-check] me={me} hands_apart_running={handsApart:F2} samples={_handsApartRunning.Count}");
+        GD.Print($"[turn-check] me={me} max_turn_deg_s={Mathf.RadToDeg(_maxTurnRate):F0} limit_deg_s={Mathf.RadToDeg(Turning.MaxRate):F0} frames_at_limit={_turnLimitedFrames}");
+    }
+
+    // Only while running without an attack: swings, idle turns and lying down legitimately point the chest off the aim.
+    private void MeasureTorso(PlayerCharacter player, TorsoTwistModifier twist)
+    {
+        if (player.Legs == null || player.Animator.IsAttacking || player.IsDowned || twist.ChestBone < 0)
+        {
+            return;
+        }
+
+        // An aim flicked further round than the torso can twist leaves the chest behind until the body turns.
+        if (Mathf.Abs(twist.Twist) > TorsoTwistModifier.MaxTwist)
+        {
+            return;
+        }
+
+        var skeleton = twist.GetSkeleton();
+
+        // KayKit bones rest facing +Z in skeleton space.
+        var chestForward = skeleton.GlobalBasis * skeleton.GetBoneGlobalPose(twist.ChestBone).Basis * Vector3.Back;
+        float signed = Angles.Wrap(Yaw.Of(chestForward) - player.AimYaw);
+        float error = Mathf.Abs(signed);
+        var legs = player.Legs.Value;
+        var (sum, count) = _torsoSignedByLegs.GetValueOrDefault(legs);
+        _torsoSignedByLegs[legs] = (sum + signed, count + 1);
+        _torsoErrorSum += error;
+        _torsoErrorMax = Mathf.Max(_torsoErrorMax, error);
+        _torsoSamples++;
+
+        // Without the modifier the chest would sit AppliedTwist further round.
+        if (Mathf.Abs(twist.AppliedTwist) >= SignificantTwist)
+        {
+            _twistedErrorSum += error;
+            _untwistedErrorSum += Mathf.Abs(Angles.Wrap(signed - twist.AppliedTwist));
+            _twistedSamples++;
+        }
+    }
+
+    // How far apart the hands are while running with nothing else playing: a two-handed weapon keeps them together.
+    private void MeasureCarry(PlayerCharacter player)
+    {
+        if (player.Legs == null || player.Animator.IsAttacking || player.IsDashing || player.IsDowned)
+        {
+            return;
+        }
+
+        var skeleton = player.Skeleton;
+        var left = skeleton.GetBoneGlobalPose(skeleton.FindBone("hand.l")).Origin;
+        var right = skeleton.GetBoneGlobalPose(skeleton.FindBone("hand.r")).Origin;
+        _handsApartRunning.Add(left.DistanceTo(right));
+    }
+
+    // Clip seconds per real second while a swing plays. Frames where the clip restarts or sits clamped at its end
+    // are skipped, so only steady playback counts.
+    private void MeasureSwingRate(float delta)
+    {
+        var local = LocalPlayer();
+        if (local == null)
+        {
+            return;
+        }
+
+        if (_groundSpeeds.Length == 0)
+        {
+            _groundSpeeds = string.Join(",", local.Animator.GroundSpeedByLegs.Select(p => $"{p.Key}:{p.Value:F2}"));
+        }
+
+        // A lunge plays at its dash's pace, not the attack speed.
+        if (!local.Animator.IsAttacking || IsLunge(local.ActiveSkill))
+        {
+            _lastSwingPosition = null;
+            return;
+        }
+
+        float position = local.Animator.AttackClipPosition;
+        if (_lastSwingPosition is { } last && position > last && position < local.Animator.AttackClipLength - 0.001f)
+        {
+            _swingRates.Add((position - last) / delta);
+        }
+
+        _lastSwingPosition = position;
+    }
+
+    // One aim update happens per physics frame, so consecutive readings are exactly one turn step apart.
+    private void MeasureTurn(float delta)
+    {
+        var local = LocalPlayer();
+        if (local == null)
+        {
+            return;
+        }
+
+        if (_lastAim is { } last)
+        {
+            float rate = Mathf.Abs(Angles.Wrap(local.AimYaw - last)) / delta;
+            _maxTurnRate = Mathf.Max(_maxTurnRate, rate);
+            if (rate >= Turning.MaxRate * 0.99f)
+            {
+                _turnLimitedFrames++;
+            }
+        }
+
+        _lastAim = local.AimYaw;
+    }
+
+    // The scale actually on a live character's head and headgear meshes. Headgear is either skinned beside the head
+    // (the Knight's helmet) or hung on the head bone by the importer (the skeleton warrior's).
+    private static void MeasureHeads(Skeleton3D skeleton, out float head, out float headgear)
+    {
+        head = float.NaN;
+        headgear = float.NaN;
+        var meshes = skeleton.GetChildren().OfType<MeshInstance3D>()
+            .Concat(skeleton.GetChildren().OfType<BoneAttachment3D>().Where(a => a.BoneName == "head")
+                .SelectMany(a => a.GetChildren().OfType<MeshInstance3D>()));
+        foreach (var mesh in meshes)
+        {
+            float expected = CharacterRig.HeadScaleOf(mesh.Name);
+            if (expected == CharacterRig.HeadScale)
+            {
+                head = mesh.Transform.Basis.Scale.Y;
+            }
+            else if (expected == CharacterRig.HeadgearScale)
+            {
+                headgear = mesh.Transform.Basis.Scale.Y;
+            }
+        }
+    }
+
+    // Enemies come and go, so the latest one wearing headgear is measured.
+    private void MeasureEnemyHelmet()
+    {
+        foreach (var enemy in GetTree().GetNodesInGroup(EnemyCharacter.Group).OfType<EnemyCharacter>())
+        {
+            MeasureHeads(enemy.Skeleton, out float head, out float headgear);
+            _enemyHead = head;
+            if (!float.IsNaN(headgear))
+            {
+                _enemyHeadgear = headgear;
+            }
+        }
+    }
+}

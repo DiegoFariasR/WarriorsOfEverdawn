@@ -4,12 +4,12 @@ Plain C# with no Godot dependency (`WarriorsOfEverdawn.Core`). See the root [AGE
 
 ## What belongs here
 
-A rule belongs in Core when it can be decided from numbers alone: who is hit by a swing, how much damage, how fast a character turns or moves, which leg clip plays, how many dodge charges are left, what an enemy decides to do. The client feeds Core positions, times and inputs and applies the answer.
+A rule belongs in Core when it can be decided from numbers alone: who is hit by a swing, how much damage, how fast a character turns or moves, which leg clip plays, how many dash charges are left, what an enemy decides to do. The client feeds Core positions, times and inputs and applies the answer.
 
 | Folder | Owns |
 |---|---|
 | `Combat/` | Skill and enemy definitions (`Skills`, `Enemies`, `PlayerRules`), hit arcs (`MeleeArc`), hit timing at attack speed (`CombatTiming`), cooldowns, stagger, health, enemy AI decisions (`EnemyBrain`) |
-| `Locomotion/` | Leg direction selection, move speeds, turn rate, dodge rules and charges |
+| `Locomotion/` | Leg direction selection, move speeds, turn rate, dash rules and charges |
 | `Stats/` | STR / WIS / AGI and what they drive (`StatRules`), mana |
 | root | `Angles` and `Ground`: yaw and ground-plane conventions shared by both sides |
 

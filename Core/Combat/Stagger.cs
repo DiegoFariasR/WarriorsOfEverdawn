@@ -12,6 +12,13 @@ public sealed class Stagger
 
     public bool IsStaggered(float now) => now < _until;
 
+    // A stagger that ignores immunity, such as a parry's. It never shortens one already running.
+    public void Force(float now, float duration)
+    {
+        _until = System.MathF.Max(_until, now + duration);
+        _immuneUntil = _until + Immunity;
+    }
+
     public bool TryApply(float now)
     {
         if (now < _immuneUntil)

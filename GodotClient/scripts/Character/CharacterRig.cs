@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using Godot;
 using WarriorsOfEverdawn.Core.Combat;
@@ -15,10 +16,20 @@ public static class CharacterRig
     // KayKit models face +Z; Godot's forward is -Z.
     public const float ModelYawOffset = Mathf.Pi;
 
-    public const float HeadScale = 0.75f;
+    // Smaller than Everdawn's 0.75: its battle camera looks across at bare heads, while this one looks down on
+    // helmets, which are bigger meshes and hide the foreshortened body beneath them. At 0.55 the Knight's helmet is
+    // about as wide as its shoulders, as an Everdawn head is.
+    public const float HeadScale = 0.55f;
     public const float HeadgearScale = HeadScale * 1.1f;
 
-    private const string HandBone = "handslot.r";
+    public const string HandBone = "handslot.r";
+
+    public const string LeftHandBone = "handslot.l";
+
+    public const string BackBone = "chest";
+
+    // Two points within this distance of the grip count as equally far.
+    private const float TipTie = 0.01f;
 
     private static readonly string[] HeadParts = { "_Head", "_Eyes", "_Jaw" };
     private static readonly string[] Headgear = { "Helmet", "Visor", "Hat", "Hood", "Crown" };
@@ -30,9 +41,9 @@ public static class CharacterRig
         Position = new Vector3(0f, Height / 2f, 0f),
     };
 
-    // Everdawn's head sizing (CharacterAssembler.HeadScale / HeadgearScale): head, face and eye meshes shrink to
-    // HeadScale, headgear a little less so it still fits over the head, all around the head bone's rest position so
-    // the head stays on the neck. Everdawn picks parts from its catalogue; whole KayKit models are sorted by mesh name.
+    // Everdawn's head sizing (CharacterAssembler): head, face and eye meshes shrink to HeadScale, headgear a little
+    // less so it still fits over the head, all around the head bone's rest position so the head stays on the neck.
+    // Everdawn picks parts from its catalogue; whole KayKit models are sorted by mesh name.
     public static void ShrinkHead(Node3D body)
     {
         var skeleton = body.GetNode<Skeleton3D>(RigAnimations.SkeletonPath);
@@ -77,19 +88,107 @@ public static class CharacterRig
     private static Transform3D ScaledAround(Transform3D transform, Vector3 pivot, float scale) =>
         new(transform.Basis.Scaled(Vector3.One * scale), pivot * (1f - scale) + transform.Origin * scale);
 
-    public static BoneAttachment3D AttachToHand(Node3D body, string weaponPath)
+    public static BoneAttachment3D AttachToHand(Node3D body, string weaponPath) => AttachToHand(body, weaponPath, Vector3.Zero);
+
+    public static BoneAttachment3D AttachToHand(Node3D body, string weaponPath, Vector3 grip)
     {
-        var weapon = Assets.Instantiate(weaponPath);
-
-        // Weapon GLBs can carry offsets on nested nodes; the hand slot bone is already the grip point.
-        foreach (var node in weapon.FindChildren("*", nameof(Node3D), recursive: true, owned: false))
-        {
-            ((Node3D)node).Position = Vector3.Zero;
-        }
-
         var hand = new BoneAttachment3D { Name = "RightHand", BoneName = HandBone };
-        hand.AddChild(weapon);
+        HoldWeapon(hand, weaponPath, grip);
         body.GetNode<Skeleton3D>(RigAnimations.SkeletonPath).AddChild(hand);
         return hand;
+    }
+
+    public static BoneAttachment3D AttachToLeftHand(Node3D body, string weaponPath, Vector3 rotation)
+    {
+        var hand = new BoneAttachment3D { Name = "LeftHand", BoneName = LeftHandBone };
+        HoldWeapon(hand, weaponPath, Vector3.Zero).Rotation = rotation;
+        body.GetNode<Skeleton3D>(RigAnimations.SkeletonPath).AddChild(hand);
+        return hand;
+    }
+
+    public static BoneAttachment3D AttachToBack(Node3D body, WeaponLook look)
+    {
+        var back = new BoneAttachment3D { Name = "Back", BoneName = BackBone };
+        HoldOnBack(back, look);
+        body.GetNode<Skeleton3D>(RigAnimations.SkeletonPath).AddChild(back);
+        return back;
+    }
+
+    // Replaces whatever is carried on the back, placed as its look says.
+    public static void HoldOnBack(BoneAttachment3D back, WeaponLook look)
+    {
+        var weapon = HoldWeapon(back, look.Model, look.BackGrip);
+        weapon.Transform = new Transform3D(Basis.FromEuler(look.BackRotation), look.BackPosition) * weapon.Transform;
+    }
+
+    // Replaces whatever the hand holds. The grip is the point on the weapon, in its own space, that the hand closes
+    // on: the origin for weapons modelled to be held there.
+    public static Node3D HoldWeapon(BoneAttachment3D hand, string weaponPath, Vector3 grip)
+    {
+        foreach (var held in hand.GetChildren())
+        {
+            hand.RemoveChild(held);
+            held.QueueFree();
+        }
+
+        // The hand slot bone is already the grip point.
+        var weapon = Assets.InstantiateAtOrigin(weaponPath);
+        weapon.Position = -grip;
+        hand.AddChild(weapon);
+        return weapon;
+    }
+
+    // Every vertex of the held weapon, in the hand's space.
+    public static Vector3[] WeaponPoints(BoneAttachment3D hand)
+    {
+        var points = new List<Vector3>();
+        foreach (var mesh in hand.FindChildren("*", nameof(MeshInstance3D), recursive: true, owned: false).OfType<MeshInstance3D>())
+        {
+            var toHand = RelativeTransform(mesh, hand);
+            for (int surface = 0; surface < mesh.Mesh.GetSurfaceCount(); surface++)
+            {
+                points.AddRange(mesh.Mesh.SurfaceGetArrays(surface)[(int)Mesh.ArrayType.Vertex].AsVector3Array().Select(v => toHand * v));
+            }
+        }
+
+        return points.Count > 0 ? points.ToArray() : throw new InvalidOperationException($"{hand.GetPath()} holds no mesh");
+    }
+
+    // The weapon's striking point: the vertex farthest from the grip. That is the blade tip on a sword or spear, the
+    // far end of a staff, and the point of a scythe's blade. On a tie the upper end wins.
+    public static Vector3 WeaponTip(IEnumerable<Vector3> points)
+    {
+        var tip = Vector3.Zero;
+        foreach (var point in points)
+        {
+            float farther = point.Length() - tip.Length();
+            if (farther > TipTie || (farther > -TipTie && point.Y > tip.Y))
+            {
+                tip = point;
+            }
+        }
+
+        return tip;
+    }
+
+    // How far the weapon reaches across the ground from a centre: its farthest point, whichever part that is. A
+    // scythe's blade curves back towards the wielder, so its point is not always what reaches furthest.
+    public static float WeaponReach(IEnumerable<Vector3> points, Transform3D hand, Vector3 centre) =>
+        points.Max(p =>
+        {
+            var offset = hand * p - centre;
+            return new Vector2(offset.X, offset.Z).Length();
+        });
+
+    private static Transform3D RelativeTransform(Node3D node, Node3D ancestor)
+    {
+        var transform = Transform3D.Identity;
+        for (var current = node; current != ancestor; current = current.GetParent() as Node3D
+            ?? throw new InvalidOperationException($"{node.Name} is not under {ancestor.Name}"))
+        {
+            transform = current.Transform * transform;
+        }
+
+        return transform;
     }
 }

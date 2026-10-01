@@ -5,16 +5,16 @@ using Xunit;
 
 namespace WarriorsOfEverdawn.Core.Tests.Locomotion;
 
-public class DodgeTests
+public class DashTests
 {
     private const float Precision = 1e-4f;
     private const float Now = 10f;
-    private const float Recharge = DodgeRules.RechargeTime;
+    private const float Recharge = DashRules.RechargeTime;
 
     [Fact]
     public void Starts_with_every_charge()
     {
-        Assert.Equal(DodgeRules.Charges, new ChargeCounter(DodgeRules.Charges, Recharge).Available(Now));
+        Assert.Equal(DashRules.Charges, new ChargeCounter(DashRules.Charges, Recharge).Available(Now));
     }
 
     [Fact]
@@ -53,8 +53,8 @@ public class DodgeTests
         const float Facing = 0.7f;
         var input = new Vector2(3f, 4f);
 
-        Assert.Equal(Vector2.Normalize(input), DodgeRules.Direction(input, Facing));
-        var still = DodgeRules.Direction(Vector2.Zero, Facing);
+        Assert.Equal(Vector2.Normalize(input), DashRules.Direction(input, Facing));
+        var still = DashRules.Direction(Vector2.Zero, Facing);
         Assert.Equal(Ground.Forward(Facing).X, still.X, Precision);
         Assert.Equal(Ground.Forward(Facing).Y, still.Y, Precision);
     }
@@ -62,7 +62,7 @@ public class DodgeTests
     [Fact]
     public void Covers_its_fixed_distance_at_its_speed()
     {
-        Assert.Equal(DodgeRules.Distance, DodgeRules.Speed * DodgeRules.Duration, Precision);
+        Assert.Equal(DashRules.Distance, DashRules.Speed * DashRules.Duration, Precision);
     }
 
     [Fact]

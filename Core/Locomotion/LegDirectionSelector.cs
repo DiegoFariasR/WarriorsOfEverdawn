@@ -33,7 +33,7 @@ public static class LegDirectionSelector
         _ => throw new ArgumentOutOfRangeException(nameof(direction), direction, null),
     };
 
-    // The quadrant a direction falls in relative to the aim, with no hysteresis (a dodge picks its clip once).
+    // The quadrant a direction falls in relative to the aim, with no hysteresis (a dash picks its clip once).
     public static LegDirection Nearest(float angle) => (int)MathF.Round(Angles.Wrap(angle) / (MathF.PI / 2f)) switch
     {
         0 => LegDirection.Forward,

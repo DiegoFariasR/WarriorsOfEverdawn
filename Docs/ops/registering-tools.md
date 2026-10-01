@@ -17,7 +17,7 @@ Touch:
 
 ## New Godot self-test check
 
-A new `[*-check]` line in `NetSelfTest` / `CameraSelfTest` needs its gate in `dev.sh` (`gate` helper, or a hand-rolled awk block), a mention in the matching command row of `AGENTS.md`, and the "Verified by" paragraph of the design doc it verifies. A check with no gate is a printed number nobody reads.
+A new `[*-check]` line in `NetSelfTest` (in the `NetSelfTest.<Area>.cs` part for its area) / `CameraSelfTest` needs its gate in `dev.sh` (`gate` helper, or a hand-rolled awk block), a mention in the matching command row of `AGENTS.md`, and the "Verified by" paragraph of the design doc it verifies. A check with no gate is a printed number nobody reads.
 
 ## New subagent (`.claude/agents/*.md`)
 

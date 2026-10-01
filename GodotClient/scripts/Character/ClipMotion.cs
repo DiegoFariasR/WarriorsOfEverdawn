@@ -83,6 +83,13 @@ public static class ClipMotion
         return GroundSpeedByClip[clip] = speeds[speeds.Count / 2];
     }
 
+    // Skeleton-space pose of a bone at a time in the clip. Bones in atRest keep their rest pose instead, as when another
+    // layer drives them.
+    public static Transform3D BonePose(Skeleton3D skeleton, Animation animation, string bone, double time, ICollection<string>? atRest = null) =>
+        skeleton.FindBone(bone) >= 0
+            ? Pose(skeleton, animation, ChainTo(skeleton, bone), time, atRest)
+            : throw new KeyNotFoundException($"{skeleton.GetPath()} has no bone '{bone}'");
+
     private static string[] ChainTo(Skeleton3D skeleton, string bone)
     {
         var chain = new List<string>();
@@ -95,12 +102,18 @@ public static class ClipMotion
     }
 
     // Skeleton-space pose of the last bone in the chain at a time in the clip; untracked bones keep their rest.
-    private static Transform3D Pose(Skeleton3D skeleton, Animation animation, string[] chain, double time)
+    private static Transform3D Pose(Skeleton3D skeleton, Animation animation, string[] chain, double time, ICollection<string>? atRest = null)
     {
         var pose = Transform3D.Identity;
         foreach (var bone in chain)
         {
             var rest = skeleton.GetBoneRest(skeleton.FindBone(bone));
+            if (atRest?.Contains(bone) == true)
+            {
+                pose *= rest;
+                continue;
+            }
+
             var path = $"{RigAnimations.SkeletonPath}:{bone}";
             int rotationTrack = animation.FindTrack(path, Animation.TrackType.Rotation3D);
             int positionTrack = animation.FindTrack(path, Animation.TrackType.Position3D);

@@ -9,7 +9,7 @@ Four camera modes, cycled with **C** (controller: **Back**). Each player picks t
 | 3 Behind | 7.5 behind the character, turning with it (WoW view) | Relative to facing: W forward, S backpedal, A/D strafe | Mouse turns (cursor hidden); vertical mouse tilts the camera between 5 and 60 deg; right stick turns |
 | 4 Top-down, turns with you | Straight down, the character's facing is always up on screen | Relative to facing | Mouse turns (cursor hidden); right stick turns |
 
-- Slice is left mouse, RT or X; Spin is right mouse, Y or RB; dodge is Space or B, towards the held movement direction. The same in every mode.
+- Slice is left mouse, RT or X; Spin is right mouse, Y or RB; dash is Space or B, towards the held movement direction. The same in every mode.
 - **Zoom:** mouse wheel (controller: D-pad up/down) scales the camera distance in every mode, from half to double, 12% per notch. One zoom level is shared by all modes.
 - Modes 3 and 4 capture the mouse. Esc frees the cursor; a click captures it again (and swings).
 - The camera eases toward where it should be (rate 12/s), so mode switches and turns glide instead of cutting.

@@ -93,6 +93,18 @@ public class LegDirectionSelectorTests
     }
 
     [Fact]
+    public void A_raised_guard_slows_every_direction_by_its_share()
+    {
+        var guard = Weapons.Default.Guard;
+
+        foreach (var direction in Enum.GetValues<LegDirection>())
+        {
+            Assert.Equal(MoveSpeed.For(direction) * guard.MoveSpeedFactor, MoveSpeed.For(direction, null, guard));
+            Assert.Equal(MoveSpeed.For(direction), MoveSpeed.For(direction, null, null));
+        }
+    }
+
+    [Fact]
     public void Backpedal_uses_its_own_speed()
     {
         Assert.Equal(MoveSpeed.Backpedal, MoveSpeed.For(LegDirection.Backward));

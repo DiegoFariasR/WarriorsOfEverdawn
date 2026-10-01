@@ -46,6 +46,7 @@ With the bias removed, the chest averages 3-9 deg off the aim while running; the
 The `Rig_Medium` skeleton branches at `hips`: `spine` -> `chest` -> `head` and both arms on one side, `upperleg.*` on the other. The torso mesh is weighted across `hips`, `spine` and `chest`, so it bends smoothly at the cut.
 
 - Base layer: the leg clip from the table above.
+- Stance layer: `Melee_2H_Idle` on the arm bones only, at full weight while moving and none while standing (the idle is that clip). Both arms hang off the chest, so their poses keep the hands together on the weapon over the leg clip's chest; without it the leg clips swing the arms as if empty-handed.
 - Attack layer: a one-shot on top, filtered to `spine` and every bone below it.
 - Death layer: `Death_A` over everything while the player is down; the torso twist fades out with it.
 - **Full body when standing still, upper body only while moving**, blended continuously: the lower-body attack weight is the attack weight times a stillness factor that ramps over about 1/8 s. Some attacks drive the swing through the hips, and lose it when cut at the spine:
@@ -59,18 +60,19 @@ The `Rig_Medium` skeleton branches at `hips`: `spine` -> `chest` -> `head` and b
 
 - No attack clip moves the root, so movement code stays in charge during a swing. Only the `Dodge_*` clips move the root (about 0.25 m).
 
-## Dodge
+## Dash
 
-Like PoE2's dodge roll (`Core/Locomotion/Dodge.cs`, first-pass numbers):
+Like PoE2's dodge roll (`Core/Locomotion/Dash.cs`, first-pass numbers):
 
-- **Space** (controller B). With a movement key held, the dodge goes that way (whatever W/A/S/D mean in the current camera mode); with none, it goes where the character faces.
+- **Space** (controller B). With a movement key held, the dash goes that way (whatever W/A/S/D mean in the current camera mode); with none, it goes where the character faces.
 - **Fixed distance:** 3.5 over 0.3 s, whatever the input, unless something solid is in the way.
 - **2 charges**, one coming back every 2 s after it is spent; no cost. The skill bar shows a pip per charge and the seconds to the next.
-- **Cancels** any swing, including a held Spin: the swing stops counting at once and only its animation fades.
-- **Rolls through skeletons:** they do not block the character while it dodges. No invulnerability: a skeleton's hit still lands if the player is inside its arc at the hit moment.
-- **Animation:** `Dodge_Forward` / `_Backward` / `_Left` / `_Right`, picked by the dodge direction relative to the facing and fitted to 0.3 s. It plays full-body except the root bone, whose own travel in the clips (0.25-0.65) would otherwise double up with the code's movement and snap back at the end.
-- **Ghosts:** a posed copy of the character left behind every 0.06 s of the dodge, fading over 0.3 s, in Everdawn's spirit look (`spirit` + `spirit_depth` shaders, cyan tint). Pooled per character.
-- On every machine: the owner moves itself and sends one reliable `StartDodge`; every peer then plays the clip and leaves the ghosts.
+- **A held Spin carries on** through the dash: the dash clip does not show, the Spin keeps the whole body, and the dash only moves it.
+- **Cancels** any other swing, and a Spin whose button was let go: the swing stops counting at once and only its animation fades. With the attack button it becomes a **lunge** instead ([combat.md](combat.md), "Thrusts and lunges"): the dash clip then keeps only the legs and a stab takes the upper body.
+- **Rolls through skeletons:** they do not block the character while it dashes. No invulnerability: a skeleton's hit still lands if the player is inside its arc at the hit moment.
+- **Animation:** `Dodge_Forward` / `_Backward` / `_Left` / `_Right`, picked by the dash direction relative to the facing and fitted to 0.3 s. It plays full-body except the root bone, whose own travel in the clips (0.25-0.65) would otherwise double up with the code's movement and snap back at the end.
+- **Ghosts:** a posed copy of the character left behind every 0.06 s of the dash, fading over 0.3 s, in Everdawn's spirit look (`spirit` + `spirit_depth` shaders, cyan tint). Pooled per character.
+- On every machine: the owner moves itself and sends one reliable `StartDash`, which says whether a Spin carries on (and `StartLunge` after it for a lunge); every peer then plays the clip and leaves the ghosts.
 
 ## Where it lives
 
@@ -98,5 +100,4 @@ Swings play at `CombatTiming.AttackSpeed` (2x, [combat.md](combat.md)). Idle, sp
 
 ## Open questions
 
-- Camera switching between top-down and side view: when it switches, and whether it changes controls.
 - Click-to-move: needs navigation once the arena has obstacles.

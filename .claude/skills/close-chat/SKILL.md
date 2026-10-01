@@ -186,7 +186,7 @@ Revert candidates (not auto-reverted -- decide per item):
 - The loosened spin-ratio threshold from before the fade-out frames were excluded; the measurement fix made it unnecessary.
 
 Open topics (not saved -- decide per item):
-- Offered a screenshot mode like Everdawn's --ai-playtest; no answer yet.
+- Asked whether a dash should make the player briefly invulnerable; no answer yet.
 
 Nothing committed -- run /commit if you want to land what's saved.
 ```

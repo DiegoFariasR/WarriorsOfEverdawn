@@ -3,17 +3,20 @@ using System.Numerics;
 
 namespace WarriorsOfEverdawn.Core.Locomotion;
 
-// A short dash of fixed length, like PoE2's dodge roll. No cost; charges come back one at a time.
-public static class DodgeRules
+// A short dash of fixed length, like PoE2's dash roll. No cost; charges come back one at a time.
+public static class DashRules
 {
     public const float Distance = 3.5f;
     public const float Duration = 0.3f;
     public const int Charges = 2;
     public const float RechargeTime = 2f;
 
+    // The attack button turns a dash into a lunge up to this long after the dash starts.
+    public const float LungeWithin = 0.1f;
+
     public static float Speed => Distance / Duration;
 
-    // Movement input picks the direction; with none, the dodge goes where the character faces.
+    // Movement input picks the direction; with none, the dash goes where the character faces.
     public static Vector2 Direction(Vector2 move, float facingYaw) =>
         move.LengthSquared() > 0.01f ? Vector2.Normalize(move) : Ground.Forward(facingYaw);
 }

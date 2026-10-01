@@ -19,9 +19,13 @@ public partial class EnemyCharacter : CharacterBody3D
     private const float SyncInterval = 0.1f;
     private const float FollowRate = 12f;
     private const float TurnRate = 10f;
-    private const float CorpseTime = 3f;
+    public const float CorpseTime = 3f;
     private const float AnimationBlend = 0.2f;
     private const float MovingThreshold = 0.1f;
+
+    // Where an arrow leaves the archer: about the bow's height, a little in front of the chest.
+    private const float LooseHeight = 1.2f;
+    private const float LooseForward = 0.5f;
 
     private static readonly Color DamageColor = new(1f, 0.9f, 0.4f);
 
@@ -32,6 +36,10 @@ public partial class EnemyCharacter : CharacterBody3D
     private Node3D _model = null!;
     private AnimationPlayer _animation = null!;
     private StringName _attackClip = null!;
+    private StringName? _attackFollowUp;
+    private StringName? _pendingFollowUp;
+    private float _attackLength;
+    private long _attackTarget;
     private float _walkPlayback;
     private StringName _oneShot = "";
     private StringName _loop = "";
@@ -48,6 +56,9 @@ public partial class EnemyCharacter : CharacterBody3D
     public static event Action<EnemyCharacter>? Died;
 
     public static event Action<long, int>? DamageTaken;
+
+    // Host only: a player's guard parried this skeleton's swing.
+    public static event Action<EnemyCharacter>? Parried;
 
     [Export]
     public Vector3 NetPosition { get; set; }
@@ -71,9 +82,13 @@ public partial class EnemyCharacter : CharacterBody3D
 
     public HitFlash Flash { get; private set; } = null!;
 
+    // Seconds since the attack shown here began; it keeps counting after the attack ends.
+    public float AttackShownTime => _attackShownTime;
+
     public static EnemyCharacter Create(string name, EnemyDefinition definition, Vector3 position, float yaw)
     {
-        var (model, weapon) = CombatVisuals.LookFor(definition);
+        var look = CombatVisuals.LookFor(definition);
+        string? followUp = CombatVisuals.FollowUpFor(definition.Attack);
         var enemy = new EnemyCharacter
         {
             Name = name,
@@ -87,14 +102,17 @@ public partial class EnemyCharacter : CharacterBody3D
             _health = new Health(definition.MaxHp),
             _shownYaw = yaw,
             _attackClip = CombatVisuals.ClipFor(definition.Attack),
+            _attackFollowUp = followUp == null ? null : new StringName(followUp),
         };
         enemy.AddChild(CharacterRig.CreateCapsule());
 
         enemy._model = new Node3D { Name = "Model" };
         enemy.AddChild(enemy._model);
-        var body = Assets.Instantiate(model);
+        var body = Assets.Instantiate(look.Model);
         enemy._model.AddChild(body);
-        var hand = CharacterRig.AttachToHand(body, weapon);
+        var hand = look.LeftHand
+            ? CharacterRig.AttachToLeftHand(body, look.Weapon, look.WeaponRotation)
+            : CharacterRig.AttachToHand(body, look.Weapon);
         CharacterRig.ShrinkHead(body);
         enemy.Skeleton = body.GetNode<Skeleton3D>(RigAnimations.SkeletonPath);
         enemy.Trail = new WeaponTrail(hand, TrailTint) { Name = "Trail" };
@@ -108,6 +126,8 @@ public partial class EnemyCharacter : CharacterBody3D
         body.AddChild(enemy._animation);
         var skeleton = body.GetNode<Skeleton3D>(RigAnimations.SkeletonPath);
         var walk = enemy._animation.GetAnimation(RigAnimations.SkeletonWalk);
+        enemy._attackLength = (float)enemy._animation.GetAnimation(enemy._attackClip).Length
+            + (followUp == null ? 0f : (float)enemy._animation.GetAnimation(followUp).Length);
         enemy._walkPlayback = definition.MoveSpeed / ClipMotion.GroundSpeed(skeleton, RigAnimations.SkeletonWalk, walk, Vector3.Back);
 
         enemy.AddChild(CreateSynchronizer());
@@ -187,9 +207,14 @@ public partial class EnemyCharacter : CharacterBody3D
                 NetYaw = targetYaw;
                 _attackElapsed = 0f;
                 _attackResolved = false;
+                _attackTarget = decision.Target.Id;
                 _cooldown = Definition.AttackCooldown;
                 Rpc(MethodName.PlayAttack);
                 return Vector3.Zero;
+            case EnemyAction.Retreat:
+                float awayYaw = Yaw.Of(-toTarget);
+                NetYaw = Yaw.Approach(NetYaw, awayYaw, TurnRate, delta);
+                return Yaw.Forward(awayYaw) * Definition.MoveSpeed;
             default:
                 NetYaw = Yaw.Approach(NetYaw, targetYaw, TurnRate, delta);
                 return Vector3.Zero;
@@ -197,25 +222,51 @@ public partial class EnemyCharacter : CharacterBody3D
     }
 
     // Host view of player positions decides enemy hits (Docs/Design/multiplayer.md, "Who owns what"). NetPosition is
-    // the latest a player reported, ahead of the smoothed position the host shows, so a dodge counts as early as the
+    // the latest a player reported, ahead of the smoothed position the host shows, so a dash counts as early as the
     // host can know about it.
     private void AdvanceAttack(float delta)
     {
         _attackElapsed += delta;
+        var target = PlayerCharacter.Find(GetTree(), _attackTarget);
+        if (Definition.Attack.Projectile != null && !_attackResolved && target is { IsDowned: false })
+        {
+            // An archer follows its target while it draws.
+            NetYaw = Yaw.Approach(NetYaw, Yaw.Of(target.NetPosition - GlobalPosition), TurnRate, delta);
+        }
+
         if (!_attackResolved && _attackElapsed >= CombatTiming.HitDelay(Definition.Attack, CombatTiming.BaseAttackSpeed))
         {
             _attackResolved = true;
+            if (Definition.Attack.Projectile != null)
+            {
+                var from = GlobalPosition + Yaw.Forward(NetYaw) * LooseForward + Vector3.Up * LooseHeight;
+                var aim = target != null ? target.NetPosition - GlobalPosition : Yaw.Forward(NetYaw);
+                Arrows.In(GetTree()).Loose(Definition.Attack, from, aim);
+                return;
+            }
+
             var me = Yaw.ToGround(GlobalPosition);
+            bool parried = false;
             foreach (var player in GetTree().GetNodesInGroup(PlayerCharacter.Group).OfType<PlayerCharacter>())
             {
                 if (!player.IsDowned && MeleeArc.Hits(me, NetYaw, Definition.Attack, Yaw.ToGround(player.NetPosition), BodySize.Radius))
                 {
-                    player.Vitals.TakeHit(Definition.Attack.Damage);
+                    parried |= player.Vitals.TakeAttack(Definition.Attack.Damage, GlobalPosition) == GuardOutcome.Parried;
                 }
+            }
+
+            // A parry throws the swing back: it ends here, and the skeleton reels long enough to be punished.
+            if (parried)
+            {
+                _attackElapsed = -1f;
+                _stagger.Force(_clock, Guard.ParryStagger);
+                Parried?.Invoke(this);
+                Rpc(MethodName.ShowParried);
+                return;
             }
         }
 
-        if (_attackElapsed >= _animation.GetAnimation(_attackClip).Length / CombatTiming.BaseAttackSpeed)
+        if (_attackElapsed >= _attackLength / CombatTiming.BaseAttackSpeed)
         {
             _attackElapsed = -1f;
         }
@@ -233,7 +284,9 @@ public partial class EnemyCharacter : CharacterBody3D
             _attackShownTime += delta;
         }
 
-        Trail.Recording = !IsDead && _attackShownTime >= 0f && WeaponTrail.Shows(Definition.Attack, _attackShownTime, CombatTiming.BaseAttackSpeed);
+        // A bow draws no trail: the arrow is the attack.
+        Trail.Recording = !IsDead && Definition.Attack.Projectile == null && _attackShownTime >= 0f
+            && WeaponTrail.Shows(Definition.Attack, _attackShownTime, CombatTiming.BaseAttackSpeed);
         if (IsDead)
         {
             return;
@@ -248,6 +301,12 @@ public partial class EnemyCharacter : CharacterBody3D
             }
 
             _oneShot = "";
+            if (_pendingFollowUp is { } followUp)
+            {
+                _pendingFollowUp = null;
+                PlayOneShot(followUp, CombatTiming.BaseAttackSpeed);
+                return;
+            }
         }
 
         StringName loop = NetMoving ? RigAnimations.SkeletonWalk : RigAnimations.SkeletonIdle;
@@ -270,6 +329,7 @@ public partial class EnemyCharacter : CharacterBody3D
     private void PlayAttack()
     {
         PlayOneShot(_attackClip, CombatTiming.BaseAttackSpeed);
+        _pendingFollowUp = _attackFollowUp;
         _attackShownTime = 0f;
     }
 
@@ -278,10 +338,18 @@ public partial class EnemyCharacter : CharacterBody3D
     {
         FloatingText.Spawn(this, amount.ToString(), DamageColor);
         Flash.Flash();
-        if (staggered && _oneShot != _attackClip && _oneShot != RigAnimations.SkeletonSpawn)
+        if (staggered && _oneShot != _attackClip && _oneShot != _attackFollowUp && _oneShot != RigAnimations.SkeletonSpawn)
         {
             PlayOneShot(RigAnimations.HitReact, RigAnimations.PlaybackSpeed);
         }
+    }
+
+    [Rpc(MultiplayerApi.RpcMode.Authority, CallLocal = true, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
+    private void ShowParried()
+    {
+        _attackShownTime = -1f;
+        _pendingFollowUp = null;
+        PlayOneShot(RigAnimations.HitReact, RigAnimations.PlaybackSpeed);
     }
 
     [Rpc(MultiplayerApi.RpcMode.Authority, CallLocal = true, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
@@ -304,7 +372,7 @@ public partial class EnemyCharacter : CharacterBody3D
     }
 
     [Rpc(MultiplayerApi.RpcMode.AnyPeer, CallLocal = true, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-    private void RequestDamage(int skill)
+    private void RequestDamage(string skillId)
     {
         if (!Multiplayer.IsServer())
         {
@@ -312,9 +380,14 @@ public partial class EnemyCharacter : CharacterBody3D
             return;
         }
 
-        if (skill < 0 || skill >= PlayerCharacter.SkillSet.Length)
+        SkillDefinition skill;
+        try
         {
-            GD.PushError($"[Enemy {Name}] unknown skill index {skill} from peer {Multiplayer.GetRemoteSenderId()}");
+            skill = Weapons.SkillById(skillId);
+        }
+        catch (KeyNotFoundException e)
+        {
+            GD.PushError($"[Enemy {Name}] {e.Message} (from peer {Multiplayer.GetRemoteSenderId()})");
             return;
         }
 
@@ -332,7 +405,7 @@ public partial class EnemyCharacter : CharacterBody3D
             return;
         }
 
-        int taken = _health.TakeDamage(StatRules.Damage(PlayerCharacter.SkillSet[skill].Damage, attacker.Stats));
+        int taken = _health.TakeDamage(StatRules.Damage(skill.Damage, attacker.Stats));
         Hp = _health.Current;
         DamageTaken?.Invoke(attackerId, taken);
         bool staggered = !_health.IsDead && _stagger.TryApply(_clock);

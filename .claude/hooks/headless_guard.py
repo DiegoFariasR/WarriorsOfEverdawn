@@ -14,7 +14,7 @@ GUI_DEV_COMMANDS = (
     "./dev.sh join",
 )
 
-RULE = 'See AGENTS.md "Never launch Godot with a visible window from AI automation".'
+RULE = 'See AGENTS.md "CRITICAL EXECUTION RULES".'
 
 
 def main() -> int:
@@ -24,7 +24,8 @@ def main() -> int:
         print(f"headless_guard: unreadable hook input ({e!r}); Godot launch rule NOT enforced for this call.", file=sys.stderr)
         return 1
 
-    if "--headless" in command:
+    # --ai-playtest keeps the window minimized and unfocused; ./dev.sh screenshot is its one user.
+    if "--headless" in command or "--ai-playtest" in command:
         return 0
 
     # taskkill names the Godot exe only to stop it; stripping those segments keeps cleanup commands usable.
@@ -32,7 +33,8 @@ def main() -> int:
 
     if "Godot_v4" in launchable or "$GODOT" in launchable or "${GODOT" in launchable:
         print(
-            f"BLOCKED: AI-initiated Godot launches MUST include --headless. {RULE} If the command only reads or "
+            f"BLOCKED: AI-initiated Godot launches MUST include --headless (or --ai-playtest when a window is needed for a "
+            f"screenshot; ./dev.sh screenshot does this). {RULE} If the command only reads or "
             "searches a path containing Godot_v4, use the Read/Grep/Glob tools instead.",
             file=sys.stderr,
         )

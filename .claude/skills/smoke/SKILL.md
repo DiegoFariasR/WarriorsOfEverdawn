@@ -8,7 +8,7 @@ user-invocable: true
 
 # Godot Smoke Tests
 
-Wraps `./dev.sh smoke`, which builds the client and runs the three headless self-tests in turn: `camera-test` (camera modes, controls mapping, HUD layout), `net-test` (host + 2 bot clients: movement, combat, animation, VFX, HUD, dodge) and `pvp-test` (PvP host + 1 bot client). Each prints its `[*-check]` lines and fails on any gate. The Everdawn counterpart is `/smoke` over `visual-smoke`.
+Wraps `./dev.sh smoke`, which builds the client and runs the three headless self-tests in turn: `camera-test` (camera modes, controls mapping, HUD layout), `net-test` (host + 2 bot clients: movement, combat, animation, VFX, HUD, dash) and `pvp-test` (PvP host + 1 bot client). Each prints its `[*-check]` lines and fails on any gate. The Everdawn counterpart is `/smoke` over `visual-smoke`.
 
 ## Argument
 
@@ -25,5 +25,6 @@ Wraps `./dev.sh smoke`, which builds the client and runs the three headless self
 ## Rules
 
 - Never commit anything after running. Report-only.
+- Smoke sessions last about 25 seconds, one wave or two. Waves over time, removal of the dead, leaks and going down need the long run: `./dev.sh playtest`, which has the same gates plus those.
 - Never substitute `./dev.sh run/host/join` to "see it": those open windows and are blocked for AI sessions.
-- A green smoke run says the measured things are right. What only shows on screen (how an effect looks, how motion reads) stays the user's to check.
+- A green smoke run says the measured things are right, not how they look. For that, use `./dev.sh screenshot` and read the image; how motion feels in play stays the user's to judge.

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Godot;
 using WarriorsOfEverdawn.Core.Combat;
 using WarriorsOfEverdawn.Core.Stats;
@@ -11,6 +12,8 @@ namespace WarriorsOfEverdawn.Player;
 public partial class PlayerVitals : Node
 {
     private static readonly Color DamageColor = new(1f, 0.35f, 0.3f);
+    private static readonly Color ParryColor = new(1f, 0.85f, 0.35f);
+    private static readonly Color BlockColor = new(0.8f, 0.88f, 1f);
 
     private readonly Health _health = new(PlayerRules.MaxHp);
 
@@ -21,6 +24,9 @@ public partial class PlayerVitals : Node
 
     // Host only, PvP: attacker peer, victim peer, damage taken.
     public static event Action<long, long, int>? DamagedByPlayer;
+
+    // Host only: an attack met this player's guard.
+    public static event Action<PlayerCharacter, GuardOutcome>? Guarded;
 
     private PlayerCharacter Player => GetParent<PlayerCharacter>();
 
@@ -36,6 +42,27 @@ public partial class PlayerVitals : Node
         return vitals;
     }
 
+    // Host only: an attack from `from`, which the player's guard may block (a share of the damage gets through) or
+    // parry (none does). Whoever calls it reacts to a parry.
+    public GuardOutcome TakeAttack(int damage, Vector3 from)
+    {
+        var outcome = Player.ResolveGuard(from);
+        if (outcome != GuardOutcome.Unguarded)
+        {
+            Guarded?.Invoke(Player, outcome);
+            Rpc(MethodName.ShowGuarded, (int)outcome);
+        }
+
+        int through = Guard.DamageThrough(Player.Weapon.Guard, outcome, damage);
+        if (through > 0)
+        {
+            TakeHit(through);
+        }
+
+        return outcome;
+    }
+
+    // Damage no guard can stop.
     public void TakeHit(int damage)
     {
         if (!Multiplayer.IsServer())
@@ -61,7 +88,7 @@ public partial class PlayerVitals : Node
 
     // PvP: another player's machine reports its swing hit this player; the host applies the damage.
     [Rpc(MultiplayerApi.RpcMode.AnyPeer, CallLocal = true, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-    private void RequestDamage(int skill)
+    private void RequestDamage(string skillId)
     {
         long sender = Multiplayer.GetRemoteSenderId();
         long attackerId = sender == 0 ? Multiplayer.GetUniqueId() : sender;
@@ -71,9 +98,14 @@ public partial class PlayerVitals : Node
             return;
         }
 
-        if (skill < 0 || skill >= PlayerCharacter.SkillSet.Length)
+        SkillDefinition skill;
+        try
         {
-            GD.PushError($"[Vitals {Player.Name}] unknown skill index {skill} from peer {attackerId}");
+            skill = Weapons.SkillById(skillId);
+        }
+        catch (KeyNotFoundException e)
+        {
+            GD.PushError($"[Vitals {Player.Name}] {e.Message} (from peer {attackerId})");
             return;
         }
 
@@ -85,7 +117,7 @@ public partial class PlayerVitals : Node
         }
 
         int before = _health.Current;
-        TakeHit(StatRules.Damage(PlayerCharacter.SkillSet[skill].Damage, attacker.Stats));
+        TakeAttack(StatRules.Damage(skill.Damage, attacker.Stats), attacker.NetPosition);
         if (before > _health.Current)
         {
             DamagedByPlayer?.Invoke(attackerId, Player.PeerId, before - _health.Current);
@@ -111,6 +143,13 @@ public partial class PlayerVitals : Node
         FloatingText.Spawn(Player, amount.ToString(), DamageColor);
         Player.Flash.Flash();
         Hit?.Invoke(amount);
+    }
+
+    [Rpc(MultiplayerApi.RpcMode.Authority, CallLocal = true, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
+    private void ShowGuarded(int outcome)
+    {
+        bool parried = (GuardOutcome)outcome == GuardOutcome.Parried;
+        FloatingText.Spawn(Player, parried ? "Parry!" : "Block", parried ? ParryColor : BlockColor);
     }
 
     [Rpc(MultiplayerApi.RpcMode.Authority, CallLocal = true, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]

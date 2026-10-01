@@ -37,15 +37,15 @@ Not a design doc. Design docs answer "what should X do." This doc answers "is X 
 
 ## 1. Weapons and their skills
 
-**Files:** [Core/Combat/SkillDefinition.cs](../../Core/Combat/SkillDefinition.cs) (`Skills`), [GodotClient/scripts/Character/CombatVisuals.cs](../../GodotClient/scripts/Character/CombatVisuals.cs) (clip per skill id), [GodotClient/scripts/Player/PlayerCharacter.cs](../../GodotClient/scripts/Player/PlayerCharacter.cs) (`SkillSet`).
+**Files:** [Core/Combat/WeaponDefinition.cs](../../Core/Combat/WeaponDefinition.cs) (`Weapons`), [Core/Combat/SkillDefinition.cs](../../Core/Combat/SkillDefinition.cs) (`Skills`), [GodotClient/scripts/Character/CombatVisuals.cs](../../GodotClient/scripts/Character/CombatVisuals.cs) (model, grip and clips per weapon).
 
 **Growth axis.** Weapons the player can pick, each with two skills; every skill needs a `SkillDefinition`, a clip, a skill-bar slot and range/hit-time measurements.
 
-**Cadence.** `active`. The game's premise is picking one weapon between several options; the two-handed sword is the first, "then add more options later".
+**Cadence.** `active`. The game's premise is picking one weapon between several options. Four so far: the greatsword, then the quarterstaff, spear and scythe together (2026-09-30).
 
-**Refactor implication.** Keep skills as data records looked up by id (the current shape). The player's `SkillSet` is one hardcoded pair today; when the second weapon lands, a weapon record (its two skills, model and look) replaces it rather than a second hardcoded array.
+**Refactor implication.** Registry of records, as landed: `WeaponDefinition` (two skills) in `Weapons.All`, looks and clips in `CombatVisuals` tables keyed by id. A new weapon is rows in those tables and its assets, not new code paths. If per-weapon behaviour beyond numbers appears (a charge-up, a projectile), that is the point to reconsider the shape.
 
-**Revisit trigger.** When the second weapon is designed.
+**Revisit trigger.** A weapon skill that needs behaviour the shared swing and spin code doesn't have.
 
 **Last reviewed.** 2026-09-30
 
@@ -55,13 +55,15 @@ Not a design doc. Design docs answer "what should X do." This doc answers "is X 
 
 **Files:** [Core/Combat/EnemyDefinition.cs](../../Core/Combat/EnemyDefinition.cs) (`Enemies.All`), [GodotClient/scripts/Character/CombatVisuals.cs](../../GodotClient/scripts/Character/CombatVisuals.cs) (model and weapon per enemy id), [GodotClient/scripts/Enemy/EnemyDirector.cs](../../GodotClient/scripts/Enemy/EnemyDirector.cs) (wave make-up).
 
-**Growth axis.** Enemy kinds (stats, attack skill, look) and, later, looks assembled from individual KayKit parts.
+**Growth axis.** Enemy kinds (stats, attack skill, look) and, later, looks assembled from individual KayKit parts. Ranged kinds arrived with the Skeleton Archer (2026-09-30).
 
 **Cadence.** `active`. Skeletons are the start; the user plans to "select each part" later, and more enemy kinds are implied by waves that are placeholders today.
 
 **Refactor implication.** Registry of records (the current `Enemies.All` + `ById`), not a switch per kind. Per-part looks will replace `CombatVisuals`' (model, weapon) pair with an assembled look; Everdawn's part assembly (`../Everdawn/GodotClient/scripts/Character/`) is the reference when that starts.
 
-**Revisit trigger.** When a third enemy kind or per-part looks start.
+Ranged attacks are data too: a skill with a `Projectile`, flown by `Arrows` by attack id. A new ranged enemy is rows and assets; a projectile that arcs, homes or stops at obstacles is new code.
+
+**Revisit trigger.** Per-part looks start, or a projectile needs behaviour beyond a straight, level flight.
 
 **Last reviewed.** 2026-09-30
 
@@ -117,14 +119,14 @@ Not a design doc. Design docs answer "what should X do." This doc answers "is X 
 
 ## 6. Headless self-test checks
 
-**Files:** [GodotClient/scripts/Dev/NetSelfTest.cs](../../GodotClient/scripts/Dev/NetSelfTest.cs), [GodotClient/scripts/Dev/CameraSelfTest.cs](../../GodotClient/scripts/Dev/CameraSelfTest.cs), the gates in `net_test` / `pvp_test` / `camera_test` in [dev.sh](../../dev.sh).
+**Files:** [GodotClient/scripts/Dev/NetSelfTest.cs](../../GodotClient/scripts/Dev/NetSelfTest.cs) and its parts `NetSelfTest.<Area>.cs`, [GodotClient/scripts/Dev/CameraSelfTest.cs](../../GodotClient/scripts/Dev/CameraSelfTest.cs), the gates in `net_test` / `pvp_test` / `camera_test` in [dev.sh](../../dev.sh).
 
 **Growth axis.** One measured check per feature (a `[*-check]` log line plus its `dev.sh` gate), since headless runs draw nothing and the checks are the only automated verification of the client.
 
 **Cadence.** `constant`. Every feature of the first slice added a check (twelve `net-test` gates so far), and new features will keep doing so.
 
-**Refactor implication.** Favor one unit per check: `NetSelfTest` is the largest script in the client and grows with every feature, so a split into one file (or partial) per check is the expected shape once it next grows, with the `dev.sh` gate next to its check's description.
+**Refactor implication.** One part per group of related checks. `NetSelfTest` was split on 2026-09-30 into partial-class files (`Combat`, `Body`, `Spin`, `Weapon`, `Hud`, `Dash`; the playtest then added `Session` and `Down`), each holding its checks' fields, measurements and printed lines; the main part keeps the frame loop and player tracking. A new check joins the part for its area, or gets a new part when none fits; it should not grow the main part.
 
-**Revisit trigger.** The next check added to `NetSelfTest`.
+**Revisit trigger.** A part grows past about 200 lines, or `CameraSelfTest` starts gaining checks per feature too.
 
 **Last reviewed.** 2026-09-30

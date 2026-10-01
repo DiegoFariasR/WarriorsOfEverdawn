@@ -32,4 +32,32 @@ public class EnemiesTests
 
         Assert.Throws<KeyNotFoundException>(() => Enemies.ById("no-such-enemy"));
     }
+
+    [Fact]
+    public void Looks_up_attacks_by_id_and_fails_loudly_on_unknown()
+    {
+        foreach (var enemy in Enemies.All)
+        {
+            Assert.Same(enemy.Attack, Enemies.AttackById(enemy.Attack.Id));
+        }
+
+        Assert.Throws<KeyNotFoundException>(() => Enemies.AttackById(Skills.Slice.Id));
+    }
+
+    [Fact]
+    public void Ranged_enemies_keep_away_from_inside_their_shooting_range_and_melee_ones_do_not()
+    {
+        foreach (var enemy in Enemies.All)
+        {
+            if (enemy.Attack.Projectile is { } projectile)
+            {
+                Assert.True(enemy.KeepAway > 0f && enemy.KeepAway < enemy.Attack.Range * EnemyBrain.EngageFraction, enemy.Id);
+                Assert.True(projectile.MaxDistance >= enemy.Attack.Range, enemy.Id);
+            }
+            else
+            {
+                Assert.Equal(0f, enemy.KeepAway);
+            }
+        }
+    }
 }

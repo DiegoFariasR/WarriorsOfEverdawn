@@ -3,8 +3,8 @@ using WarriorsOfEverdawn.Core.Combat;
 
 namespace WarriorsOfEverdawn.Character;
 
-// Ribbon behind a held weapon: while recording, each frame samples a blade edge (from partway up the blade to the
-// tip) and the mesh joins the edges sampled in the last Lifetime seconds, fading with age. Adapted from Everdawn's
+// Ribbon behind a held weapon: while recording, each frame samples an edge (from partway out towards the striking
+// point to the point itself) and the mesh joins the edges sampled in the last Lifetime seconds, fading with age. Adapted from Everdawn's
 // WeaponTrail; edges expire by age rather than one per frame, so the trail looks the same at any frame rate.
 public partial class WeaponTrail : MeshInstance3D
 {
@@ -14,7 +14,7 @@ public partial class WeaponTrail : MeshInstance3D
     private const float Lifetime = 0.15f;
     private const float MinEdgeDistance = 0.04f;
 
-    // The trail starts this far up the blade, so it follows the blade rather than the grip.
+    // The trail starts this far out towards the striking point, so it follows the blade rather than the grip.
     private const float BaseFraction = 0.4f;
 
     private readonly Vector3[] _bases = new Vector3[MaxEdges];
@@ -23,6 +23,7 @@ public partial class WeaponTrail : MeshInstance3D
     private readonly ArrayMesh _mesh = new();
     private readonly BoneAttachment3D _hand;
     private readonly StandardMaterial3D _material;
+    private Vector3[] _points = System.Array.Empty<Vector3>();
     private int _edgeCount;
     private float _clock;
 
@@ -55,13 +56,15 @@ public partial class WeaponTrail : MeshInstance3D
 
     public int EdgeCount => _edgeCount;
 
-    // Grip to blade tip along the hand's +Y, read from the weapon meshes.
-    public float TipLength { get; private set; }
+    // The weapon's striking point in the hand's space (CharacterRig.WeaponTip).
+    public Vector3 TipPoint { get; private set; }
+
+    public float TipLength => TipPoint.Length();
 
     public Vector3 LatestTip => _edgeCount > 0 ? _tips[_edgeCount - 1] : Vector3.Zero;
 
-    // Where the blade tip is right now, from the hand's current pose.
-    public Vector3 CurrentTip => _hand.GlobalTransform.Origin + _hand.GlobalTransform.Basis.Y.Normalized() * TipLength;
+    // Where the striking point is right now, from the hand's current pose.
+    public Vector3 CurrentTip => _hand.GlobalTransform * TipPoint;
 
     // The trail marks the swing's hit window, so it shows exactly when the weapon deals damage, with a short lead-in
     // and follow-through. swingTime is real seconds since the swing started.
@@ -75,20 +78,19 @@ public partial class WeaponTrail : MeshInstance3D
         // too, since TopLevel copies the old global transform into the local one (Everdawn's "trail in random places").
         TopLevel = true;
         Transform = Transform3D.Identity;
-
-        var toHand = _hand.GlobalTransform.AffineInverse();
-        foreach (var node in _hand.FindChildren("*", nameof(MeshInstance3D), recursive: true, owned: false))
-        {
-            var weaponMesh = (MeshInstance3D)node;
-            TipLength = Mathf.Max(TipLength, (toHand * weaponMesh.GlobalTransform * weaponMesh.GetAabb()).End.Y);
-        }
-
-        if (TipLength <= 0f)
-        {
-            GD.PushError($"[WeaponTrail] {_hand.GetPath()} holds no mesh reaching up the blade; trail disabled");
-            SetProcess(false);
-        }
+        Retarget();
     }
+
+    // After the hand takes a different weapon: the trail follows the new one's striking point.
+    public void Retarget()
+    {
+        _points = CharacterRig.WeaponPoints(_hand);
+        TipPoint = CharacterRig.WeaponTip(_points);
+        _edgeCount = 0;
+    }
+
+    // How far the held weapon reaches across the ground from a centre right now (CharacterRig.WeaponReach).
+    public float ReachFrom(Vector3 centre) => CharacterRig.WeaponReach(_points, _hand.GlobalTransform, centre);
 
     public override void _Process(double delta)
     {
@@ -111,8 +113,7 @@ public partial class WeaponTrail : MeshInstance3D
     private void Sample()
     {
         var hand = _hand.GlobalTransform;
-        var along = hand.Basis.Y.Normalized();
-        var tip = hand.Origin + along * TipLength;
+        var tip = hand * TipPoint;
         if (_edgeCount > 0 && _tips[_edgeCount - 1].DistanceTo(tip) < MinEdgeDistance)
         {
             return;
@@ -123,7 +124,7 @@ public partial class WeaponTrail : MeshInstance3D
             Shift(1);
         }
 
-        _bases[_edgeCount] = hand.Origin + along * (TipLength * BaseFraction);
+        _bases[_edgeCount] = hand * (TipPoint * BaseFraction);
         _tips[_edgeCount] = tip;
         _born[_edgeCount] = _clock;
         _edgeCount++;

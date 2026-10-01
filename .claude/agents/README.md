@@ -6,7 +6,7 @@ Quick decision table for delegating work. When the main agent sees a task, match
 
 | Task shape | Agent | Tools | Notes |
 |---|---|---|---|
-| Non-trivial C# under `Core/` + its tests in `Core.Tests/` (combat rules, skills, enemies, locomotion, dodge, stats, AI decisions) | `core-engineer` | Read, Write, Edit, Bash | **Opus.** Writes the failing test before the rule. Gate: `./dev.sh test`. |
+| Non-trivial C# under `Core/` + its tests in `Core.Tests/` (combat rules, skills, enemies, locomotion, dash, stats, AI decisions) | `core-engineer` | Read, Write, Edit, Bash | **Opus.** Writes the failing test before the rule. Gate: `./dev.sh test`. |
 | C# / `.tscn` work under `GodotClient/` (player, enemies, animation layers, camera, HUD, networking, self-tests) | `godot-engineer` | Read, Write, Edit, Bash | Sonnet. Gate: build + the self-test covering the change (`./dev.sh smoke` runs all three). |
 | One round of C# improvement work (dedup + survey + implement + test) | `polish-engineer` | Read, Write, Edit, Bash | Sonnet. Invoked once per round by `/polish <rounds> [area]` and by `/auto-maintain`; the skill orchestrates the loop in the main session. |
 
@@ -14,7 +14,7 @@ Quick decision table for delegating work. When the main agent sees a task, match
 
 - **"Spin should cost more mana / Slice should reach further"** → `core-engineer`. Numbers live in `Core/Combat/`; a range change also needs the `reach-check` gate to stay green, which `core-engineer` hands to `godot-engineer` if the measured reach moves.
 - **"The legs slide / the chest drifts off the aim"** → `godot-engineer`. Animation layers and the torso twist live in the client; `Core` only picks the leg direction.
-- **"Add a dodge-like mechanic"** → both, in order: `core-engineer` for the rule (charges, distance) with tests, then `godot-engineer` for movement, animation, network and its self-test check.
+- **"Add a dash-like mechanic"** → both, in order: `core-engineer` for the rule (charges, distance) with tests, then `godot-engineer` for movement, animation, network and its self-test check.
 - **"Polish the codebase"** → `polish-engineer`. It covers both `Core` and `GodotClient/scripts/`, but only improves existing code; new behaviour goes to the two engineers.
 
 ## Negative routing

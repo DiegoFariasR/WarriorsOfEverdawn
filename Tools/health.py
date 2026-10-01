@@ -120,7 +120,7 @@ CHECKS = [
         summarize=lambda out, _: summarize_harness_json(out, "lint-agents", "issue"),
     ),
     Check(
-        label="Godot --headless timeouts",
+        label="Godot launch timeouts",
         cmd=[sys.executable, str(ROOT / "Tools" / "check_godot_timeouts.py"), "--summary"],
         summarize=summarize_godot_timeouts,
     ),

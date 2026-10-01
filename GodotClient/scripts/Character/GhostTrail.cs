@@ -5,7 +5,7 @@ using WarriorsOfEverdawn.Util;
 
 namespace WarriorsOfEverdawn.Character;
 
-// The dodge's afterimages: posed copies of the character left behind every Interval while a dodge lasts, each
+// The dash's afterimages: posed copies of the character left behind every Interval while a dash lasts, each
 // fading out over FadeTime. They use Everdawn's spirit look (translucent cyan body with a glowing rim, and a depth
 // prepass so the body never shows through itself), applied the way its CharacterAssembler.ApplySpiritRecursive does.
 // Copies come from a pool built once per character.
@@ -24,22 +24,24 @@ public partial class GhostTrail : Node
 
     private readonly Node3D _source;
     private readonly string _modelPath;
-    private readonly string _weaponPath;
+    private WeaponLook _inHand;
+    private WeaponLook _onBack;
     private readonly List<Ghost> _pool = new();
     private Skeleton3D _sourceSkeleton = null!;
     private float _emitLeft;
     private float _sinceEmit;
 
-    public GhostTrail(Node3D sourceBody, string modelPath, string weaponPath)
+    public GhostTrail(Node3D sourceBody, string modelPath, WeaponLook inHand, WeaponLook onBack)
     {
         _source = sourceBody;
         _modelPath = modelPath;
-        _weaponPath = weaponPath;
+        _inHand = inHand;
+        _onBack = onBack;
     }
 
     // Godot needs a parameterless constructor to instantiate script classes itself.
     public GhostTrail()
-        : this(null!, "", "")
+        : this(null!, "", null!, null!)
     {
     }
 
@@ -53,12 +55,31 @@ public partial class GhostTrail : Node
     public override void _Ready()
     {
         _sourceSkeleton = _source.GetNode<Skeleton3D>(RigAnimations.SkeletonPath);
-        var spirit = Assets.Load<Shader>(SpiritShaderPath);
-        var depth = Assets.Load<Shader>(DepthShaderPath);
-        for (int i = 0; i < PoolSize; i++)
+        BuildPool();
+    }
+
+    // Ghosts carry the character's weapons too, in hand and on the back, so a change means a new pool.
+    public void SetWeapons(WeaponLook inHand, WeaponLook onBack)
+    {
+        if (inHand == _inHand && onBack == _onBack)
         {
-            _pool.Add(BuildGhost(spirit, depth));
+            return;
         }
+
+        _inHand = inHand;
+        _onBack = onBack;
+        if (!IsNodeReady())
+        {
+            return;
+        }
+
+        foreach (var ghost in _pool)
+        {
+            ghost.Root.QueueFree();
+        }
+
+        _pool.Clear();
+        BuildPool();
     }
 
     // Leaves ghosts behind for the next duration seconds, the first one now.
@@ -115,12 +136,23 @@ public partial class GhostTrail : Node
         Emitted++;
     }
 
+    private void BuildPool()
+    {
+        var spirit = Assets.Load<Shader>(SpiritShaderPath);
+        var depth = Assets.Load<Shader>(DepthShaderPath);
+        for (int i = 0; i < PoolSize; i++)
+        {
+            _pool.Add(BuildGhost(spirit, depth));
+        }
+    }
+
     private Ghost BuildGhost(Shader spirit, Shader depth)
     {
         // TopLevel: a ghost stays where it was left while the character moves on.
         var root = new Node3D { Name = "Ghost", TopLevel = true, Visible = false };
         var body = Assets.Instantiate(_modelPath);
-        CharacterRig.AttachToHand(body, _weaponPath);
+        CharacterRig.AttachToHand(body, _inHand.Model, _inHand.Grip);
+        CharacterRig.AttachToBack(body, _onBack);
         CharacterRig.ShrinkHead(body);
         root.AddChild(body);
         AddChild(root);

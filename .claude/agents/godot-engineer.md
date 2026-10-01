@@ -25,15 +25,15 @@ Before editing, read:
 
 3. **Solo is multiplayer.** Test paths run a host plus bot clients; there is no separate solo path to keep working. A change that works on the host but not on a client is broken.
 
-4. **Measure what you change.** Headless runs draw nothing, so the self-tests are the only automated check of the client. A behaviour you add or change gets a `[<name>-check]` line in `NetSelfTest` / `CameraSelfTest` with the expected value printed next to the measured one, and a gate in `dev.sh` (`gate` helper). A check with no gate does not count.
+4. **Measure what you change.** The self-tests are the automated regression check of the client. A behaviour you add or change gets a `[<name>-check]` line in `NetSelfTest` / `CameraSelfTest` with the expected value printed next to the measured one, and a gate in `dev.sh` (`gate` helper). A check with no gate does not count.
 
-5. **Run the self-test that covers the change**: `./dev.sh net-test` for anything a peer sees (movement, combat, animation, VFX, HUD values, dodge), `./dev.sh pvp-test` for anything touching player-on-player hits or rules, `./dev.sh camera-test` for camera modes, controls mapping and HUD layout. `./dev.sh smoke` runs all three.
+5. **Run the self-test that covers the change**: `./dev.sh net-test` for anything a peer sees (movement, combat, animation, VFX, HUD values, dash), `./dev.sh pvp-test` for anything touching player-on-player hits or rules, `./dev.sh camera-test` for camera modes, controls mapping and HUD layout. `./dev.sh smoke` runs all three. `./dev.sh playtest` (about 3 minutes) for anything that lives across a session: `Enemy/EnemyDirector.cs`, death and removal in `Enemy/EnemyCharacter.cs`, `Player/PlayerVitals.cs`, down and revive in `Player/PlayerCharacter.cs`, `Util/FloatingText.cs`, or anything that adds nodes while playing.
 
-6. **Say what you could not verify.** Anything only visible on screen (how an effect looks, whether motion reads well) is the user's to check. Name it in the handoff instead of implying a green self-test covers it.
+6. **Look at what you changed.** Headless runs draw nothing, so a change people see (an effect, a pose, the HUD, a camera angle) gets `./dev.sh screenshot`: pick the moment with `--at`, or take a series (`--frames 6 --interval 0.3`) to catch a swing or a dash, and read the image. `python Tools/zoom_region.py` enlarges a small element. How motion feels in play is still the user's to judge; name that in the handoff instead of implying a screenshot covers it.
 
 ## Critical rules
 
-- **Headless rule.** Every Godot launch you start includes `--headless`; `./dev.sh run/editor/host/join` are blocked for AI sessions (AGENTS.md "CRITICAL EXECUTION RULES"). Every new headless launch in `dev.sh` is wrapped in `timeout N`; `./dev.sh check-godot-timeouts` checks it.
+- **Headless rule.** Every Godot launch you start includes `--headless`, except `./dev.sh screenshot` (off-screen, minimized, unfocused through `--ai-playtest`); `./dev.sh run/editor/host/join` are blocked for AI sessions (AGENTS.md "CRITICAL EXECUTION RULES"). Every new headless launch in `dev.sh` is wrapped in `timeout N`; `./dev.sh check-godot-timeouts` checks it.
 - **New assets need import.** Copy each file's `.import` next to it, then run `./dev.sh import`.
 - **Script moves** need every `.tscn` `ext_resource` path updated (grep first) and `./dev.sh import` afterwards.
 - **Fail loud.** A missing bone, clip or mesh throws with its name; no placeholder visuals.
@@ -45,6 +45,8 @@ Before editing, read:
 - [ ] `./dev.sh format` ran
 - [ ] Every behaviour added or changed has a `[*-check]` line and a `dev.sh` gate (or the handoff says why it cannot be measured headless)
 - [ ] The self-test covering the change passes: `./dev.sh net-test`, `./dev.sh pvp-test` and/or `./dev.sh camera-test` (`./dev.sh smoke` when unsure)
+- [ ] `./dev.sh playtest` passes when the change touched `Enemy/EnemyDirector.cs`, death and removal in `Enemy/EnemyCharacter.cs`, `Player/PlayerVitals.cs`, down and revive in `Player/PlayerCharacter.cs`, `Util/FloatingText.cs`, or anything that adds nodes while playing
 - [ ] `./dev.sh check-godot-timeouts` clean if `dev.sh` changed
-- [ ] Handoff lists what only the user can check in a game window
+- [ ] `./dev.sh screenshot` captured and read for every visible change, with the image path and what it shows in the handoff
+- [ ] Handoff lists what only the user can judge in play (feel, motion)
 - [ ] `GodotClient/AGENTS.md` and the area's design doc (its "Verified by" paragraph included) updated if behaviour or conventions changed

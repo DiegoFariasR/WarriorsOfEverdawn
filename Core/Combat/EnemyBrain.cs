@@ -9,6 +9,9 @@ public enum EnemyAction
     Chase,
     Attack,
     Hold,
+
+    // Move away from the target (ranged enemies, while they cannot shoot).
+    Retreat,
 }
 
 public readonly record struct EnemyTarget(long Id, Vector2 Position);
@@ -44,6 +47,11 @@ public static class EnemyBrain
             return new EnemyDecision(EnemyAction.Chase, target);
         }
 
-        return new EnemyDecision(attackReady ? EnemyAction.Attack : EnemyAction.Hold, target);
+        if (attackReady)
+        {
+            return new EnemyDecision(EnemyAction.Attack, target);
+        }
+
+        return new EnemyDecision(nearestDistance < enemy.KeepAway ? EnemyAction.Retreat : EnemyAction.Hold, target);
     }
 }

@@ -12,6 +12,9 @@ public class EnemyBrainTests
 
     private static readonly float EngageDistance = Swing.Range * EnemyBrain.EngageFraction + BodySize.Radius;
 
+    private static readonly SkillDefinition Shot = Swing with { Id = "test-shot", Range = 8f, Projectile = Projectiles.Arrow };
+    private static readonly EnemyDefinition Archer = Grunt with { Id = "test-archer", AggroRange = 16f, Attack = Shot, KeepAway = 4f };
+
     private static EnemyTarget PlayerAt(long id, float distanceAhead) => new(id, Ground.Forward(0f) * distanceAhead);
 
     [Fact]
@@ -46,6 +49,25 @@ public class EnemyBrainTests
 
         Assert.Equal(EnemyAction.Attack, EnemyBrain.Decide(Grunt, Vector2.Zero, players, attackReady: true).Action);
         Assert.Equal(EnemyAction.Hold, EnemyBrain.Decide(Grunt, Vector2.Zero, players, attackReady: false).Action);
+    }
+
+    [Fact]
+    public void A_ranged_enemy_backs_away_from_a_close_player_while_it_cannot_shoot()
+    {
+        var close = new[] { PlayerAt(1, Archer.KeepAway * 0.5f) };
+        var inRange = new[] { PlayerAt(1, (Archer.KeepAway + Shot.Range * EnemyBrain.EngageFraction) / 2f) };
+
+        Assert.Equal(EnemyAction.Retreat, EnemyBrain.Decide(Archer, Vector2.Zero, close, attackReady: false).Action);
+        Assert.Equal(EnemyAction.Attack, EnemyBrain.Decide(Archer, Vector2.Zero, close, attackReady: true).Action);
+        Assert.Equal(EnemyAction.Hold, EnemyBrain.Decide(Archer, Vector2.Zero, inRange, attackReady: false).Action);
+    }
+
+    [Fact]
+    public void A_melee_enemy_never_backs_away()
+    {
+        var hugging = new[] { PlayerAt(1, BodySize.Radius) };
+
+        Assert.Equal(EnemyAction.Hold, EnemyBrain.Decide(Grunt, Vector2.Zero, hugging, attackReady: false).Action);
     }
 
     [Fact]

@@ -11,8 +11,11 @@ Solo and multiplayer are one code path. Up to 8 players, hosted by one of them (
 | Enemy AI and movement, HP, damage (computed by `Core`), deaths, spawns | Host |
 | Player HP, going down, getting back up | Host |
 | A player's mana and skill use | That player's machine |
+| A player's weapons, in hand and on the back | That player's machine |
+| Raising and lowering a player's guard | That player's machine |
+| Whether a guard blocks or parries | Host, by its own copy of the guard |
 | Whether a player's swing hits another player (PvP) | The attacker's machine |
-| Enemy attacks on players | Host for now; move to the player's machine if dodges feel unfair under lag |
+| Enemy attacks on players | Host for now; move to the player's machine if dashes feel unfair under lag |
 | Loot | Host (not built yet) |
 
 Co-op among friends, so cheating is not a design concern. Players owning their own movement avoids client-side prediction and correction, the hardest part of netcode.
@@ -22,13 +25,16 @@ No lockstep: nothing needs to be deterministic across machines. State is sent, n
 ## What goes over the network
 
 - **Spawning.** The host's `MultiplayerSpawner` (`PlayerSpawner` in `Arena.tscn`) spawns one `PlayerCharacter` per peer, named by peer id and owned by that peer. It also replicates existing players to anyone who joins later.
-- **Per player, 20 times a second, unreliable:** `NetPosition`, `NetVelocity`, `AimYaw`, through a `MultiplayerSynchronizer`.
-- **Attacks:** reliable RPC `StartAttack(index)` from the owner to every peer; a held Spin ends with reliable `EndChannel`. Revolutions in between need no messages: every peer loops the clip itself.
-- **Dodges:** the owner moves its own character through the dodge and sends one reliable `StartDodge(direction)`; every peer plays the clip and leaves the ghosts.
-- **Player HP:** a host-owned `Vitals` child on each player syncs `Hp` on change. Reliable RPCs from the host: `ShowHit`, `Downed`, `Revived(position)`.
-- **Enemies:** a second host `MultiplayerSpawner` (`EnemySpawner`). Per enemy, 10 times a second: `NetPosition`, `NetYaw`, `NetMoving`, `Hp`. Reliable RPCs from the host: `PlayAttack`, `ShowHit`, `Die`.
-- **A player's hit on an enemy:** reliable RPC `RequestDamage(skillIndex)` from the attacker to the host only. The host applies `Core` damage and broadcasts the result.
+- **Per player, 20 times a second, unreliable:** `NetPosition`, `NetVelocity`, `AimYaw`, through a `MultiplayerSynchronizer`. On the same synchronizer, sent when they change and to late joiners: `WeaponId` and `StowedWeaponId`, which every machine turns into the weapon in the player's hands (with its trail) and the one on the back, ghosts included.
+- **Attacks:** reliable RPC `StartAttack(skillId)` from the owner to every peer; a held Spin ends with reliable `EndChannel`. Revolutions in between need no messages: every peer loops the clip itself.
+- **Dashes:** the owner moves its own character through the dash and sends one reliable `StartDash(direction, spinsOn)`; every peer plays the clip and leaves the ghosts, or with `spinsOn` leaves the body to the Spin in progress. A lunge adds reliable `StartLunge(skillId, landsIn)`: every peer plays the stab so that it is fully extended `landsIn` seconds on, when its own copy of the dash ends.
+- **Guard:** reliable `RaiseGuard` and `LowerGuard` from the owner to every peer. Every machine times the guard by its own clock (no clock sync), and the host's copy decides each attack against it: the parry window runs from when the raise reached the host, so a client parries a little later than it sees ([combat.md](combat.md), "Guard"). The host shows the outcome with `ShowGuarded`, and a parried skeleton with `ShowParried`.
+- **Player HP:** a host-owned `Vitals` child on each player syncs `Hp` on change. Reliable RPCs from the host: `ShowHit`, `ShowGuarded(outcome)`, `Downed`, `Revived(position)`.
+- **Enemies:** a second host `MultiplayerSpawner` (`EnemySpawner`). Per enemy, 10 times a second: `NetPosition`, `NetYaw`, `NetMoving`, `Hp`. Reliable RPCs from the host: `PlayAttack`, `ShowHit`, `ShowParried`, `Die`.
+- **Arrows:** one reliable RPC from the host, `Arrows.Fly(id, attackId, from, direction)`, and every machine flies its own copy along the same straight line, ending it itself at its maximum distance. The host tests the hits and sends `Arrows.End(id)` only when one hits a player. `Arrows` is a node at the same path on every machine, which is what its RPCs need.
+- **A player's hit on an enemy:** reliable RPC `RequestDamage(skillId)` from the attacker to the host only. The host applies `Core` damage and broadcasts the result.
 - **Never skeleton poses.** Every machine derives the leg clip, body turn and torso twist from velocity and aim ([locomotion.md](locomotion.md)).
+- **Skill ids, not button indexes,** travel in `StartAttack` and `RequestDamage`. The weapon travels separately on the synchronizer, so an index could be read against the weapon before a change; an id always names the skill that was swung.
 - **Remote players** smooth their position and aim toward the latest update. No buffered interpolation yet; add it if remote players look jittery over a real connection.
 - Clients reach each other through the host (Godot's server relay).
 
@@ -47,7 +53,7 @@ The host chooses co-op or PvP for the session (`./dev.sh host --pvp`) and sends 
 
 ## Testing
 
-- `./dev.sh net-test`: a headless host and two headless bot clients on one machine, about 25 s. Each peer must see both others move at least 3 units and attack; each must land its own hits and see a skeleton die; damage from all three must reach the host; skeleton attacks must land on someone; the torso twist must keep the chest near the aim; no character may turn faster than its limit, which must actually come into play; heads (including the warrior's bone-attached helmet) must be at their scale; every peer must spin, land spin hits and keep to half speed while spinning; and dodges must keep their distance and charges and show on the other machines. Logs land in `_staging/net-test/`.
+- `./dev.sh net-test`: a headless host and three headless bot clients on one machine, one per weapon (greatsword, quarterstaff, spear, scythe) with a different one on each back, about 50 s, against tripled waves (`--wave-scale 3`). Each peer must see all the others move at least 3 units and attack, holding and carrying their weapons, and see each bot swap its sets and back; each must land its own hits and see a skeleton die; damage from all four must reach the host; skeleton attacks must land on someone; the torso twist must keep the chest near the aim; no character may turn faster than its limit, which must actually come into play; heads (including the warrior's bone-attached helmet) must be at their scale; every peer must spin, land spin hits and keep to half speed while spinning; and dashes must keep their distance and charges and show on the other machines. Logs land in `_staging/net-test/`.
 - `./dev.sh pvp-test`: a PvP host and one bot client, no skeletons, about 20 s. Each player must hit the other, take damage, and see the other's bar; the host must count damage from both.
 - `./dev.sh host` and `./dev.sh join <address>`: two real windows, for looking at it.
 

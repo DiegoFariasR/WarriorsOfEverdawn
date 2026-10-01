@@ -95,6 +95,7 @@ Add tests in `Core.Tests/` for changed Core logic: existing `*Tests.cs` for the 
 
 - `./dev.sh test` — all tests pass. If not, revert the breaking change and continue with what still lands.
 - If the round touched `GodotClient/scripts/`: `./dev.sh smoke`. Any failing gate means revert the client change that caused it.
+- If it touched `Enemy/EnemyDirector.cs`, death and removal in `Enemy/EnemyCharacter.cs`, `Player/PlayerVitals.cs`, down and revive in `Player/PlayerCharacter.cs`, `Util/FloatingText.cs`, or anything that adds nodes while playing: also `./dev.sh playtest`, which runs the session long enough for leaks and downs to show.
 
 ### 7. Drift check
 
@@ -117,6 +118,7 @@ Manufacturing cosmetic changes (collection-literal swaps, single-site helper ext
 - [ ] `./dev.sh build` passes
 - [ ] `./dev.sh test` passes
 - [ ] `./dev.sh smoke` passes when the round touched `GodotClient/scripts/`
+- [ ] `./dev.sh playtest` passes when the round touched `Enemy/EnemyDirector.cs`, death and removal in `Enemy/EnemyCharacter.cs`, `Player/PlayerVitals.cs`, down and revive in `Player/PlayerCharacter.cs`, `Util/FloatingText.cs`, or anything that adds nodes while playing
 - [ ] `./dev.sh format` ran on touched C#
 - [ ] `./dev.sh health` run, drift introduced this round noted in the report
 - [ ] Verdict (`progress` / `no-wins` / `blocked`) decided per section 8 and surfaced in the report

@@ -10,10 +10,14 @@ Quick lookup for `./dev.sh` subcommands and `Tools/*.py` scripts. Subagents refe
 | Run the Core tests | `./dev.sh test` |
 | Format the C# | `./dev.sh format` (`--verify-no-changes` to only check) |
 | Import copied-in assets | `./dev.sh import` |
-| Check a client change end to end (movement, combat, animation, VFX, HUD, dodge, across 3 peers) | `./dev.sh net-test` |
+| Check a client change end to end (movement, combat, animation, VFX, HUD, dash, guard, across 3 peers) | `./dev.sh net-test` |
 | Check player-on-player hits and damage | `./dev.sh pvp-test` |
 | Check camera modes, controls mapping and HUD layout | `./dev.sh camera-test` |
 | Run all three self-tests (the client regression gate) | `./dev.sh smoke` |
+| Measure a weapon skill's hit time and reach from its clip (standing and moving), or when a ranged enemy's shot leaves | `./dev.sh swing-survey` |
+| Check what lives across a session: waves, removal of the dead and of damage numbers, node count per wave, going down and back up | `./dev.sh playtest [--screenshots N]` (about 3 minutes) |
+| See what the game draws (a bot plays solo; off-screen, minimized window) | `./dev.sh screenshot [--at S] [--frames N --interval S] [--camera 1-4] [--no-ui] [--no-enemies] [--weapon <id>] [--back-weapon <id>]` -> `_staging/screenshot.png` or `_staging/screenshot_<n>.png` |
+| Enlarge a small part of a capture | `python Tools/zoom_region.py <png> <x> <y> <w> <h> [--scale N]` (`--grid` to find coordinates) |
 | Project-wide drift sweep | `./dev.sh health` (`--only <check>`, `--skip <check>`, `--list`) |
 | Find broken links, `file:line` refs and `./dev.sh` commands in the docs | `./dev.sh check-docs` (`--fix` re-points moved files) |
 | Check the refactor queue's references still resolve | `./dev.sh audit-refactors` (`--id N`, `--match <text>`, `--by-status`) |
@@ -25,8 +29,9 @@ Quick lookup for `./dev.sh` subcommands and `Tools/*.py` scripts. Subagents refe
 
 | Command | Log | Lines to read |
 |---|---|---|
-| `./dev.sh net-test` | `_staging/net-test/host.log`, `client1.log`, `client2.log` | `[net-check]`, `[combat-check]`, `[turn-check]`, `[head-check]`, `[speed-check]`, `[skill-check]`, `[trail-check]`, `[flash-check]`, `[ui-check]`, `[dodge-check]`, `[reach-check]`, and the twist fields |
+| `./dev.sh net-test` | `_staging/net-test/host.log`, `client1.log` .. `client3.log` (one per weapon) | `[net-check]`, `[combat-check]`, `[ranged-check]`, `[turn-check]`, `[head-check]`, `[speed-check]`, `[skill-check]`, `[trail-check]`, `[flash-check]`, `[ui-check]`, `[dash-check]`, `[spin-dash-check]`, `[lunge-check]`, `[carry-check]`, `[guard-check]`, `[reach-check]`, and the twist fields |
 | `./dev.sh pvp-test` | `_staging/pvp-test/host.log`, `client1.log` | `[pvp-check]`, `[pvp-host]`, `[combat-check]`, `[ui-check]` |
+| `./dev.sh playtest` | `_staging/playtest/host.log`, `client1.log`, `client2.log` | everything net-test reads, plus `[wave-check]`, `[leak-check]`, `[down-check]` |
 | `./dev.sh camera-test` | `_staging/camera-test.log` | `[camera-check]`, `[layout-check]` |
 
 Each check prints its own expectation next to the measurement (`limit_deg_s`, `head_expected`, ...), so the log alone says why a gate failed.
@@ -46,3 +51,4 @@ Each check prints its own expectation next to the measurement (`limit_deg_s`, `h
 | `Tools/check_godot_timeouts.py` | Backs `./dev.sh check-godot-timeouts` |
 | `Tools/_check_harness.py`, `Tools/_file_scanner.py` | Shared CLI flags, JSON footer and file scanning for the checks |
 | `Tools/setup_memory_junction.py` | One-time memory junction setup |
+| `Tools/zoom_region.py` | Crop and enlarge a screenshot region (needs Pillow) |
