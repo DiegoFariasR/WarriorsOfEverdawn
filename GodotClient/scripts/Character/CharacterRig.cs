@@ -127,7 +127,7 @@ public static class CharacterRig
         Empty(offHand);
         if (look?.OffHand is { } piece)
         {
-            offHand.AddChild(Adorned(Placed(piece.Model, piece.HandPosition, piece.HandRotation), look with { Glow = null }));
+            offHand.AddChild(Adorned(Placed(piece.Model, piece.HandPosition, piece.HandRotation, piece.Scale), look with { Glow = null }));
         }
     }
 
@@ -160,15 +160,15 @@ public static class CharacterRig
         weapon.Transform = new Transform3D(Basis.FromEuler(look.BackRotation), look.BackPosition) * weapon.Transform;
         if (look.OffHand is { } piece)
         {
-            back.AddChild(Adorned(Placed(piece.Model, piece.BackPosition, piece.BackRotation), look with { Glow = null }));
+            back.AddChild(Adorned(Placed(piece.Model, piece.BackPosition, piece.BackRotation, piece.Scale), look with { Glow = null }));
         }
     }
 
-    private static Node3D Placed(string modelPath, Vector3 position, Vector3 rotation)
+    private static Node3D Placed(string modelPath, Vector3 position, Vector3 rotation, float scale)
     {
         var model = Assets.InstantiateAtOrigin(modelPath);
         ToonLook.ApplyToWeapon(model);
-        model.Transform = new Transform3D(Basis.FromEuler(rotation), position);
+        model.Transform = new Transform3D(Basis.FromEuler(rotation).Scaled(Vector3.One * scale), position);
         return model;
     }
 
@@ -181,7 +181,8 @@ public static class CharacterRig
         }
         else
         {
-            Adorned(HoldWeapon(hand, look.Model, look.Grip, look.Scale, look.HandTurn), look);
+            var weapon = Adorned(HoldWeapon(hand, look.Model, look.Grip, look.Scale, look.HandTurn), look);
+            weapon.Transform = new Transform3D(Basis.FromEuler(look.HandRotation), look.HandPosition) * weapon.Transform;
         }
     }
 

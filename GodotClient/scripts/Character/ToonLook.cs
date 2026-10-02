@@ -14,6 +14,11 @@ public static class ToonLook
 {
     private const string OutlinePath = "res://assets/shaders/toon_outline.gdshader";
 
+    // Everdawn's (CharacterAssembler.CharacterLightLayer): the render layer every mesh with this look joins, on
+    // top of the default one, so a light whose cull mask is this layer alone lifts the figures and not the ground
+    // and walls about them (WorldLook's fill).
+    public const int CharacterLightLayer = 2;
+
     // Everdawn's numbers: metal is three quarters mirror, so its own colour still shows under a dim sky.
     private const float PeakMetal = 0.75f;
     private const float MetalRoughness = 0.15f;
@@ -45,8 +50,15 @@ public static class ToonLook
 
         foreach (var mesh in meshes)
         {
+            if (mesh.Mesh == null)
+            {
+                continue;
+            }
+
+            mesh.SetLayerMaskValue(CharacterLightLayer, true);
+
             // A skeleton's eyes glow by their own material.
-            if (mesh.Mesh == null || Untouched.Any(mesh.Name.ToString().EndsWith))
+            if (Untouched.Any(mesh.Name.ToString().EndsWith))
             {
                 continue;
             }

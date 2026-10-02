@@ -25,6 +25,16 @@ public class LevelLayoutTests
         }
         """;
 
+    private const string Lit = """
+        {
+         "version": 1,
+         "assets": {},
+         "placements": [],
+         "lights": [{"position": [4, 2.5, -8], "color": [1, 0.5, 0.25], "energy": 1.5, "range": 5},
+                    {"position": [0, 1, 0], "color": [1, 1, 1], "energy": 1, "range": 3, "halo": 0.4}]
+        }
+        """;
+
     private static readonly string[] Fortresses = { "allied-town", "enemy-fortress" };
 
     [Fact]
@@ -43,6 +53,16 @@ public class LevelLayoutTests
         Assert.Single(layout.Textures);
         Assert.Empty(layout.Meshes);
         Assert.Empty(layout.Lights);
+    }
+
+    [Fact]
+    public void A_layout_reads_its_lights()
+    {
+        var layout = LevelLayout.Parse(Lit, "lit");
+
+        Assert.Equal(2, layout.Lights.Count);
+        Assert.Equal(new LayoutLight(new Vector3(4f, 2.5f, -8f), new Vector3(1f, 0.5f, 0.25f), 1.5f, 5f, null), layout.Lights[0]);
+        Assert.Equal(0.4f, layout.Lights[1].HaloRadius);
     }
 
     [Fact]
@@ -180,6 +200,24 @@ public class LevelLayoutTests
         var safe = town.AreasNamed("safe").ToList();
 
         Assert.All(town.AreasNamed("room").Concat(town.AreasNamed("door")), a => Assert.Contains(a with { Name = "safe" }, safe));
+    }
+
+    // What burns in a fortress lights the ground about it: every light is at a piece, above the ground, and reaches
+    // further than the piece is wide.
+    [Fact]
+    public void Both_fortresses_are_lit_by_what_burns_in_them()
+    {
+        foreach (string name in Fortresses)
+        {
+            var layout = Load(name);
+
+            Assert.NotEmpty(layout.Lights);
+            Assert.All(layout.Lights, light =>
+            {
+                Assert.True(light.Energy > 0f && light.Range > 1f && light.Position.Y > 0f, $"{name}: {light}");
+                Assert.Contains(layout.Placements, p => Vector2.Distance(new Vector2(p.Position.X, p.Position.Z), new Vector2(light.Position.X, light.Position.Z)) < 2f);
+            });
+        }
     }
 
     private static LevelLayout Load(string name)

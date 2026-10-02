@@ -98,7 +98,7 @@ public partial class Lineup : Node3D
         };
     }
 
-    // The staffs of the elements named (all six with none named). Casting: each holds its spell on an area in front
+    // The staffs of the elements named (all with none named; more than six run wider than the field can frame). Casting: each holds its spell on an area in front
     // of it, with what it throws hanging at its side. With barrier, each stands inside its barrier instead.
     public static Lineup OfMagic(IReadOnlyList<Element> elements, bool barrier)
     {
@@ -124,7 +124,7 @@ public partial class Lineup : Node3D
                 body.AddChild(area);
                 area.Hold(element, ShownArea, SpellCycle);
                 area.MoveTo(body.GlobalPosition + Vector3.Back * ShownArea.Distance);
-                var thrown = Bolts.Thrown(staff.Primary, element, Vector3.Right);
+                var thrown = Bolts.Thrown(staff.Primary, Vector3.Right);
                 thrown.Position = new Vector3(-1.1f, 1.3f, 0.3f);
                 body.AddChild(thrown);
             },

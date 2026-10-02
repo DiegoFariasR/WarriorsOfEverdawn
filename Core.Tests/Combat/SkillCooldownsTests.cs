@@ -5,7 +5,7 @@ namespace WarriorsOfEverdawn.Core.Tests.Combat;
 
 public class SkillCooldownsTests
 {
-    private static readonly SkillDefinition Quick = new("quick", Damage: 1, Range: 1f, HalfArc: 1f, HitTime: 0.1f);
+    private static readonly SkillDefinition Quick = new("quick", Damage: 1, Range: 1f, HalfArc: 1f, HitTime: 0.1f) { Type = DamageType.Slash };
     private static readonly SkillDefinition Slow = Quick with { Id = "slow", Cooldown = 4f };
 
     [Fact]

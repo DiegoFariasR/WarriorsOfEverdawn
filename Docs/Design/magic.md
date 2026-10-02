@@ -1,19 +1,21 @@
 # Magic: staffs, wands and enchantments
 
-Two magic weapons, each in six elements: Everdawn's four (fire, water, wind, earth) and its two astral types (divine, void). A **staff** throws a bolt or a volley, holds a spell on an area and raises a barrier. A **wand and book** throw the same bolt or volley and raise the same barrier, and in place of the held spell throw a ball that bursts. Either is a weapon like any other ([combat.md](combat.md)): it takes one slot, is bought, dropped, picked up, improved and sold as the others are, and has the same four things (primary, secondary, lunge, guard). All numbers are first-pass and live in `Core/Combat` (`Skills.StaffOf`, `Skills.WandFor`, `Projectiles`, `Weapons.Barrier`). The sections down to the lunge describe the staff; the wand's differences follow them.
+Two magic weapons, each in eight elements, all Everdawn's: its four (fire, water, wind, earth), the weaponised forms of two of them (ice of water, lightning of wind), and its two astral types (divine, void). A **staff** throws a bolt or a volley, holds a spell on an area and raises a barrier. A **wand and book** throw the same bolt or volley and raise the same barrier, and in place of the held spell throw a ball that bursts. Either is a weapon like any other ([combat.md](combat.md)): it takes one slot, is bought, dropped, picked up, improved and sold as the others are, and has the same four things (primary, secondary, lunge, guard). All numbers are first-pass and live in `Core/Combat` (`Skills.StaffOf`, `Skills.WandFor`, `Projectiles`, `Weapons.Barrier`). The sections down to the lunge describe the staff; the wand's differences follow them.
 
-## The six
+## The eight
 
 | Staff | Primary | Held spell | Area | Damage a cycle | Mana a cycle | Looks like |
 |---|---|---|---|---|---|---|
 | Fire | Fire Bolt | Inferno | 2.5 round a spot 4 ahead | 10 | 6 | Pillars of fire standing up out of the ground |
-| Water | Water Volley | Blizzard | 3.5 round a spot 4 ahead | 6 | 5 | Shards falling out of the sky |
-| Wind | Wind Volley | Lightning Storm | 3 round a spot 4 ahead | 8 | 5 | Bolts from the sky, there and gone |
+| Water | Water Volley | Geyser | 3 round a spot 4 ahead | 6 | 4 | Columns of water standing up out of the ground |
+| Ice | Ice Volley | Blizzard | 3.5 round a spot 4 ahead | 6 | 5 | Shards of ice falling out of the sky |
+| Wind | Wind Volley | Cyclone | 4 round a spot 4 ahead | 6 | 4 | A ring of wind spreading from the middle of the area |
+| Lightning | Lightning Volley | Lightning Storm | 3 round a spot 4 ahead | 8 | 5 | Bolts from the sky, there and gone |
 | Earth | Earth Bolt | Earthquake | 3 round a spot 4 ahead | 8 | 5 | Spikes of rock thrust up from below |
 | Divine | Divine Bolt | Divine Nova | 3.5 round the caster | 8 | 5 | A ring of light spreading from the middle |
 | Void | Void Volley | Void Corrosion | 3 round a spot 4 ahead | 7 | 4 | Dark swellings that linger |
 
-Which staff throws a bolt and which a volley, and each one's area spell, are Everdawn's: its `fire-bolt`, `earth-bolt` and `divine-bolt`, its volleys, and its Inferno, Earthquake, Blizzard, Lightning Storm, Divine Nova and Void Corrosion. Everdawn's Blizzard and Lightning Storm belong to ice and lightning, the weaponised forms of water and wind, which have no staff of their own here.
+Which staff throws a bolt and which a volley are Everdawn's (`fire-bolt`, `earth-bolt` and `divine-bolt`; a volley for the other five), and so are six of the held spells: its Inferno, Blizzard (`ice-blizzard`), Lightning Storm (`lightning-storm`), Earthquake, Divine Nova and Void Corrosion. **The Geyser and the Cyclone are this game's own**: Everdawn has no signature spell for water or for wind. Water and ice are resisted alike, and wind and lightning ([damage-types.md](damage-types.md)), so with no effects yet the two of a pair differ in their held spell's numbers and looks alone: the natural element's is the cheaper, and the Cyclone the widest and weakest.
 
 ## Bolt and volley (primary)
 
@@ -25,8 +27,8 @@ Which staff throws a bolt and which a volley, and each one's area spell, are Eve
 ## The held spell (secondary)
 
 - Held like a Spin: a cycle is one loop of the casting clip (`Ranged_Magic_Spellcasting`, 0.67 s; about 0.3 s at the Knight's attack speed), paid for in mana as it starts. Everything in the area takes the spell's damage once a cycle; what walks in mid-cycle takes it as it enters. The caster moves at half speed.
-- **The area** is a circle on the ground: for five of the six, round the spot 4 ahead of where the caster faces, so it is steered by aiming and by walking; for the Divine Nova, round the caster. A body touching the circle is in it.
-- An area ahead does not cover the caster's own feet: what stands closer than the near edge (1.5 for Inferno, 1 for the 3-wide, 0.5 for Blizzard) is not hit. The Nova is the answer to a crowd at arm's length.
+- **The area** is a circle on the ground: for all but one, round the spot 4 ahead of where the caster faces, so it is steered by aiming and by walking; for the Divine Nova, round the caster. A body touching the circle is in it.
+- An area ahead does not cover the caster's own feet: what stands closer than the near edge (1.5 for Inferno, 1 for the 3-wide, 0.5 for Blizzard, none for the Cyclone, which reaches the caster's feet) is not hit. The Nova is the answer to a crowd at arm's length.
 - A ring on the ground shows the area for as long as the spell is held, and a round of strikes falls inside it each cycle.
 
 ## Barrier (guard)
@@ -49,21 +51,21 @@ One weapon, as the sword and shield are: the wand in the right hand, the open bo
 
 - **Primary and barrier are the staff's.** A wand throws the very bolt or volley the staff of its element does (the same skill, so the same numbers and the same second between throws), and raises the same barrier.
 - **The secondary is thrown, not held.** One press throws one ball: 25 damage, flying 13 a second for up to 12. Where it ends it bursts, and everything within 2.5 of that spot takes the damage, the body it struck once like the rest. It ends at the first body it touches, at a wall, or at the end of its flight, and bursts at all three. 12 mana a cast, and 2.5 s before the next.
-- Fire's is the **Fireball**; the others are the Water, Wind, Earth, Divine and Void **Burst**. They differ in look alone: what an element's burst does of its own waits on what the elements do.
+- Fire's is the **Fireball**; the others are each element's **Burst** (Water Burst, Ice Burst and so on). They differ in look alone: what an element's burst does of its own waits on what the elements do.
 - **Lunge:** a jab with the wand, 16 damage, reach 1.65: the shortest of all.
 - **Against the staff:** the staff's spell deals more to what stays in its area and costs mana for as long as it is held; the wand's ball lands all at once, anywhere a bolt can reach, and then has to wait.
 - **It looks like** `wand` and `spellbook_open`, with a spark of the element at the wand's tip and the element's shader over both.
 
 ## What a spell grows with
 
-A spell's damage grows with WIS (5% a point) where a blow's grows with STR (2.5% a point), so a staff's lunge goes by STR and its spells by WIS (`StatRules.Damage`). The Knight's WIS of 5 makes a bolt of 30 hit for 38. The blacksmith improves a staff like any weapon: each level adds a tenth to the bolt (each dart of a volley), the spell and the poke.
+A spell's damage grows with WIS (5% a point) where a blow's grows with STR (2.5% a point), so a staff's lunge goes by STR and its spells by WIS (`StatRules.Damage`). Which it is goes by the damage type: a spell is of its element's type and the poke is a blunt blow ([damage-types.md](damage-types.md)). The Knight's WIS of 5 makes a bolt of 30 hit for 38. The blacksmith improves a staff like any weapon: each level adds a tenth to the bolt (each dart of a volley), the spell and the poke.
 
 ## How it looks
 
-- **The staff** is one model (`staff`) for all six, with a ball of the element at its head, big enough to take in the model's own green gem. On the back it is carried like any pole.
-- **The elements** take Everdawn's colours (`ElementPalettes`), its surface shaders (`elemental_<element>.gdshader`, the brightest layer of each), its ball for a bolt and its bipyramid for a dart, and its honeycomb shader for the barrier (`barrier_hex`). Wind and divine use the second of Everdawn's two colours first, pale blue and gold: its firsts are both near white. All of it is in `Character/ElementLooks`.
+- **The staff** is one model (`staff`) for all eight, with a ball of the element at its head, big enough to take in the model's own green gem. On the back it is carried like any pole.
+- **The elements** take Everdawn's colours (`ElementPalettes`), its surface shaders (`elemental_<element>.gdshader`, the brightest layer of each), its ball for a bolt and its bipyramid for a dart, and its honeycomb shader for the barrier (`barrier_hex`). Wind, divine and ice use the second of Everdawn's two colours first, pale blue, gold and a full blue: its firsts for the three are all near white. Ice and lightning brought their own shaders from Everdawn (`elemental_ice`, `elemental_lightning`); lightning's flickers, so a lightning enchantment flashes over a blade and is gone for half a second. All of it is in `Character/ElementLooks`.
 - **Casting** uses the two-handed stance between spells, `Ranged_Magic_Shoot` to throw and `Ranged_Magic_Spellcasting` to hold. The barrier plays the same `Melee_Blocking` every guard does.
-- `./dev.sh magic-lineup [fire,void,...]` shows the staffs casting side by side, each with its area spell running and what it throws beside it; `./dev.sh magic-lineup barriers` shows each inside its barrier. `./dev.sh weapon-lineup fire-staff` shows the poses.
+- `./dev.sh magic-lineup [fire,void,...]` shows the staffs casting side by side (with none named, all eight in two pictures of four), each with its area spell running and what it throws beside it; `./dev.sh magic-lineup barriers` shows each inside its barrier. `./dev.sh weapon-lineup fire-staff` shows the poses.
 
 ## Where to get one
 
@@ -74,7 +76,7 @@ The **weaponsmith** sells the fire staff and the fire wand, plain, for 50 gold e
 The enchanter lays an element on a weapon of steel or wood, for 60 gold and an orb:
 
 - **40% of every blow's damage becomes that element's magic** (`Weapons.EnchantedShare`): the swing, the Spin and the lunge alike. The magic part grows with WIS and the rest with STR, where a plain weapon's whole blow grows with STR. In the Knight's hands, with STR 12 and WIS 5, that changes almost nothing: a Slice of 26 is still 26.
-- **Nothing else yet.** What each element does to what it hits is not decided (below), so today an enchantment is the conversion and the look. It is the place those effects will hang: the host already knows, for every blow, its element and how much of it is magic.
+- **Its element's effect, in its share.** The magic part of a blow builds the element's bar on what it hits, with 40% of the skill's buildup, and the weapon's own type builds its bar with the rest: an ice-enchanted greatsword chills a little and bleeds a little less ([damage-types.md](damage-types.md), "Statuses"). Swinging a divine or void enchantment also builds on the wielder, 8 a swing.
 - The weapon keeps its level, and the blacksmith goes on improving it. A weapon has one enchantment: another element takes the place of the first, at the same price.
 - It is the same weapon in every other way: the same skills, reach, guard, clips and stance. Its id and name carry the element: `greatsword~fire+3`, "Greatsword of Fire +3".
 - **It shows:** the element's shader plays over the whole weapon (and the shield of a sword and shield), in the hand, on the back and on the ground, thinner than over a thing made of the element so the weapon is still seen under it (`ElementLooks.Enchantment`).
@@ -90,15 +92,15 @@ The enchanter lays an element on a weapon of steel or wood, for 60 gold and an o
 
 ## Verified by `./dev.sh magic-test`
 
-A host and four bot clients, about 40 s against doubled waves: three with the fire, water and earth staffs in hand and wind, void and divine on their backs, one with the fire wand and the void wand, and one with a greatsword enchanted with wind and a spear with void. Staff bots keep a hostile at their spell's distance, throw at it from as far as a bolt flies (leading a moving one), hold their spell on it while they can pay, and throw for half of every five seconds whatever else is due. On each machine: its player throws bolts, as many to a cast as the skill has (one, or three), some land, the others' bolts are seen, each ends in a burst and none outlives its flight; its spell is drawn in rounds of strikes and the others' are seen; barriers show here and on the others, and its own takes blows and is seen coming back; the wand's ball bursts, and a burst catches a body, and the others see it burst; the thrust of a staff or a wand reaches as far as its lunge's range; and every weapon of an element shows it on every machine, a staff at its head and an enchanted weapon all over, whatever has flashed over it since, while no plain weapon does. On the host: every staff's and the wand's bolts landed hits, every staff's spell and the wand's bursts, the enchanted weapons' blows arrived as part magic, and every caster's barrier was dealt a blow as it went up (`--barrier-drill`: 6, through the same path as a skeleton's) and took it, at no cost in HP. Part of `./dev.sh smoke`.
+A host and five bot clients, about 40 s against tripled waves: four with the fire, water, earth and ice staffs in hand and wind, void, divine and lightning on their backs, one with the fire wand and the lightning wand, and one with a bow enchanted with ice in hand and a greatsword enchanted with wind on its back. The bow's arrows fly as bolts do, so they are checked here: the host counts their hits apart from the bolts' (`arrow_hits`). Staff bots keep a hostile at their spell's distance, throw at it from as far as a bolt flies (leading a moving one), hold their spell on it while they can pay, and throw for half of every five seconds whatever else is due. On each machine: its player throws bolts, as many to a cast as the skill has (one, or three), some land, the others' bolts are seen, each ends in a burst and none outlives its flight; its spell is drawn in rounds of strikes and the others' are seen; barriers show here and on the others, and its own takes blows and is seen coming back; the wand's ball bursts, and a burst catches a body, and the others see it burst; the thrust of a staff or a wand reaches as far as its lunge's range; and every weapon of an element shows it on every machine, a staff at its head and an enchanted weapon all over, whatever has flashed over it since, while no plain weapon does. On the host: every staff's and the wand's bolts landed hits, every staff's spell and the wand's bursts, the enchanted weapons' blows arrived as part magic, and every caster's barrier was dealt a blow as it went up (`--barrier-drill`: 6, through the same path as a skeleton's) and took it, at no cost in HP. Part of `./dev.sh smoke`.
 
 The rules themselves are `Core.Tests/Combat/StaffsTests` (a staff per element, bolt or volley by element, a volley dealing what a bolt does, areas ahead and round the caster, the barrier's pool and its return, WIS and STR, improved staffs), `Core.Tests/Combat/WandsTests` (a wand per element, the staff's shot and barrier, a ball thrown for mana that bursts, what a burst catches, wands attuned to wands), `Core.Tests/Combat/EnchantmentsTests` (any element on any weapon of steel or wood, the magic part by WIS and the rest by STR, level and enchantment kept through each other, ids and names, staffs attuned) and `Core.Tests/Trade`.
 
 ## Not here yet
 
-- **What the elements do beyond damage.** In Everdawn fire burns, water chills, wind and earth stun, divine and void have their own bars, and each type has its resistance. Here an element is a look, a shape and, on an enchanted weapon, a share of the damage; skeletons resist nothing. Until this is decided an enchantment does almost nothing for what it costs.
-- Ice, lightning and arcane, Everdawn's variants.
+- An enchantment's worth: it moves 40% of a blow, damage and buildup alike, to its element ([damage-types.md](damage-types.md), "Statuses"), so the blade also burns, chills or corrupts a little. Since skeletons are weak to every physical type, it still deals no more to them, and less for six of the eight.
+- Arcane, Everdawn's third variant, and its Chain Lightning.
 - PvP with staffs runs through the same code as swings (bolts and areas hit players, barriers take the blows) but no self-test covers it.
-- All six staffs are one model, and all six wands one wand and one book. Whether each should have its own.
+- All eight staffs are one model, and all eight wands one wand and one book. Whether each should have its own.
 - A cast or a casting stance of its own for the barrier.
 - Balance: bolt damage and its second between throws, the areas' sizes, the barrier's 40. Skeletons do not threaten a caster that keeps its distance.

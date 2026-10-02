@@ -133,7 +133,8 @@ public partial class PlayerCharacter : CharacterBody3D
     // Owned by the player's own machine, which is where skills start.
     public int Mana => (int)_mana.Current;
 
-    public float AttackSpeed => StatRules.AttackSpeed(Stats);
+    // Slower while chilled, as its run is.
+    public float AttackSpeed => StatRules.AttackSpeed(Stats) * Vitals.Speed;
 
     // The weapon this machine shows the player holding; null with an empty hand.
     public WeaponDefinition? Weapon => _weapon;
@@ -148,7 +149,7 @@ public partial class PlayerCharacter : CharacterBody3D
     public bool CanRaiseGuard => FreeToGuard && _guard.CanRaise(GuardClock);
 
     // Between swings only, and with a weapon to guard with.
-    private bool FreeToGuard => !IsDowned && _weapon != null && _swing == null && ActiveSkill == null;
+    private bool FreeToGuard => !IsDowned && !Vitals.IsLost && _weapon != null && _swing == null && ActiveSkill == null;
 
     // Every machine keeps its own guard timing, by its own clock: the host's decides blocks and parries.
     private static float GuardClock => Time.GetTicksMsec() / 1000f;
@@ -160,6 +161,8 @@ public partial class PlayerCharacter : CharacterBody3D
     public SpellArea SpellArea => _spellArea;
 
     public bool BarrierShown => _barrier.Visible;
+
+    public StatusShow StatusShow { get; private set; } = null!;
 
     // Whether an element shows on what this machine draws in the player's hand: an enchanted weapon's all over it,
     // a staff's at its head.
@@ -249,6 +252,8 @@ public partial class PlayerCharacter : CharacterBody3D
         player.AddChild(player._spellArea);
         player._barrier = new BarrierBubble();
         player.AddChild(player._barrier);
+        player.StatusShow = new StatusShow { Name = "StatusShow" };
+        player.AddChild(player.StatusShow);
         player._animator = new CharacterAnimator(body);
 
         player.Vitals = PlayerVitals.Create();
@@ -323,7 +328,24 @@ public partial class PlayerCharacter : CharacterBody3D
         _mana.Regenerate(StatRules.ManaRegenPerSecond * (float)delta);
         Controls.Update(this, delta);
 
-        if (_dashLeft <= 0f && !IsDowned && Controls.DashPressed)
+        // Frozen or stunned, by the host's word: no step, no dash, no skill, and what it was swinging is over.
+        bool lost = Vitals.IsLost;
+        if (lost && _swing is { } cut)
+        {
+            if (cut.Channeled)
+            {
+                EndChannelCycle(cut);
+            }
+
+            _swing = null;
+        }
+
+        if (lost && _dashLeft > 0f)
+        {
+            FinishDash();
+        }
+
+        if (_dashLeft <= 0f && !IsDowned && !lost && Controls.DashPressed)
         {
             if (_dashes.TryUse(_clock))
             {
@@ -360,8 +382,8 @@ public partial class PlayerCharacter : CharacterBody3D
             return;
         }
 
-        // A downed body keeps the aim it fell with.
-        bool held = IsDowned;
+        // A downed body keeps the aim it fell with, and a frozen or stunned one the aim it was caught with.
+        bool held = IsDowned || lost;
         var move = held ? Vector3.Zero : Controls.Move;
         float amount = Mathf.Min(move.Length(), 1f);
         float? wanted = !held && Controls.AimYaw is { } aim ? aim : amount > 0f ? Yaw.Of(move) : null;
@@ -374,11 +396,16 @@ public partial class PlayerCharacter : CharacterBody3D
         if (amount > 0f)
         {
             _legs = LegDirectionSelector.Select(Yaw.Of(move) - AimYaw, _legs).Direction;
-            velocity = move / move.Length() * MoveSpeed.For(_legs, ActiveSkill, _guard.IsUp ? _weapon?.Guard : null) * amount;
+            velocity = move / move.Length() * MoveSpeed.For(_legs, ActiveSkill, _guard.IsUp ? _weapon?.Guard : null) * amount * Vitals.Speed;
         }
 
-        Velocity = velocity;
-        MoveAndSlide();
+        // Frozen or stunned, it is not moved at all: left to the physics, skeletons walking into it would shove it.
+        if (!lost)
+        {
+            Velocity = velocity;
+            MoveAndSlide();
+        }
+
         NetPosition = GlobalPosition;
         NetVelocity = velocity;
         _shownAimYaw = AimYaw;
@@ -401,7 +428,7 @@ public partial class PlayerCharacter : CharacterBody3D
 
         // Between swings only, so a swing always plays out with the weapon it started with. While the host is still
         // answering a pick-up the slots stay as they are, so the weapon has somewhere to go when it arrives.
-        if (!IsDowned && _swing == null && !_animator.IsAttacking && !_pickUpPending)
+        if (!held && _swing == null && !_animator.IsAttacking && !_pickUpPending)
         {
             var sets = new WeaponSets(_weapon, _stowed);
             if (Controls.SwapSetsPressed)
@@ -429,7 +456,7 @@ public partial class PlayerCharacter : CharacterBody3D
             }
         }
 
-        if (!IsDowned && Controls.SkillHeld is { } button && !_animator.IsAttacking && CanUse(button))
+        if (!held && Controls.SkillHeld is { } button && !_animator.IsAttacking && CanUse(button))
         {
             var skill = _weapon!.Skill(button);
             _mana.TrySpend(skill.ManaCost);
@@ -780,6 +807,7 @@ public partial class PlayerCharacter : CharacterBody3D
     {
         ShowWeapons();
         ShowArmour();
+        StatusShow.Reflect(IsDowned ? Statuses.None : Vitals.Statuses);
         float speed = NetVelocity.Length();
         bool moving = speed > MovingThreshold;
         float targetBodyYaw = _shownAimYaw;
@@ -826,7 +854,11 @@ public partial class PlayerCharacter : CharacterBody3D
     {
         if (FindSkill(skillId) is { } skill)
         {
-            BeginSwing(skill, AttackSpeed);
+            BeginSwing(skill, CombatTiming.SwingSpeed(skill, AttackSpeed));
+            if (Multiplayer.IsServer())
+            {
+                Vitals.Cast(skill);
+            }
         }
     }
 

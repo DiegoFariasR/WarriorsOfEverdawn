@@ -49,7 +49,7 @@ Everdawn's format with five additions (`solid`, `shape`, `textures`, `markers`, 
  "markers": [{"name": "player-spawn", "position": [x, y, z]}, {"name": "seller-weaponsmith", "position": [x, y, z], "yaw": radians}],
  "areas": [{"name": "safe", "min": [x, z], "max": [x, z]}],
  "meshes": [],
- "lights": []
+ "lights": [{"position": [x, y, z], "color": [r, g, b], "energy": 1.6, "range": 5.0}]
 }
 ```
 
@@ -57,7 +57,7 @@ Everdawn's format with five additions (`solid`, `shape`, `textures`, `markers`, 
 - `textures` maps an asset path prefix to the texture every piece under it wears; the longest matching prefix wins. The dungeon kit's pieces carry no texture of their own, which is what lets the fortress wear the night texture while its banners keep their red.
 - `markers` in use: `player-spawn`, `enemy-spawn`, `gate`, `outside-gate`, `room` (a spot to stand on in each room), `seller-<id>` (where that seller stands, with a `yaw` for the way they face; [trade.md](trade.md)).
 - `areas` in use: `courtyard`, `room` (two per fortress) and `door` (each doorway with 1.5 of ground either side, kept clear of props), which together are the ground inside a fortress; `safe` (the same three in the town); `gate` (each opening; the town's also carries the ward).
-- `meshes` and `lights` are Everdawn's, unused so far.
+- `lights` are point lights without shadows, colours scene-linear: `level_fortresses.py` writes one at every piece that burns (its `BURNING` table: wall torches, post lanterns, the campfire, candles), at the flame, since the models give no light of their own. A new piece with a flame goes in that table. `meshes` is Everdawn's, unused so far.
 
 ## Workflow
 

@@ -7,6 +7,9 @@ public static class CombatTiming
 {
     public const float BaseAttackSpeed = 2f;
 
+    // The speed a skill's clip plays at in hands of this attack speed: quicker for a skill that is quick of itself.
+    public static float SwingSpeed(SkillDefinition skill, float attackSpeed) => attackSpeed * skill.SwingSpeed;
+
     public static float HitDelay(SkillDefinition skill, float attackSpeed) => skill.HitTime / attackSpeed;
 
     // Real time the hit window closes; the same as HitDelay for a single-moment swing.

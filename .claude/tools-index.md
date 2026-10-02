@@ -17,7 +17,7 @@ Quick lookup for `./dev.sh` subcommands and `Tools/*.py` scripts. Subagents refe
 | Check magic: bolts and volleys thrown, landed and seen by others, area spells, a wand's bursts, barriers taking blows and coming back, enchanted weapons showing their element | `./dev.sh magic-test` |
 | Run all the self-tests (the client regression gate) | `./dev.sh smoke` |
 | See every tier of armour on the Knight from the front, or try other outfits on it | `./dev.sh armour-lineup [Outfit,Outfit,...]` -> `_staging/armour-lineup.png` |
-| See every staff casting (area spell, bolt or dart), or each inside its barrier | `./dev.sh magic-lineup [fire,void,...|barriers]` -> `_staging/magic-lineup.png` |
+| See every staff casting (area spell, bolt or dart), or each inside its barrier | `./dev.sh magic-lineup [fire,void,...|barriers]` -> `_staging/magic-lineup.png` (nothing named: all eight, as `magic-lineup-1.png` and `-2.png`) |
 | See a weapon in the hands from the front: stance, guard, each skill as it lands, on the back, on the ground | `./dev.sh weapon-lineup <weapon id>` -> `_staging/weapon-lineup.png` |
 | Measure a weapon skill's hit time and reach from its clip (standing and moving), or when a ranged enemy's shot leaves | `./dev.sh swing-survey` |
 | Check what lives across a session: waves, removal of the dead and of damage numbers, node count per wave, going down and back up | `./dev.sh playtest [--screenshots N]` (about 3 minutes) |

@@ -165,6 +165,9 @@ public sealed class BotControls : IPlayerControls
     private const float AttackInterval = 1.25f;
     private const float EngageRadius = 7f;
     private const float OrbitDistance = 1.6f;
+
+    // A weapon that reaches less than the orbit (claws) is circled this far inside its reach.
+    private const float ShortReachMargin = 0.25f;
     private const float OrbitSpeed = 0.4f;
     private const float DashCloserThan = 3f;
     private const float DashEvery = 2.2f;
@@ -494,7 +497,7 @@ public sealed class BotControls : IPlayerControls
         // bot, with nothing to hold on a spot, keeps the same distance. One whose spell is centred on itself goes in.
         float orbit = weapon.Secondary.Area is { } area ? (area.Distance > 0f ? area.Distance : OrbitDistance)
             : weapon.Primary.Projectile != null ? RangedOrbit
-            : OrbitDistance;
+            : Mathf.Min(OrbitDistance, Mathf.Min(weapon.Primary.Range, weapon.Secondary.Range) + BodySize.Radius - ShortReachMargin);
         var inward = distance > 0.01f ? toEnemy / distance : Yaw.Forward(_phase);
         var around = new Vector3(-inward.Z, 0f, inward.X);
         var keepDistance = inward * Mathf.Clamp(distance - orbit, -1f, 1f);
@@ -510,7 +513,8 @@ public sealed class BotControls : IPlayerControls
         // A bolt takes a moment to get there: thrown from beyond its spell's reach, it is thrown at where the hostile
         // is walking to. Thrown at where it stands, most miss a skeleton crossing the line of fire.
         var velocity = VelocityOf(enemy);
-        bool throwsFromHere = weapon.Primary.Projectile != null && distance - BodySize.Radius > weapon.Secondary.Range;
+        // A bow looses arrows with either skill, so it leads from anywhere.
+        bool throwsFromHere = weapon.Primary.Projectile != null && (weapon.Secondary.Projectile == weapon.Primary.Projectile || distance - BodySize.Radius > weapon.Secondary.Range);
         AimYaw = Yaw.Of(throwsFromHere ? toEnemy + velocity * (distance / weapon.Primary.Projectile!.Speed) : toEnemy);
 
         // Every so often when a hostile is close, three quick presses: more than the charges, so the last is refused.

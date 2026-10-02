@@ -17,6 +17,18 @@ public static class CombatVisuals
     private static readonly Vector3 SheathRotation = new(Mathf.DegToRad(190f), 0f, Mathf.DegToRad(30f));
     private static readonly Vector3 PolePosition = new(0f, 0.25f, -0.36f);
 
+    private static readonly Vector3 ClawInHand = new(Mathf.DegToRad(-90f), Mathf.Pi, 0f);
+    private static readonly Vector3 ClawForward = new(0f, 0.05f, 0.05f);
+
+    // Drawn bigger than modelled: at its own size the blades are lost under this camera.
+    private const float ClawSize = 1.3f;
+
+    // The claw is modelled lying flat; laying a weapon down turns it a quarter over, which this turns back.
+    private static readonly Vector3 ClawOnGround = new(Mathf.DegToRad(-90f), 0f, 0f);
+
+    // The arrow a bow looses, a skeleton's or a player's, and the one a player with a bow holds in the right hand.
+    public const string ArrowModel = "res://assets/props/Skeleton_Arrow.glb";
+
     // Everdawn's shield in the hand (item_visuals.json "basic-shield").
     private static readonly Vector3 ShieldInHand = new(0f, 0f, 0.2f);
 
@@ -100,10 +112,74 @@ public static class CombatVisuals
                 BackRotation = new Vector3(0f, Mathf.Pi, 0f),
             },
         },
+
+        // One weapon to the rules, two models to the eye, as the sword and shield are: the bow in the left hand, held
+        // as the skeleton archer's is (Everdawn's item_visuals "basic-bow": bow_withString turned half round about
+        // Z), and an arrow in the right, turned end for end since the model's point is its -Y end. On the back the
+        // bow hangs across the shoulders with the arrow under it. The arrow is held a third of the way from its nock,
+        // so its point is out in front of the fist for the stab a dash carries.
+        [Weapons.Bow.Id] = new(ArrowModel, new Vector3(0f, 0.25f, 0f))
+        {
+            OneHanded = true,
+            HandRotation = new Vector3(Mathf.Pi, 0f, 0f),
+            BackPosition = new Vector3(0.12f, 0.42f, -0.36f),
+            BackRotation = SheathRotation,
+            OffHand = new OffHandLook("res://assets/weapons/bow_withString.glb")
+            {
+                HandRotation = new Vector3(0f, 0f, Mathf.Pi),
+
+                // The model's length is its Z: slanted across the back, its curve standing off it, and flat on
+                // the ground.
+                BackPosition = new Vector3(0f, 0.35f, -0.3f),
+                BackRotation = new Vector3(Mathf.DegToRad(-55f), Mathf.Pi / 2f, 0f),
+                GroundRotation = new Vector3(Mathf.Pi / 2f, 0f, 0f),
+            },
+        },
+
+        // KayKit's biggest hammer (hammer_D), held at its origin, where the haft has a hand's length and more
+        // below it for the second hand. Carried across the back like any pole, head up.
+        [Weapons.Warhammer.Id] = new("res://assets/weapons/hammer_D.glb", Vector3.Zero)
+        {
+            BackGrip = new Vector3(0f, 0.36f, 0f),
+            BackPosition = PolePosition,
+            BackRotation = new Vector3(Mathf.DegToRad(-10f), 0f, Mathf.DegToRad(30f)),
+        },
+
+        // A pair, and one weapon: the same clawed fist weapon (KayKit's fistweapon_B: a grip with three blades) in
+        // each hand, turned as Everdawn turns its fist gloves (item_visuals "basic-fist-gloves") so the blades
+        // stand out of the knuckles, and set a little forward of the palm. On the back they hang side by side at
+        // the shoulders.
+        [Weapons.Claws.Id] = new("res://assets/weapons/fistweapon_B.glb", Vector3.Zero)
+        {
+            OneHanded = true,
+            Scale = ClawSize,
+            HandRotation = ClawInHand,
+            HandPosition = ClawForward,
+            BackPosition = new Vector3(0.16f, 0.35f, -0.3f),
+            GroundRotation = ClawOnGround,
+            OffHand = new OffHandLook("res://assets/weapons/fistweapon_B.glb")
+            {
+                Scale = ClawSize,
+                HandRotation = ClawInHand,
+                HandPosition = ClawForward,
+                BackPosition = new Vector3(-0.16f, 0.35f, -0.3f),
+                GroundRotation = ClawOnGround,
+                GroundBeside = 0.45f,
+            },
+        },
     };
 
     private static readonly Dictionary<string, string> ClipBySkill = new()
     {
+        [Skills.HammerSmash.Id] = "melee/Melee_2H_Attack_Chop",
+        [Skills.HammerSpin.Id] = RigAnimations.SpinLoop,
+        [Skills.HammerLunge.Id] = RigAnimations.Stab,
+        [Skills.ClawRake.Id] = RigAnimations.DualSlice,
+        [Skills.ClawSpin.Id] = RigAnimations.SpinLoop,
+        [Skills.ClawLunge.Id] = RigAnimations.Punch,
+        [Skills.BowShot.Id] = RigAnimations.BowRelease,
+        [Skills.BowVolley.Id] = RigAnimations.BowRelease,
+        [Skills.BowLunge.Id] = RigAnimations.OneHandedStab,
         [Skills.SwordSlash.Id] = "melee/Melee_1H_Attack_Slice_Diagonal",
         [Skills.SwordSpin.Id] = RigAnimations.SpinLoop,
         [Skills.SwordLunge.Id] = RigAnimations.OneHandedStab,
@@ -149,8 +225,9 @@ public static class CombatVisuals
         : throw new KeyNotFoundException($"No model for weapon '{weapon.Kind}'");
 
     // A spell is cast with its own clips whatever its element: one to throw, one looped to hold a spell on an area.
+    // An arrow is no spell, whatever is on the bow.
     public static string ClipFor(SkillDefinition skill) =>
-        skill.Projectile != null && skill.Element != null ? RigAnimations.MagicShoot
+        skill.Projectile != null && DamageTypes.FamilyOf(skill.Type) != DamageFamily.Physical ? RigAnimations.MagicShoot
         : skill.Area != null ? RigAnimations.MagicChannel
         : ClipBySkill.TryGetValue(skill.Id, out var clip) ? clip
         : Weapons.Staffs.Any(s => s.Lunge.Id == skill.Id) ? RigAnimations.Stab
@@ -177,7 +254,9 @@ public sealed record EnemyLook(string Model, string Weapon)
 // A weapon's model and the point on it (in its own space) the hand holds (CharacterRig.HoldWeapon). Carried on the
 // back (CharacterRig.HoldOnBack), BackGrip is the point on it that goes to BackPosition, turned by BackRotation, all in
 // the chest bone's space. Scale draws it bigger or smaller than modelled, wherever it is; HandTurn turns it about its
-// own length in the hand, for a head that sticks out to one side. OneHanded leaves the other hand off the weapon;
+// own length in the hand, for a head that sticks out to one side; HandRotation and HandPosition turn and move it in
+// the hand after that, for a model that is not made standing up from its grip. OneHanded leaves the other hand off
+// the weapon;
 // OffHand is what that hand holds instead, which goes wherever the weapon goes. Enchant and Glow light an element on
 // it.
 public sealed record WeaponLook(string Model, Vector3 Grip)
@@ -200,17 +279,27 @@ public sealed record WeaponLook(string Model, Vector3 Grip)
 
     public float HandTurn { get; init; }
 
+    public Vector3 HandRotation { get; init; }
+
+    public Vector3 HandPosition { get; init; }
+
     public Vector3 BackGrip { get; init; }
 
     public Vector3 BackPosition { get; init; }
 
     public Vector3 BackRotation { get; init; }
+
+    // Turns it where it lies on the ground, for a model that is not made standing up: a weapon is laid down by
+    // turning it a quarter over.
+    public Vector3 GroundRotation { get; init; }
 }
 
 // The piece a weapon puts in the left hand (a shield): where it sits in the hand slot, and where it hangs when the
 // weapon is on the back, in the chest bone's space.
 public sealed record OffHandLook(string Model)
 {
+    public float Scale { get; init; } = 1f;
+
     public Vector3 HandPosition { get; init; }
 
     public Vector3 HandRotation { get; init; }
@@ -218,4 +307,11 @@ public sealed record OffHandLook(string Model)
     public Vector3 BackPosition { get; init; }
 
     public Vector3 BackRotation { get; init; }
+
+    // How it lies beside the weapon on the ground, in the laid weapon's space: face up for a shield, whose face is
+    // its +Z, which laying the weapon down turns to the ground.
+    public Vector3 GroundRotation { get; init; } = new(0f, Mathf.Pi, 0f);
+
+    // How far beside the weapon it lies.
+    public float GroundBeside { get; init; } = 0.8f;
 }

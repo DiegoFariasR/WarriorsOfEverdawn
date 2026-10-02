@@ -7,6 +7,7 @@ using WarriorsOfEverdawn.Core.Combat;
 using WarriorsOfEverdawn.Core.Stats;
 using WarriorsOfEverdawn.Main;
 using WarriorsOfEverdawn.Player;
+using WarriorsOfEverdawn.Theme;
 using WarriorsOfEverdawn.Util;
 
 namespace WarriorsOfEverdawn.Enemy;
@@ -28,7 +29,11 @@ public partial class EnemyCharacter : CharacterBody3D
     private const float LooseHeight = 1.2f;
     private const float LooseForward = 0.5f;
 
-    private static readonly Color DamageColor = new(1f, 0.9f, 0.4f);
+    // A hit on a weakness is written larger and one that is resisted smaller, so what a weapon does to this kind
+    // of body shows without a word.
+    private const float WeakHitScale = 1.2f;
+    private const float ResistedHitScale = 0.85f;
+    private const float TickScale = 0.7f;
 
     // Red, so a skeleton's incoming swing reads as a threat.
     private static readonly Color TrailTint = new(1f, 0.35f, 0.25f);
@@ -48,6 +53,11 @@ public partial class EnemyCharacter : CharacterBody3D
     private float _spawnLeft;
     private float _cooldown;
     private readonly Stagger _stagger = new();
+
+    // Host only: the bars its hits have built (Docs/Design/damage-types.md).
+    private readonly StatusBars _status = new();
+    private StatusShow _statusShow = null!;
+    private bool _shownLost;
     private float _clock;
     private float _attackElapsed = -1f;
     private bool _attackResolved;
@@ -56,7 +66,12 @@ public partial class EnemyCharacter : CharacterBody3D
 
     public static event Action<EnemyCharacter>? Died;
 
-    public static event Action<long, SkillDefinition, int>? DamageTaken;
+    // Host only: who hit, with what, how much it took, and whether the hit met a weakness (1), a resistance (-1)
+    // or neither.
+    public static event Action<long, SkillDefinition, int, int>? DamageTaken;
+
+    // Host only: a burn or a wound bit this skeleton for so much.
+    public static event Action<EnemyCharacter, DamageType, int>? StatusBit;
 
     // Host only: a player's guard parried this skeleton's swing.
     public static event Action<EnemyCharacter>? Parried;
@@ -72,6 +87,14 @@ public partial class EnemyCharacter : CharacterBody3D
 
     [Export]
     public int Hp { get; set; }
+
+    // Its statuses (Core's Statuses, as a number): the host's to work out, every machine's to show.
+    [Export]
+    public int StatusMask { get; set; }
+
+    public Statuses Statuses => (Statuses)StatusMask;
+
+    public StatusShow StatusShow => _statusShow;
 
     public EnemyDefinition Definition { get; private set; } = null!;
 
@@ -121,6 +144,8 @@ public partial class EnemyCharacter : CharacterBody3D
         enemy.AddChild(enemy.Trail);
         enemy.Flash = new HitFlash(body) { Name = "HitFlash" };
         enemy.AddChild(enemy.Flash);
+        enemy._statusShow = new StatusShow { Name = "StatusShow" };
+        enemy.AddChild(enemy._statusShow);
 
         // Libraries go in before the player enters the tree; playing first would crash (Everdawn godot-pitfalls.md).
         enemy._animation = new AnimationPlayer { Name = "AnimationPlayer" };
@@ -169,11 +194,23 @@ public partial class EnemyCharacter : CharacterBody3D
         }
 
         _clock += delta;
-        _cooldown -= delta;
+        AdvanceStatuses(delta);
+        if (IsDead)
+        {
+            return;
+        }
+
+        // The chilled are slow to strike again as they are slow to walk.
+        _cooldown -= delta * _status.Speed;
         var velocity = Vector3.Zero;
         if (_spawnLeft > 0f)
         {
             _spawnLeft -= delta;
+        }
+        else if (_status.Lost)
+        {
+            // Frozen or stunned: whatever it was doing is over.
+            _attackElapsed = -1f;
         }
         else if (_attackElapsed >= 0f)
         {
@@ -184,10 +221,43 @@ public partial class EnemyCharacter : CharacterBody3D
             velocity = Decide(delta);
         }
 
-        Velocity = velocity;
-        MoveAndSlide();
+        // A body frozen or stunned is not moved at all: left to the physics, the crowd walking into it would
+        // shove it along.
+        if (!_status.Lost)
+        {
+            Velocity = velocity;
+            MoveAndSlide();
+        }
+
         NetPosition = GlobalPosition;
         NetMoving = velocity.LengthSquared() > MovingThreshold * MovingThreshold;
+    }
+
+    // Host only: builds its bars as a hit of this type and power would, with no damage done. For the self-tests,
+    // which freeze and stun on cue what a fight seldom leaves standing long enough.
+    public void BuildStatus(DamageType type, int power)
+    {
+        _status.Build(type, power, damage: 0, _status.Adjusted(Definition.Resistances));
+        StatusMask = (int)_status.Active;
+    }
+
+    // Host only: its bars wear down, and its burns and wounds bite.
+    private void AdvanceStatuses(float delta)
+    {
+        foreach (var tick in _status.Advance(delta, _health.Current, _status.Adjusted(Definition.Resistances)))
+        {
+            int taken = _health.TakeDamage(tick.Damage);
+            Hp = _health.Current;
+            StatusBit?.Invoke(this, tick.Type, taken);
+            Rpc(MethodName.ShowTick, taken, (int)tick.Type);
+            if (_health.IsDead)
+            {
+                Rpc(MethodName.Die);
+                return;
+            }
+        }
+
+        StatusMask = (int)_status.Active;
     }
 
     private Vector3 Decide(float delta)
@@ -211,7 +281,7 @@ public partial class EnemyCharacter : CharacterBody3D
                 }
 
                 NetYaw = Yaw.Approach(NetYaw, Yaw.Of(way), TurnRate, delta);
-                return way * Definition.MoveSpeed;
+                return way * Definition.MoveSpeed * _status.Speed;
             case EnemyAction.Attack:
                 NetYaw = targetYaw;
                 _attackElapsed = 0f;
@@ -223,7 +293,7 @@ public partial class EnemyCharacter : CharacterBody3D
             case EnemyAction.Retreat:
                 float awayYaw = Yaw.Of(-toTarget);
                 NetYaw = Yaw.Approach(NetYaw, awayYaw, TurnRate, delta);
-                return Yaw.Forward(awayYaw) * Definition.MoveSpeed;
+                return Yaw.Forward(awayYaw) * Definition.MoveSpeed * _status.Speed;
             default:
                 NetYaw = Yaw.Approach(NetYaw, targetYaw, TurnRate, delta);
                 return Vector3.Zero;
@@ -250,7 +320,7 @@ public partial class EnemyCharacter : CharacterBody3D
             {
                 var from = GlobalPosition + Yaw.Forward(NetYaw) * LooseForward + Vector3.Up * LooseHeight;
                 var aim = target != null ? target.NetPosition - GlobalPosition : Yaw.Forward(NetYaw);
-                Arrows.In(GetTree()).Loose(Definition.Attack, from, aim);
+                Arrows.In(GetTree()).Loose(Definition.Attack, AttackDamage(), from, aim);
                 return;
             }
 
@@ -262,7 +332,7 @@ public partial class EnemyCharacter : CharacterBody3D
                 if (!player.IsDowned && !map.IsSafe(player.NetPosition)
                     && MeleeArc.Hits(me, NetYaw, Definition.Attack, Yaw.ToGround(player.NetPosition), BodySize.Radius))
                 {
-                    parried |= player.Vitals.TakeAttack(Definition.Attack.Damage, GlobalPosition) == GuardOutcome.Parried;
+                    parried |= player.Vitals.TakeAttack(AttackDamage(), GlobalPosition, DamageTypes.MaskOf(Definition.Attack.Types)) == GuardOutcome.Parried;
                 }
             }
 
@@ -282,6 +352,9 @@ public partial class EnemyCharacter : CharacterBody3D
             _attackElapsed = -1f;
         }
     }
+
+    // What its blow deals as it is now: less while it is dizzy.
+    private int AttackDamage() => (int)MathF.Round(Definition.Attack.Damage * _status.Dealt(Definition.Attack.Type));
 
     // The players a skeleton may go for: up, and not inside the allied town.
     private IEnumerable<EnemyTarget> LivingPlayers()
@@ -305,6 +378,27 @@ public partial class EnemyCharacter : CharacterBody3D
         if (IsDead)
         {
             return;
+        }
+
+        // Frozen or stunned, it holds the pose it was caught in; as it comes out of it, whatever it was doing is
+        // over here too.
+        _statusShow.Reflect(Statuses);
+        bool lost = (Statuses & (Statuses.Frozen | Statuses.Stunned)) != Statuses.None;
+        _animation.SpeedScale = lost ? 0f : 1f;
+        if (lost)
+        {
+            _shownLost = true;
+            _attackShownTime = -1f;
+            return;
+        }
+
+        if (_shownLost)
+        {
+            _shownLost = false;
+            _oneShot = "";
+            _oneShotLeft = 0f;
+            _pendingFollowUp = null;
+            _loop = "";
         }
 
         if (_oneShotLeft > 0f)
@@ -349,15 +443,21 @@ public partial class EnemyCharacter : CharacterBody3D
     }
 
     [Rpc(MultiplayerApi.RpcMode.Authority, CallLocal = true, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-    private void ShowHit(int amount, bool staggered)
+    private void ShowHit(int amount, bool staggered, int types, int leaning)
     {
-        FloatingText.Spawn(this, amount.ToString(), DamageColor);
+        FloatingText.Spawn(this, amount.ToString(), DamageTypeColours.Number(types),
+            scale: leaning > 0 ? WeakHitScale : leaning < 0 ? ResistedHitScale : 1f);
         Flash.Flash();
         if (staggered && _oneShot != _attackClip && _oneShot != _attackFollowUp && _oneShot != RigAnimations.SkeletonSpawn)
         {
             PlayOneShot(RigAnimations.HitReact, RigAnimations.PlaybackSpeed);
         }
     }
+
+    // A burn's or a wound's bite: a number, smaller than a hit's, and no blink or flinch.
+    [Rpc(MultiplayerApi.RpcMode.Authority, CallLocal = true, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
+    private void ShowTick(int amount, int type) =>
+        FloatingText.Spawn(this, amount.ToString(), DamageTypeColours.Number((DamageType)type), scale: TickScale);
 
     [Rpc(MultiplayerApi.RpcMode.Authority, CallLocal = true, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
     private void ShowParried()
@@ -371,6 +471,8 @@ public partial class EnemyCharacter : CharacterBody3D
     private void Die()
     {
         IsDead = true;
+        _animation.SpeedScale = 1f;
+        _statusShow.Reflect(Statuses.None);
         GetNode<CollisionShape3D>("Shape").SetDeferred(CollisionShape3D.PropertyName.Disabled, true);
         _animation.Play(RigAnimations.SkeletonDeath, AnimationBlend, RigAnimations.PlaybackSpeed);
         Died?.Invoke(this);
@@ -422,11 +524,19 @@ public partial class EnemyCharacter : CharacterBody3D
             return;
         }
 
-        int taken = _health.TakeDamage(StatRules.Damage(skill, attacker.Stats));
+        // By what this kind of body makes of each type the hit is of, as its bars leave it, and by what the
+        // attacker's own bars make of its blows. Then the hit builds this body's bars.
+        var dealer = attacker.Vitals.Status;
+        var resistances = _status.Adjusted(Definition.Resistances);
+        int dealt = StatRules.Damage(skill, attacker.Stats, resistances, dealer);
+        int leaning = Math.Sign(dealt - StatRules.Damage(skill, attacker.Stats, Resistances.None, dealer));
+        int taken = _health.TakeDamage(dealt);
         Hp = _health.Current;
-        DamageTaken?.Invoke(attackerId, skill, taken);
+        StatRules.Afflict(_status, skill, attacker.Stats, resistances, dealer);
+        StatusMask = (int)_status.Active;
+        DamageTaken?.Invoke(attackerId, skill, taken, leaning);
         bool staggered = !_health.IsDead && _stagger.TryApply(_clock);
-        Rpc(MethodName.ShowHit, taken, staggered);
+        Rpc(MethodName.ShowHit, taken, staggered, DamageTypes.MaskOf(skill.Types), leaning);
         if (_health.IsDead)
         {
             Rpc(MethodName.Die);
@@ -436,7 +546,7 @@ public partial class EnemyCharacter : CharacterBody3D
     private static MultiplayerSynchronizer CreateSynchronizer()
     {
         var config = new SceneReplicationConfig();
-        foreach (var property in new[] { PropertyName.NetPosition, PropertyName.NetYaw, PropertyName.NetMoving, PropertyName.Hp })
+        foreach (var property in new[] { PropertyName.NetPosition, PropertyName.NetYaw, PropertyName.NetMoving, PropertyName.Hp, PropertyName.StatusMask })
         {
             var path = new NodePath($".:{property}");
             config.AddProperty(path);

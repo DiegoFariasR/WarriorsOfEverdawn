@@ -81,7 +81,7 @@ public class LegDirectionSelectorTests
     [Fact]
     public void A_slowing_swing_sets_its_share_of_run_speed_in_every_direction()
     {
-        var slowing = new SkillDefinition("test-slow", Damage: 1, Range: 1f, HalfArc: 1f, HitTime: 0f) { MoveSpeedFactor = 0.5f };
+        var slowing = new SkillDefinition("test-slow", Damage: 1, Range: 1f, HalfArc: 1f, HitTime: 0f) { Type = DamageType.Slash, MoveSpeedFactor = 0.5f };
         var normal = slowing with { MoveSpeedFactor = 1f };
 
         foreach (var direction in Enum.GetValues<LegDirection>())

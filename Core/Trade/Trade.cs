@@ -40,7 +40,7 @@ public sealed record TradeItem(string Id, string Name, Cost Cost, WeaponDefiniti
     public TradeKind Kind => As ?? (IsSale ? TradeKind.Sale : Slot != null || Armour != null ? TradeKind.Improvement : TradeKind.Purchase);
 
     // What a slot of the window calls it, where the name is too long for one or says more than the slot needs: the
-    // enchanter's six offers are told apart by their element alone.
+    // enchanter's offers, one to an element, are told apart by their element alone.
     public string? Label { get; init; }
 
     public bool GivesSomething => Weapon != null || Armour != null || IsSale;
@@ -111,8 +111,8 @@ public static class TradeRules
 {
     // A seller's window always shows this many slots, in rows of SlotColumns, filled or empty: the same window for
     // every seller.
-    public const int Slots = 9;
-    public const int SlotColumns = 3;
+    public const int Slots = 12;
+    public const int SlotColumns = 4;
 
     // Centre of a player to a seller: close enough to trade.
     public const float Reach = 2.5f;

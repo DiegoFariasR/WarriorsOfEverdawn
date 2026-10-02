@@ -10,11 +10,23 @@ public sealed record SkillDefinition(string Id, int Damage, float Range, float H
     // Shown on the skill bar.
     public string Name { get; init; } = "";
 
+    // What its damage is: a blow's is its weapon's, a spell's its element's.
+    public required DamageType Type { get; init; }
+
+    // What a hit with it builds on the body's bar for its type (StatusBars), Everdawn's buildup power: a bleed for
+    // a slash, a stun for a blunt blow, a burn for fire. Of an enchanted blow, each part builds its share. None
+    // for a monster's blow yet: what skeletons do to players beyond damage is not decided.
+    public int Buildup { get; init; }
+
     // Clip time a sweep's hit window closes. Unset for a single-moment swing. While the window is open, each
     // target is hit at most once.
     public float? SweepEnd { get; init; }
 
     public float Cooldown { get; init; }
+
+    // How many times the attack speed its clip plays at: 1 for most. Above 1 it lands sooner and is over sooner,
+    // so the next comes sooner. A lunge takes no notice: it plays at its dash's pace.
+    public float SwingSpeed { get; init; } = 1f;
 
     public int ManaCost { get; init; }
 
@@ -48,6 +60,27 @@ public sealed record SkillDefinition(string Id, int Damage, float Range, float H
     // Of a skill with an element, the share of its damage that is that magic: all of a spell's, part of a blow's
     // with an enchanted weapon.
     public float MagicShare { get; init; } = 1f;
+
+    // What its damage is made of, each type with its share: all of its own type, but for a blow with an enchanted
+    // weapon, where MagicShare of it is of the enchantment's type.
+    public IEnumerable<(DamageType Type, float Share)> Parts
+    {
+        get
+        {
+            float magic = Element == null ? 0f : MagicShare;
+            if (magic < 1f)
+            {
+                yield return (Type, 1f - magic);
+            }
+
+            if (magic > 0f)
+            {
+                yield return (DamageTypes.FamilyOf(Type) == DamageFamily.Physical ? DamageTypes.Of(Element!.Value) : Type, magic);
+            }
+        }
+    }
+
+    public IEnumerable<DamageType> Types => Parts.Select(part => part.Type);
 }
 
 // What a magic staff casts: its bolt or volley, the spell held on an area, and the thrust its dash carries.
@@ -59,6 +92,17 @@ public sealed record WandSkills(SkillDefinition Primary, SkillDefinition Burst, 
 
 public static class Skills
 {
+    // What a hit builds on its target's bars, first pass, by how often the skill lands: a swing, each turn of a
+    // Spin, the thrust a dash carries, a bolt, each dart of a volley, each cycle of a held spell, a wand's burst.
+    // Everdawn's are 35 to 50 a cast with three turns between casts; here a throw comes every second.
+    private const int SwingBuildup = 20;
+    private const int SpinBuildup = 6;
+    private const int LungeBuildup = 30;
+    private const int BoltBuildup = 30;
+    private const int DartBuildup = 15;
+    private const int HeldBuildup = 8;
+    private const int BurstBuildup = 30;
+
     // One revolution of Melee_2H_Attack_Spinning, the loop every weapon's Spin plays: it turns the whole body through
     // its root bone, so each revolution is one cycle, paid for as it starts, with a sweep covering all of it. The
     // caster glides at half speed while spinning.
@@ -88,13 +132,17 @@ public static class Skills
     // the weapon meshes (sword_2handed 1.96, Skeleton_Blade 1.17, Skeleton_Axe 1.0), so the hit area ends where the
     // drawn blade does. net-test measures the live tip at every hit test against these. Slice reaches 2.02 in the
     // standing clip but about 1.86 in play, where it often runs on the upper body while moving and twisting.
+    // Every blow with a weapon is of the weapon's one type, its lunge included, as in Everdawn: the blades and the
+    // scythe slash, the quarterstaff is blunt, the spear pierces.
     public static readonly SkillDefinition Slice = new("slice", Damage: 20, Range: 1.9f, HalfArc: 70f * Angles.DegToRad, HitTime: 0.38f)
     {
         Name = "Slice",
+        Type = DamageType.Slash,
+        Buildup = SwingBuildup,
     };
 
     // Blade tip at a constant 2.28 reach at waist height.
-    public static readonly SkillDefinition Spin = SpinOf("spin", damage: 10, range: 2.3f, manaCost: 4);
+    public static readonly SkillDefinition Spin = SpinOf("spin", DamageType.Slash, damage: 10, range: 2.3f, manaCost: 4);
 
     // First pass for the three weapons after the sword: the staff is cheap to spin, the spear reaches furthest with
     // the strongest single hit on a narrow line, and the scythe sweeps the widest arc and spins hardest at a higher
@@ -106,23 +154,29 @@ public static class Skills
     public static readonly SkillDefinition StaffHit = new("staff-hit", Damage: 16, Range: 1.55f, HalfArc: 45f * Angles.DegToRad, HitTime: 0.825f)
     {
         Name = "Hit",
+        Type = DamageType.Blunt,
+        Buildup = SwingBuildup,
     };
 
-    public static readonly SkillDefinition StaffSpin = SpinOf("staff-spin", damage: 8, range: 1.95f, manaCost: 3);
+    public static readonly SkillDefinition StaffSpin = SpinOf("staff-spin", DamageType.Blunt, damage: 8, range: 1.95f, manaCost: 3);
 
     public static readonly SkillDefinition SpearThrust = new("spear-thrust", Damage: SpearSwingDamage * ThrustDamageFactor, Range: 2.7f, HalfArc: ThrustHalfArc, HitTime: StabExtended)
     {
         Name = "Thrust",
+        Type = DamageType.Pierce,
+        Buildup = SwingBuildup,
     };
 
-    public static readonly SkillDefinition SpearSpin = SpinOf("spear-spin", damage: 10, range: 2.4f, manaCost: 4);
+    public static readonly SkillDefinition SpearSpin = SpinOf("spear-spin", DamageType.Pierce, damage: 10, range: 2.4f, manaCost: 4);
 
     public static readonly SkillDefinition ScytheSwing = new("scythe-swing", Damage: 18, Range: 2.7f, HalfArc: 90f * Angles.DegToRad, HitTime: 0.40f)
     {
         Name = "Swing",
+        Type = DamageType.Slash,
+        Buildup = SwingBuildup,
     };
 
-    public static readonly SkillDefinition ScytheSpin = SpinOf("scythe-spin", damage: 12, range: 3.1f, manaCost: 5);
+    public static readonly SkillDefinition ScytheSpin = SpinOf("scythe-spin", DamageType.Slash, damage: 12, range: 3.1f, manaCost: 5);
 
     // Lunges: a dash with the attack button turns the swing into a thrust thrown on the move, whatever the weapon.
     // The stab plays so that it reaches full extension as the dash ends (CombatTiming.LungeSpeed), with its hit window
@@ -131,13 +185,13 @@ public static class Skills
     // measures live. The dash clip leans the hips into the stab, so the straight weapons reach further in a lunge than
     // the survey's hips-at-rest figure (greatsword 2.38, staff 2.05, spear 2.52); the scythe's hooked blade reaches
     // the same either way (2.77).
-    public static readonly SkillDefinition GreatswordLunge = LungeOf("greatsword-lunge", Slice.Damage * ThrustDamageFactor, range: 2.6f);
+    public static readonly SkillDefinition GreatswordLunge = LungeOf("greatsword-lunge", DamageType.Slash, Slice.Damage * ThrustDamageFactor, range: 2.6f);
 
-    public static readonly SkillDefinition StaffLunge = LungeOf("staff-lunge", StaffHit.Damage * ThrustDamageFactor, range: 2.25f);
+    public static readonly SkillDefinition StaffLunge = LungeOf("staff-lunge", DamageType.Blunt, StaffHit.Damage * ThrustDamageFactor, range: 2.25f);
 
-    public static readonly SkillDefinition SpearLunge = LungeOf("spear-lunge", SpearThrust.Damage, range: 2.75f);
+    public static readonly SkillDefinition SpearLunge = LungeOf("spear-lunge", DamageType.Pierce, SpearThrust.Damage, range: 2.75f);
 
-    public static readonly SkillDefinition ScytheLunge = LungeOf("scythe-lunge", ScytheSwing.Damage * ThrustDamageFactor, range: 2.8f);
+    public static readonly SkillDefinition ScytheLunge = LungeOf("scythe-lunge", DamageType.Slash, ScytheSwing.Damage * ThrustDamageFactor, range: 2.8f);
 
     // The sword of a sword and shield: one-handed and short, so it hits least, in exchange for the shield's guard.
     // Measured as the others are: the slash lands when the blade moves fastest (Melee_1H_Attack_Slice_Diagonal,
@@ -147,20 +201,107 @@ public static class Skills
     public static readonly SkillDefinition SwordSlash = new("sword-slash", Damage: 14, Range: 1.7f, HalfArc: 60f * Angles.DegToRad, HitTime: 0.417f)
     {
         Name = "Slash",
+        Type = DamageType.Slash,
+        Buildup = SwingBuildup,
     };
 
-    public static readonly SkillDefinition SwordSpin = SpinOf("sword-spin", damage: 7, range: 1.75f, manaCost: 3);
+    public static readonly SkillDefinition SwordSpin = SpinOf("sword-spin", DamageType.Slash, damage: 7, range: 1.75f, manaCost: 3);
 
-    public static readonly SkillDefinition SwordLunge = LungeOf("sword-lunge", SwordSlash.Damage * ThrustDamageFactor, range: 2.25f, OneHandedStabExtended);
+    public static readonly SkillDefinition SwordLunge = LungeOf("sword-lunge", DamageType.Slash, SwordSlash.Damage * ThrustDamageFactor, range: 2.25f, OneHandedStabExtended);
+
+    // Claws, a pair, first pass: the quickest weapon and the shortest. A Rake is a light blow that plays half as
+    // fast again as any other swing, so three land where two of another weapon's would; its Spin turns as much
+    // faster, costing and hitting by the turn. Measured as the others are (./dev.sh swing-survey): the Rake lands
+    // when the claw moves fastest (Melee_Dualwield_Attack_Slice, 0.738 s), reaching 1.46 standing and 1.34 on
+    // the move; the Spin holds the claws 1.24 out; the lunge is a punch, closing at its full extension, where the
+    // claw reaches 2.11 standing, 1.56 on the move and about 1.65 in a dash.
+    public const float ClawQuickness = 1.5f;
+
+    // Melee_Unarmed_Attack_Punch_A, the clip the claws' lunge plays, at full extension.
+    private const float PunchExtended = 0.502f;
+
+    public static readonly SkillDefinition ClawRake = new("claw-rake", Damage: 12, Range: 1.35f, HalfArc: 55f * Angles.DegToRad, HitTime: 0.738f)
+    {
+        Name = "Rake",
+        Type = DamageType.Slash,
+        Buildup = 14,
+        SwingSpeed = ClawQuickness,
+    };
+
+    public static readonly SkillDefinition ClawSpin = SpinOf("claw-spin", DamageType.Slash, damage: 6, range: 1.25f, manaCost: 3) with { SwingSpeed = ClawQuickness };
+
+    public static readonly SkillDefinition ClawLunge = LungeOf("claw-lunge", DamageType.Slash, ClawRake.Damage * ThrustDamageFactor, range: 1.7f, PunchExtended);
+
+    // The warhammer, first pass: the slowest weapon and, blow for blow, the hardest after the spear's thrust. A
+    // Smash plays at four fifths of the attack speed and lands on an arc wider than a thrust's; it and the Spin
+    // build more stun than any other blow (StatusBars). Its lunge is the hammer's head carried forward by the
+    // dash, and hits as one Smash: the swing is already all the weapon has. Measured as the others are
+    // (./dev.sh swing-survey), with Melee_2H_Attack_Chop, the quarterstaff's clip: the head moves fastest 0.833 s
+    // in, reaching 1.89 standing and about 1.7 in play (net-test's reach-check); the Spin holds it 1.84 out; the
+    // lunge reaches 2.01.
+    public const float HammerWeight = 0.8f;
+
+    private const int SmashBuildup = 45;
+
+    public static readonly SkillDefinition HammerSmash = new("hammer-smash", Damage: 36, Range: 1.7f, HalfArc: 50f * Angles.DegToRad, HitTime: 0.833f)
+    {
+        Name = "Smash",
+        Type = DamageType.Blunt,
+        Buildup = SmashBuildup,
+        SwingSpeed = HammerWeight,
+    };
+
+    public static readonly SkillDefinition HammerSpin = SpinOf("hammer-spin", DamageType.Blunt, damage: 13, range: 1.85f, manaCost: 5) with
+    {
+        Buildup = SpinBuildup * 2,
+        SwingSpeed = HammerWeight,
+    };
+
+    public static readonly SkillDefinition HammerLunge = LungeOf("hammer-lunge", DamageType.Blunt, HammerSmash.Damage, range: 2f) with { Buildup = SmashBuildup };
+
+    // The bow, first pass: arrows without end and at no cost in mana, each a hit of its own where it lands, as a
+    // staff's bolts are. The Shot looses one, with a moment before the next; the Volley three in quick succession,
+    // for mana and a longer wait. Both are loosed with Ranged_Bow_Release, which starts drawn and lets go 0.067 s
+    // in (the skeleton archer's 1.40 is this after its 1.333 of draw). The thrust a dash carries is a stab with
+    // the arrow in the hand.
+    private const float BowLoosed = 0.067f;
+    private const int ArrowStabDamage = 16;
+    private const float ArrowStabRange = 1.5f;
+
+    public static readonly SkillDefinition BowShot = new("bow-shot", Damage: 18, Projectiles.Arrow.MaxDistance, ThrustHalfArc, BowLoosed)
+    {
+        Name = "Shot",
+        Type = DamageType.Pierce,
+        Buildup = SwingBuildup,
+        Projectile = Projectiles.Arrow,
+        Cooldown = 0.8f,
+    };
+
+    public static readonly SkillDefinition BowVolley = new("bow-volley", Damage: 12, Projectiles.Arrow.MaxDistance, ThrustHalfArc, BowLoosed)
+    {
+        Name = "Volley",
+        Type = DamageType.Pierce,
+        Buildup = DartBuildup,
+        Projectile = Projectiles.Arrow,
+        Projectiles = DartsInVolley,
+        VolleyInterval = VolleyGap,
+        SweepEnd = BowLoosed + (DartsInVolley - 1) * VolleyGap,
+        ManaCost = 6,
+        Cooldown = 2f,
+    };
+
+    public static readonly SkillDefinition BowLunge = LungeOf("bow-lunge", DamageType.Pierce, ArrowStabDamage, ArrowStabRange, OneHandedStabExtended);
 
     public static readonly SkillDefinition MinionChop = new("minion-chop", Damage: 6, Range: 1.65f, HalfArc: 45f * Angles.DegToRad, HitTime: 0.60f)
     {
         Name = "Chop",
+        Type = DamageType.Slash,
     };
 
     public static readonly SkillDefinition WarriorChop = new("warrior-chop", Damage: 12, Range: 1.5f, HalfArc: 45f * Angles.DegToRad, HitTime: 0.60f)
     {
         Name = "Chop",
+        Type = DamageType.Slash,
     };
 
     // Ranged_Bow_Draw (1.333 s) then Ranged_Bow_Release; the arrow leaves as the string hand snaps back early in the
@@ -168,14 +309,18 @@ public static class Skills
     public static readonly SkillDefinition ArcherShot = new("archer-shot", Damage: 8, Range: 10f, HalfArc: 5f * Angles.DegToRad, HitTime: 1.40f)
     {
         Name = "Shot",
+        Type = DamageType.Pierce,
         Projectile = Projectiles.Arrow,
     };
 
-    // Staffs, first pass, after Everdawn's spells. Fire, earth and divine throw one Bolt; water, wind and void a
-    // Volley of three darts of a third the damage each, loosed 0.12 s of clip time apart. Every staff holds a spell
+    // Staffs, first pass, after Everdawn's spells. Fire, earth and divine throw one Bolt; the other five a Volley
+    // of three darts of a third the damage each, loosed 0.12 s of clip time apart, as in Everdawn. Every staff holds a spell
     // on an area: its damage lands on everything in the area once a cycle, a cycle being one loop of the casting
     // clip (Ranged_Magic_Spellcasting, 0.667 s), paid for in mana as it starts, as a Spin's revolution is. The area
-    // lies ahead of the caster, but for the Divine Nova, which bursts round it.
+    // lies ahead of the caster, but for the Divine Nova, which bursts round it. Six of the held spells are
+    // Everdawn's signature spells; it has none for water or wind, so the Geyser and the Cyclone are this game's
+    // own. Water and ice are resisted alike, and wind and lightning, so the two of a pair are told apart by their
+    // numbers: the natural element's spell is the cheaper, and the wind's the widest and weakest.
     private const int BoltDamage = 30;
 
     // Between one throw and the next. With none, a bolt out-dealt every blade from twelve times its reach.
@@ -191,15 +336,17 @@ public static class Skills
     private const float ChannelMoveSpeedFactor = 0.5f;
     private const float AreaAhead = 4f;
 
-    // A poke with the butt of the staff: the least of the lunges.
+    // A poke with the butt of the staff: the least of the lunges, and a blunt blow, not magic.
     private const int StaffPokeDamage = 24;
     private const float StaffPokeRange = 2.1f;
 
     private static readonly Dictionary<Element, StaffSkills> Staffs = new()
     {
         [Element.Fire] = StaffOf(Element.Fire, volley: false, "inferno", "Inferno", damage: 10, manaCost: 6, new AreaDefinition(AreaAhead, Radius: 2.5f)),
-        [Element.Water] = StaffOf(Element.Water, volley: true, "blizzard", "Blizzard", damage: 6, manaCost: 5, new AreaDefinition(AreaAhead, Radius: 3.5f)),
-        [Element.Wind] = StaffOf(Element.Wind, volley: true, "storm", "Lightning Storm", damage: 8, manaCost: 5, new AreaDefinition(AreaAhead, Radius: 3f)),
+        [Element.Water] = StaffOf(Element.Water, volley: true, "geyser", "Geyser", damage: 6, manaCost: 4, new AreaDefinition(AreaAhead, Radius: 3f)),
+        [Element.Ice] = StaffOf(Element.Ice, volley: true, "blizzard", "Blizzard", damage: 6, manaCost: 5, new AreaDefinition(AreaAhead, Radius: 3.5f)),
+        [Element.Wind] = StaffOf(Element.Wind, volley: true, "cyclone", "Cyclone", damage: 6, manaCost: 4, new AreaDefinition(AreaAhead, Radius: 4f)),
+        [Element.Lightning] = StaffOf(Element.Lightning, volley: true, "storm", "Lightning Storm", damage: 8, manaCost: 5, new AreaDefinition(AreaAhead, Radius: 3f)),
         [Element.Earth] = StaffOf(Element.Earth, volley: false, "quake", "Earthquake", damage: 8, manaCost: 5, new AreaDefinition(AreaAhead, Radius: 3f)),
         [Element.Divine] = StaffOf(Element.Divine, volley: false, "nova", "Divine Nova", damage: 8, manaCost: 5, new AreaDefinition(Distance: 0f, Radius: 3.5f)),
         [Element.Void] = StaffOf(Element.Void, volley: true, "corrosion", "Void Corrosion", damage: 7, manaCost: 4, new AreaDefinition(AreaAhead, Radius: 3f)),
@@ -230,13 +377,15 @@ public static class Skills
         var burst = new SkillDefinition($"{id}-burst", BurstDamage, Projectiles.Ball.MaxDistance, ThrustHalfArc, CastReleased)
         {
             Name = element == Element.Fire ? "Fireball" : $"{element} Burst",
+            Type = DamageTypes.Of(element),
+            Buildup = BurstBuildup,
             Projectile = Projectiles.Ball,
             BlastRadius = BurstRadius,
             ManaCost = BurstManaCost,
             Cooldown = BurstCooldown,
             Element = element,
         };
-        return new WandSkills(Staffs[element].Primary, burst, LungeOf($"{id}-wand-lunge", WandPokeDamage, WandPokeRange, OneHandedStabExtended));
+        return new WandSkills(Staffs[element].Primary, burst, LungeOf($"{id}-wand-lunge", DamageType.Blunt, WandPokeDamage, WandPokeRange, OneHandedStabExtended));
     }
 
     private static StaffSkills StaffOf(Element element, bool volley, string channelId, string channelName, int damage, int manaCost, AreaDefinition area)
@@ -248,6 +397,8 @@ public static class Skills
         var primary = new SkillDefinition($"{id}-{thrown.ToLowerInvariant()}", BoltDamage / darts, projectile.MaxDistance, ThrustHalfArc, CastReleased)
         {
             Name = $"{element} {thrown}",
+            Type = DamageTypes.Of(element),
+            Buildup = volley ? DartBuildup : BoltBuildup,
             Projectile = projectile,
             Projectiles = darts,
             Cooldown = ThrowCooldown,
@@ -258,6 +409,8 @@ public static class Skills
         var channel = new SkillDefinition($"{id}-{channelId}", damage, area.Reach, HalfArc: MathF.PI, HitTime: 0f)
         {
             Name = channelName,
+            Type = DamageTypes.Of(element),
+            Buildup = HeldBuildup,
             SweepEnd = CastingLoop,
             ManaCost = manaCost,
             MoveSpeedFactor = ChannelMoveSpeedFactor,
@@ -265,20 +418,24 @@ public static class Skills
             Area = area,
             Element = element,
         };
-        return new StaffSkills(primary, channel, LungeOf($"{id}-staff-lunge", StaffPokeDamage, StaffPokeRange));
+        return new StaffSkills(primary, channel, LungeOf($"{id}-staff-lunge", DamageType.Blunt, StaffPokeDamage, StaffPokeRange));
     }
 
-    private static SkillDefinition LungeOf(string id, int damage, float range, float extended = StabExtended) =>
+    private static SkillDefinition LungeOf(string id, DamageType type, int damage, float range, float extended = StabExtended) =>
         new(id, damage, range, ThrustHalfArc, HitTime: extended * LungeOpens)
         {
             Name = "Lunge",
+            Type = type,
+            Buildup = LungeBuildup,
             SweepEnd = extended,
         };
 
-    private static SkillDefinition SpinOf(string id, int damage, float range, int manaCost) =>
+    private static SkillDefinition SpinOf(string id, DamageType type, int damage, float range, int manaCost) =>
         new(id, damage, range, HalfArc: MathF.PI, HitTime: 0f)
         {
             Name = "Spin",
+            Type = type,
+            Buildup = SpinBuildup,
             SweepEnd = SpinRevolution,
             ManaCost = manaCost,
             MoveSpeedFactor = SpinMoveSpeedFactor,

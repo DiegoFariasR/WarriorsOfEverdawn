@@ -155,7 +155,8 @@ public partial class NetSelfTest
         float position = local.Animator.AttackClipPosition;
         if (_lastSwingPosition is { } last && position > last && position < local.Animator.AttackClipLength - 0.001f)
         {
-            _swingRates.Add((position - last) / delta);
+            // As a share of what the skill plays at of itself, so a quick skill reads as the attack speed too.
+            _swingRates.Add((position - last) / delta / (local.ActiveSkill?.SwingSpeed ?? 1f));
         }
 
         _lastSwingPosition = position;

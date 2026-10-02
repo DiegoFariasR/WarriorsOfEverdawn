@@ -12,10 +12,10 @@ public class StaffsTests
     private static readonly AreaDefinition Ahead = new(Distance: 4f, Radius: 2f);
 
     [Fact]
-    public void There_is_a_staff_for_each_of_four_elements_and_two_astral_types()
+    public void There_is_a_staff_for_each_of_six_elements_and_two_astral_types()
     {
-        Assert.Equal(6, Elements.All.Count);
-        Assert.Equal(4, Elements.All.Count(e => !Elements.IsAstral(e)));
+        Assert.Equal(8, Elements.All.Count);
+        Assert.Equal(new[] { Element.Fire, Element.Water, Element.Ice, Element.Wind, Element.Lightning, Element.Earth }, Elements.All.Where(e => !Elements.IsAstral(e)));
         Assert.Equal(new[] { Element.Divine, Element.Void }, Elements.All.Where(Elements.IsAstral));
         Assert.Equal(Elements.All, Weapons.Staffs.Select(s => s.Element!.Value));
         foreach (var element in Elements.All)
@@ -44,13 +44,13 @@ public class StaffsTests
             Assert.True(thrown.Cooldown > 0f, staff.Id);
             Assert.False(thrown.Channeled, staff.Id);
             Assert.Equal(thrown.Projectile!.MaxDistance, thrown.Range);
-            Assert.True(thrown.Range > Weapons.Arms.Max(w => w.Primary.Range), staff.Id);
+            Assert.True(thrown.Range > Weapons.Arms.Where(w => w != Weapons.Bow).Max(w => w.Primary.Range), staff.Id);
             Assert.True(thrown.Projectiles >= 1, staff.Id);
         }
     }
 
     [Fact]
-    public void Fire_earth_and_divine_throw_one_bolt_and_water_wind_and_void_a_volley()
+    public void Fire_earth_and_divine_throw_one_bolt_and_the_other_five_a_volley()
     {
         var bolts = new[] { Element.Fire, Element.Earth, Element.Divine };
 
@@ -72,7 +72,7 @@ public class StaffsTests
             }
         }
 
-        Assert.Equal(3, Weapons.Staffs.Count(s => s.Primary.Projectiles == 1));
+        Assert.Equal(bolts.Length, Weapons.Staffs.Count(s => s.Primary.Projectiles == 1));
     }
 
     [Fact]
@@ -132,7 +132,7 @@ public class StaffsTests
             Assert.Null(staff.Lunge.Element);
             Assert.Null(staff.Lunge.Projectile);
             Assert.Null(staff.Lunge.Area);
-            Assert.True(staff.Lunge.Damage <= Weapons.Arms.Min(w => w.Lunge.Damage), staff.Id);
+            Assert.True(staff.Lunge.Damage <= Weapons.Arms.Where(w => w != Weapons.Bow).Min(w => w.Lunge.Damage), staff.Id);
         }
     }
 

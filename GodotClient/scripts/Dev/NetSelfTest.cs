@@ -50,6 +50,7 @@ public partial class NetSelfTest : Node
         EnemyCharacter.Parried += OnEnemyParried;
         EnemyCharacter.Died += CountDeathForLoot;
         TrackMagic();
+        TrackStatus();
     }
 
     public override void _Ready()
@@ -70,6 +71,7 @@ public partial class NetSelfTest : Node
         Arrows.HitPlayer -= OnArrowHit;
         PlayerVitals.Guarded -= OnGuarded;
         UntrackMagic();
+        UntrackStatus();
         EnemyCharacter.Parried -= OnEnemyParried;
         EnemyCharacter.Died -= CountDeathForLoot;
     }
@@ -136,6 +138,7 @@ public partial class NetSelfTest : Node
         MeasureDowns();
         MeasureArrows();
         MeasureMagic((float)delta);
+        MeasureStatus((float)delta);
     }
 
     public void PrintSummary()
@@ -163,12 +166,14 @@ public partial class NetSelfTest : Node
         PrintTradeCheck(me);
         PrintBotCheck(me);
         PrintMagicCheck(me);
+        PrintStatusCheck(me);
     }
 
     private void Track(PlayerCharacter player)
     {
         var seen = new Observation();
         _seen[player.Name] = seen;
+        TrackStatusOf(player);
         player.AttackStarted += _ => seen.Attacks++;
         player.WeaponsChanged += _ => seen.WeaponChanges++;
         TrackDashes(player);

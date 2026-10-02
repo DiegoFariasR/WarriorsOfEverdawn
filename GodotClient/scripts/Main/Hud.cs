@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+using System.Linq;
 using Godot;
 using WarriorsOfEverdawn.Core.Combat;
 using WarriorsOfEverdawn.Core.Locomotion;
@@ -25,14 +27,15 @@ public partial class Hud : CanvasLayer
     };
 
     private readonly Label _notice = UiTheme.MakeLabel("", UiTheme.Words, 20, UiTheme.GoldHi, outline: 6);
-    private readonly Label _status = UiTheme.MakeLabel("", UiTheme.Words, 13, UiTheme.StatusFallen, outline: 3);
+    // White, and tinted each frame: red while down, else the colour of the first status it names.
+    private readonly Label _status = UiTheme.MakeLabel("", UiTheme.Words, 13, Colors.White, outline: 3);
     private readonly Label[] _statValues = new Label[4];
     private readonly Label _gold = UiTheme.MakeLabel("0", UiTheme.Numbers, 16, UiTheme.GoldHi);
     private readonly Label _souls = UiTheme.MakeLabel("0", UiTheme.Numbers, 16, SoulText);
 
     // White, and tinted each frame with the colour the orbs themselves are passing through.
     private readonly Label _orbs = UiTheme.MakeLabel("0", UiTheme.Numbers, 16, Colors.White);
-    private readonly (Label Name, Label Cost, Label Cooldown, ColorRect Dim)[] _slots = new (Label, Label, Label, ColorRect)[SkillSlots.Length];
+    private readonly (Label Name, HBoxContainer Types, Label Cost, Label Cooldown, ColorRect Dim)[] _slots = new (Label, HBoxContainer, Label, Label, ColorRect)[SkillSlots.Length];
 
     private const string NoSkill = "-";
 
@@ -142,7 +145,9 @@ public partial class Hud : CanvasLayer
         _souls.Text = Player.Vitals.Souls.ToString();
         _orbs.Text = Player.Vitals.Orbs.ToString();
         _orbs.Modulate = MagicOrb.ColourNow();
-        _status.Text = Player.IsDowned ? "Down - back up in a moment" : "";
+        var statuses = Player.IsDowned ? new List<(string Name, Color Colour)>() : StatusLooks.Of(Player.Vitals.Statuses).ToList();
+        _status.Text = Player.IsDowned ? "Down - back up in a moment" : string.Join("   ", statuses.Select(s => s.Name));
+        _status.Modulate = Player.IsDowned || statuses.Count == 0 ? UiTheme.StatusFallen : statuses[0].Colour;
 
         int charges = Player.DashCharges;
         for (int i = 0; i < _dashPips.Length; i++)
@@ -252,10 +257,13 @@ public partial class Hud : CanvasLayer
             keyLabel.HorizontalAlignment = HorizontalAlignment.Center;
             var name = UiTheme.MakeLabel("", UiTheme.Words, 15, UiTheme.TextMain);
             name.HorizontalAlignment = HorizontalAlignment.Center;
+            var types = new HBoxContainer { Alignment = BoxContainer.AlignmentMode.Center, MouseFilter = Control.MouseFilterEnum.Ignore };
+            types.AddThemeConstantOverride("separation", 4);
             var cost = UiTheme.MakeLabel("", UiTheme.Numbers, 12, ManaText);
             cost.HorizontalAlignment = HorizontalAlignment.Center;
             column.AddChild(keyLabel);
             column.AddChild(name);
+            column.AddChild(types);
             column.AddChild(cost);
 
             slot.AddChild(column);
@@ -267,7 +275,7 @@ public partial class Hud : CanvasLayer
             cooldown.VerticalAlignment = VerticalAlignment.Center;
             slot.AddChild(cooldown);
 
-            _slots[i] = (name, cost, cooldown, dim);
+            _slots[i] = (name, types, cost, cooldown, dim);
             bar.AddChild(slot);
         }
 
@@ -356,8 +364,29 @@ public partial class Hud : CanvasLayer
         {
             var skill = weapon?.Skill(SkillSlots[i].Skill);
             _slots[i].Name.Text = skill?.Name ?? NoSkill;
+            ShowTypes(_slots[i].Types, skill);
             _slots[i].Cost.Text = skill is { ManaCost: > 0 } ? $"{skill.ManaCost} MP{(skill.Channeled ? " / turn" : "")}" : "";
             _slots[i].Cost.Visible = skill is { ManaCost: > 0 };
+        }
+    }
+
+    // The damage types a skill is of, each in its own colour: one, or two for a blow with an enchanted weapon.
+    private static void ShowTypes(HBoxContainer row, SkillDefinition? skill)
+    {
+        foreach (var shown in row.GetChildren())
+        {
+            row.RemoveChild(shown);
+            shown.QueueFree();
+        }
+
+        foreach (var type in skill?.Types ?? System.Array.Empty<DamageType>())
+        {
+            if (row.GetChildCount() > 0)
+            {
+                row.AddChild(UiTheme.MakeLabel("+", UiTheme.Words, 11, UiTheme.GoldDk));
+            }
+
+            row.AddChild(UiTheme.MakeLabel(type.ToString(), UiTheme.Words, 11, DamageTypeColours.Name(type)));
         }
     }
 

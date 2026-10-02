@@ -88,13 +88,13 @@ public class WandsTests
     }
 
     [Fact]
-    public void A_wands_lunge_is_a_jab_with_the_wand_and_reaches_least_of_all()
+    public void A_wands_lunge_is_a_jab_with_the_wand_and_reaches_less_than_any_blade_or_staff()
     {
         foreach (var wand in Weapons.Wands)
         {
             Assert.Null(wand.Lunge.Element);
             Assert.Null(wand.Lunge.Projectile);
-            Assert.True(wand.Lunge.Range < Weapons.All.Where(w => !Weapons.IsWand(w)).Min(w => w.Lunge.Range), wand.Id);
+            Assert.True(wand.Lunge.Range < Weapons.All.Where(w => !Weapons.IsWand(w) && w != Weapons.Bow).Min(w => w.Lunge.Range), wand.Id);
         }
     }
 

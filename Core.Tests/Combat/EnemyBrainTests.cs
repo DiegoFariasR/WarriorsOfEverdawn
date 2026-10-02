@@ -7,7 +7,7 @@ namespace WarriorsOfEverdawn.Core.Tests.Combat;
 
 public class EnemyBrainTests
 {
-    private static readonly SkillDefinition Swing = new("test-swing", Damage: 5, Range: 1.5f, HalfArc: MathF.PI / 4f, HitTime: 0.5f);
+    private static readonly SkillDefinition Swing = new("test-swing", Damage: 5, Range: 1.5f, HalfArc: MathF.PI / 4f, HitTime: 0.5f) { Type = DamageType.Slash };
     private static readonly EnemyDefinition Grunt = new("test-grunt", MaxHp: 10, MoveSpeed: 2f, AggroRange: 10f, AttackCooldown: 1f, Swing);
 
     private static readonly float EngageDistance = Swing.Range * EnemyBrain.EngageFraction + BodySize.Radius;

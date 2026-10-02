@@ -9,7 +9,7 @@ namespace WarriorsOfEverdawn.Character;
 // What each strike of a spell held on an area looks like.
 public enum SpellStrike
 {
-    // A column standing up out of the ground (Inferno).
+    // A column standing up out of the ground (Inferno, Geyser).
     Pillar,
 
     // A spike of rock thrust up from below (Earthquake).
@@ -21,7 +21,7 @@ public enum SpellStrike
     // A bolt from the sky, there and gone (Lightning Storm).
     Flash,
 
-    // A ring spreading from the middle (Divine Nova).
+    // A ring spreading from the middle (Divine Nova, Cyclone).
     Ring,
 
     // A swelling that lingers (Void Corrosion).
@@ -30,8 +30,8 @@ public enum SpellStrike
 
 // How an element looks, after Everdawn: its two colours (ElementPalettes), the surface shader laid over anything made
 // of it with that shader's brightest layer (EffectVisualLibrary), and the strike of its area spell (its skills'
-// visual shapes). Wind and divine take Everdawn's second colour first: its firsts for the two are both near white,
-// and here they have to be told apart at a glance, wind a pale blue and divine gold.
+// visual shapes). Wind, divine and ice take Everdawn's second colour first: its firsts for the three are all near
+// white, and here they have to be told apart at a glance, wind a pale blue, divine gold and ice a full blue.
 public sealed record ElementLook(Color Primary, Color Secondary, string Shader, Color Tint, float NoiseScale, float Speed, float Dissolve, SpellStrike Strike, int StrikesPerCycle);
 
 public static class ElementLooks
@@ -41,8 +41,10 @@ public static class ElementLooks
     private static readonly Dictionary<Element, ElementLook> ByElement = new()
     {
         [Element.Fire] = new(new Color(1f, 0.44f, 0f), new Color(0.8f, 0.15f, 0f), "fire", new Color(1f, 0.95f, 0.35f), 7f, 13f, 0.48f, SpellStrike.Pillar, 3),
-        [Element.Water] = new(new Color(0.3f, 0.65f, 0.78f), new Color(0.1f, 0.4f, 0.55f), "water", new Color(0.4f, 0.8f, 0.9f), 7.5f, 1.4f, 0.35f, SpellStrike.Shard, 5),
-        [Element.Wind] = new(new Color(0.55f, 0.78f, 1f), new Color(0.78f, 0.92f, 1f), "wind", new Color(0.92f, 0.98f, 1f), 7.5f, 3.6f, 0.6f, SpellStrike.Flash, 3),
+        [Element.Water] = new(new Color(0.3f, 0.65f, 0.78f), new Color(0.1f, 0.4f, 0.55f), "water", new Color(0.4f, 0.8f, 0.9f), 7.5f, 1.4f, 0.35f, SpellStrike.Pillar, 3),
+        [Element.Ice] = new(new Color(0.3f, 0.6f, 0.9f), new Color(0.6f, 0.85f, 1f), "ice", new Color(0.5f, 0.78f, 1f), 8f, 0f, 0.18f, SpellStrike.Shard, 5),
+        [Element.Wind] = new(new Color(0.55f, 0.78f, 1f), new Color(0.78f, 0.92f, 1f), "wind", new Color(0.92f, 0.98f, 1f), 7.5f, 3.6f, 0.6f, SpellStrike.Ring, 1),
+        [Element.Lightning] = new(new Color(1f, 0.95f, 0.3f), new Color(0.9f, 1f, 1f), "lightning", new Color(0.58f, 0.78f, 0.98f), 6f, 9f, 0.6f, SpellStrike.Flash, 3),
         [Element.Earth] = new(new Color(0.5f, 0.35f, 0.1f), new Color(0.3f, 0.5f, 0.1f), "earth", new Color(0.45f, 0.33f, 0.2f), 2f, 0f, 0.7f, SpellStrike.Spike, 4),
         [Element.Divine] = new(new Color(1f, 0.82f, 0.28f), new Color(1f, 0.98f, 0.92f), "divine", new Color(1f, 1f, 0.98f), 4f, 0.6f, 0.44f, SpellStrike.Ring, 1),
         [Element.Void] = new(new Color(0.3f, 0.05f, 0.5f), new Color(0.12f, 0f, 0.2f), "void", new Color(0.38f, 0f, 0.58f), 4f, 1.8f, 0.65f, SpellStrike.Blob, 3),
@@ -56,12 +58,15 @@ public static class ElementLooks
     // enough to tell the element, with the weapon still to be seen under it. Chosen by eye, element by element
     // (./dev.sh weapon-lineup greatsword~fire): fire at full strength made a blade one flat colour, and water, void
     // and divine at fire's share did not show at all. Divine is the least settled: its sparkle barely shows on a thin
-    // staff and runs to white over a broad blade, whatever the share.
+    // staff and runs to white over a broad blade, whatever the share. Lightning comes and goes, as its shader does:
+    // the blade flashes for a third of a second and is plain steel for the next half.
     private static readonly Dictionary<Element, float> EnchantmentStrength = new()
     {
         [Element.Fire] = 0.8f,
         [Element.Water] = 3f,
+        [Element.Ice] = 3f,
         [Element.Wind] = 0.9f,
+        [Element.Lightning] = 1.1f,
         [Element.Earth] = 0.8f,
         [Element.Divine] = 1.2f,
         [Element.Void] = 1.2f,

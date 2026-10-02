@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using Godot;
+using WarriorsOfEverdawn.Character;
 using WarriorsOfEverdawn.Core.Combat;
 using WarriorsOfEverdawn.Main;
 using WarriorsOfEverdawn.Player;
@@ -15,8 +16,6 @@ namespace WarriorsOfEverdawn.Enemy;
 public partial class Arrows : Node
 {
     public const string NodeName = "Arrows";
-
-    private const string ModelPath = "res://assets/props/Skeleton_Arrow.glb";
 
     private readonly Dictionary<int, Flight> _flights = new();
     private int _nextId;
@@ -34,8 +33,9 @@ public partial class Arrows : Node
 
     public static Arrows In(SceneTree tree) => tree.CurrentScene.GetNode<Arrows>(NodeName);
 
-    // Host only. Direction is flattened onto the ground: arrows fly level.
-    public void Loose(SkillDefinition attack, Vector3 from, Vector3 direction)
+    // Host only. Direction is flattened onto the ground: arrows fly level. `damage` is what it deals where it
+    // hits, by the state its archer loosed it in.
+    public void Loose(SkillDefinition attack, int damage, Vector3 from, Vector3 direction)
     {
         var level = new Vector3(direction.X, 0f, direction.Z);
         if (attack.Projectile == null || level.LengthSquared() < 1e-6f)
@@ -44,7 +44,7 @@ public partial class Arrows : Node
             return;
         }
 
-        Rpc(MethodName.Fly, _nextId++, attack.Id, from, level.Normalized());
+        Rpc(MethodName.Fly, _nextId++, attack.Id, damage, from, level.Normalized());
     }
 
     public override void _PhysicsProcess(double delta)
@@ -66,8 +66,8 @@ public partial class Arrows : Node
                 if (victim != null)
                 {
                     // Guarded against where it was loosed from; a parry stops it like a block, with no one to stagger.
-                    victim.Vitals.TakeAttack(flight.Attack.Damage, flight.From);
-                    HitPlayer?.Invoke(victim, flight.Attack.Damage);
+                    victim.Vitals.TakeAttack(flight.Damage, flight.From, DamageTypes.MaskOf(flight.Attack.Types));
+                    HitPlayer?.Invoke(victim, flight.Damage);
                     Rpc(MethodName.End, id);
                     continue;
                 }
@@ -82,7 +82,7 @@ public partial class Arrows : Node
     }
 
     [Rpc(MultiplayerApi.RpcMode.Authority, CallLocal = true, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-    private void Fly(int id, string attackId, Vector3 from, Vector3 direction)
+    private void Fly(int id, string attackId, int damage, Vector3 from, Vector3 direction)
     {
         SkillDefinition attack;
         try
@@ -95,13 +95,13 @@ public partial class Arrows : Node
             return;
         }
 
-        var node = Assets.InstantiateAtOrigin(ModelPath);
+        var node = Assets.InstantiateAtOrigin(CombatVisuals.ArrowModel);
 
         // The model's point is its -Y end.
         var along = -direction;
         node.Basis = new Basis(along.Cross(Vector3.Up), along, Vector3.Up);
         AddChild(node);
-        _flights[id] = new Flight(attack, from, direction, node);
+        _flights[id] = new Flight(attack, damage, from, direction, node);
         node.GlobalPosition = from;
         Loosed?.Invoke();
     }
@@ -120,15 +120,18 @@ public partial class Arrows : Node
 
     private sealed class Flight
     {
-        public Flight(SkillDefinition attack, Vector3 from, Vector3 direction, Node3D node)
+        public Flight(SkillDefinition attack, int damage, Vector3 from, Vector3 direction, Node3D node)
         {
             Attack = attack;
+            Damage = damage;
             From = from;
             Direction = direction;
             Node = node;
         }
 
         public SkillDefinition Attack { get; }
+
+        public int Damage { get; }
 
         public Vector3 From { get; }
 

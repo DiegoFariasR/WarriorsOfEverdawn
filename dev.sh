@@ -38,13 +38,15 @@ Screenshots (real renderer; off-screen, minimized, unfocused window):
                     --orb-chance P   every monster leaves a magic orb P of the time (0 to 1) instead of rarely
                     --start-gold N   --start-orbs N   --start-armour TIER   the bot starts with that much
                     --trade-drill   the bot trades with the seller it starts beside
+                    --status-drill  every few seconds a skeleton is frozen and the next stunned
 
   armour-lineup     The knight in a row in each tier of armour, seen from the front; saves _staging/armour-lineup.png
                     [Outfit,Outfit,...] shows those outfits instead (models under assets/character_parts)
   weapon-lineup <id>  The knight holding that weapon in its stance, its guard and each skill as it lands, and
                     carrying it on the back; saves _staging/weapon-lineup.png
-  magic-lineup      The staffs casting: each holds its spell on an area, what it throws beside it; saves
-                    _staging/magic-lineup.png. [fire,water,...] shows those; [barriers] each inside its barrier
+  magic-lineup      The staffs casting: each holds its spell on an area, what it throws beside it. With nothing
+                    named, all eight in two pictures: _staging/magic-lineup-1.png and -2.png. [fire,water,...]
+                    shows those in _staging/magic-lineup.png; [barriers] each inside its barrier
 
 Measurements:
   swing-survey      Each weapon skill's clip: when the striking point moves fastest (hit time) and how far it reaches
@@ -91,13 +93,14 @@ MAX_ORPHAN_GROWTH=2
 
 # Session players' weapons in order: the host, then client1, client2, ... Every weapon is in each co-op session, in a
 # hand so every skill's gates run, and on a back.
-SESSION_WEAPONS=(greatsword quarterstaff spear scythe sword-and-shield)
-SESSION_BACK_WEAPONS=(spear scythe sword-and-shield quarterstaff greatsword)
-COOP_CLIENTS=4
+SESSION_WEAPONS=(greatsword quarterstaff spear scythe sword-and-shield claws warhammer)
+SESSION_BACK_WEAPONS=(spear scythe sword-and-shield quarterstaff claws warhammer greatsword)
+COOP_CLIENTS=6
 
-# Waves are not scaled by player count yet, and one wave shared by five bots is gone before the slower weapons get
-# a turn (thrusts and lunges hit twice as hard as swings), so the test sessions triple each wave.
-COOP_WAVE_SCALE=3
+# Waves are not scaled by player count yet, and one wave shared by seven bots is gone before the slower weapons get
+# a turn (thrusts and lunges hit twice as hard as swings), so the test sessions make each wave four times its size.
+# Tripled was enough for five bots; with seven, about one run in four left a bot that never reached a fight.
+COOP_WAVE_SCALE=4
 
 # Orbs are rare (a few monsters in a hundred leave one), so the test sessions raise every monster's chance to where
 # each machine is sure to see some fall and be picked up.
@@ -203,7 +206,7 @@ co_op_session() {
     local damage_taken_total=0 lunge_hits_total=0 hangings_faded_total=0 spin_dashes_kept=0 spin_dash_tests=0 spin_dashes_seen=0 one_handed_runners=0 channelled="" log
     for log in $(session_logs); do
         local file="$logs/$log.log"
-        grep -E '^\[(net-check|combat-check|combat-host|anim-check|turn-check|head-check|carry-check|speed-check|skill-check|trail-check|reach-check|flash-check|ui-check|dash-check|spin-dash-check|lunge-check|pickup-check|loot-check|map-check|bot-check|ranged-check|guard-check)\]' "$file" | sed "s/^/$log: /"
+        grep -E '^\[(net-check|combat-check|combat-host|anim-check|turn-check|head-check|carry-check|speed-check|skill-check|trail-check|reach-check|flash-check|ui-check|dash-check|spin-dash-check|lunge-check|pickup-check|loot-check|map-check|bot-check|ranged-check|guard-check|status-check|status-host)\]' "$file" | sed "s/^/$log: /"
 
         local passing
         passing=$(awk '/^\[net-check\]/ {
@@ -384,6 +387,28 @@ co_op_session() {
         echo "FAIL: no player took damage; skeleton attacks never landed"
         failed=1
     fi
+
+    # Every weapon here is of steel or wood, and skeletons are weak to all three physical types: each type landed,
+    # and no hit was taken as a plain one.
+    local physical_types
+    physical_types=$(count_positive_peers "$logs/host.log" combat-host hits_by_type)
+    if [ "$physical_types" -ne 3 ]; then
+        echo "FAIL host: expected hits of the 3 physical damage types, got $physical_types ($(grep -E '^\[combat-host\]' "$logs/host.log"))"
+        failed=1
+    fi
+    gate host "$logs/host.log" combat-host 'v["weak_hits"] + 0 >= 1 && v["plain_hits"] + 0 == 0 && v["resisted_hits"] + 0 == 0' \
+        "a blow of steel or wood did not meet the skeletons' weakness" || failed=1
+
+    # Slashes open wounds: every machine sees skeletons bleeding and names it over their bars, and on the host the
+    # wounds bite.
+    for log in $(session_logs); do
+        gate "$log" "$logs/$log.log" status-check 'index(v["enemy_statuses"], "bleeding") > 0 && v["named_most"] + 0 >= 1' \
+            "no skeleton seen bleeding, or no status named over a bar" || failed=1
+    done
+    if [ "$(count_positive_peers "$logs/host.log" status-host enemy_bites)" -lt 1 ]; then
+        echo "FAIL host: no wound or burn bit a skeleton ($(grep -E '^\[status-host\]' "$logs/host.log"))"
+        failed=1
+    fi
     if [ "$lunge_hits_total" -lt 1 ]; then
         echo "FAIL: no lunge hit a skeleton on any machine"
         failed=1
@@ -482,20 +507,26 @@ playtest() {
 pvp_test() {
     build || return 1
     local logs="$ROOT/_staging/pvp-test" failed=0
-    run_session "$logs" 1 20 16 --pvp --no-enemies || failed=1
+    run_session "$logs" 1 20 16 --pvp --no-enemies --status-drill || failed=1
 
     local log
     for log in host client1; do
         local file="$logs/$log.log"
-        grep -E '^\[(pvp-check|pvp-host|combat-check|ui-check)\]' "$file" | sed "s/^/$log: /"
+        grep -E '^\[(pvp-check|pvp-host|combat-check|ui-check|status-check|status-host)\]' "$file" | sed "s/^/$log: /"
         gate "$log" "$file" pvp-check 'v["pvp"] == "True" && v["hits_on_players"] + 0 >= 1' \
             "PvP not on for this peer, or it never hit the other player" || failed=1
         gate "$log" "$file" combat-check 'v["damage_taken"] + 0 >= 1' \
             "never took damage from the other player" || failed=1
         gate "$log" "$file" ui-check 'v["bar_mismatch_frames"] + 0 == 0 && v["max_player_bars"] + 0 >= 1' \
             "the other player's bar missing or wrong" || failed=1
+        # Statuses on players: blades leave them bleeding, and the host freezes and stuns each in turn
+        # (--status-drill). Every machine sees it, and the one held stays where it is and starts no swing.
+        gate "$log" "$file" status-check 'index(v["player_statuses"], "bleeding") > 0 && index(v["player_statuses"], "frozen") > 0 && index(v["player_statuses"], "stunned") > 0 && v["local_held_frames"] + 0 >= 1 && v["local_held_moved_most"] + 0 < 0.05 && v["swings_while_held"] + 0 == 0' \
+            "no player seen bleeding, frozen or stunned, or this one moving or swinging while held" || failed=1
         check_log_errors "$log" "$file" || failed=1
     done
+    gate host "$logs/host.log" status-host 'v["player_bites"] + 0 >= 1 && v["drills"] + 0 >= 2' \
+        "no wound bit a player, or the host froze and stunned no one on cue" || failed=1
 
     local attackers
     attackers=$(count_positive_peers "$logs/host.log" pvp-host damage_by_attacker)
@@ -611,14 +642,15 @@ trade_session() {
     return "$failed"
 }
 
-# Three staffs in hand and the other three on the backs, so every element's bolt or volley, area spell and barrier is
-# cast in the session; a wand, whose ball bursts; and a fifth player with enchanted weapons of steel in hand and on
-# the back. Fewer and smaller waves than net-test: bolts kill from afar. In order: the staffs, the wand, the rest.
-MAGIC_WEAPONS=(fire-staff water-staff earth-staff fire-wand greatsword~wind)
-MAGIC_BACK_WEAPONS=(wind-staff void-staff divine-staff void-wand spear~void+2)
-MAGIC_STAFFS=3
-MAGIC_CASTERS=4
-MAGIC_CLIENTS=4
+# Four staffs in hand and the other four on the backs, so every element's bolt or volley, area spell and barrier is
+# cast in the session; a wand, whose ball bursts; and a sixth player with an enchanted, improved bow in hand, whose
+# arrows fly as the bolts do, and an enchanted greatsword on the back. Waves tripled: with five casters, doubled ones left the wand's ball nothing to burst
+# on about one run in seven. In order: the staffs, the wand, the rest.
+MAGIC_WEAPONS=(fire-staff water-staff earth-staff ice-staff fire-wand bow~ice+2)
+MAGIC_BACK_WEAPONS=(wind-staff void-staff divine-staff lightning-staff lightning-wand greatsword~wind)
+MAGIC_STAFFS=4
+MAGIC_CASTERS=5
+MAGIC_CLIENTS=5
 MAGIC_HOST_SECONDS=44
 MAGIC_CLIENT_SECONDS=38
 
@@ -626,11 +658,11 @@ magic_test() {
     build || return 1
     local logs="$ROOT/_staging/magic-test" failed=0 log player=0
     local SESSION_WEAPONS=("${MAGIC_WEAPONS[@]}") SESSION_BACK_WEAPONS=("${MAGIC_BACK_WEAPONS[@]}") COOP_CLIENTS=$MAGIC_CLIENTS
-    run_session "$logs" "$MAGIC_CLIENTS" "$MAGIC_HOST_SECONDS" "$MAGIC_CLIENT_SECONDS" --wave-scale 2 --barrier-drill || failed=1
+    run_session "$logs" "$MAGIC_CLIENTS" "$MAGIC_HOST_SECONDS" "$MAGIC_CLIENT_SECONDS" --wave-scale 3 --barrier-drill --status-drill || failed=1
 
     for log in $(session_logs); do
         local file="$logs/$log.log"
-        grep -E '^\[(magic-check|magic-host|combat-check|lunge-check|guard-check|carry-check|bot-check)\]' "$file" | sed "s/^/$log: /"
+        grep -E '^\[(magic-check|magic-host|combat-check|combat-host|lunge-check|guard-check|carry-check|bot-check|status-check|status-host)\]' "$file" | sed "s/^/$log: /"
 
         if [ "$player" -lt "$MAGIC_CASTERS" ]; then
             # Bolts: this player throws them, as many to a cast as its skill has (one bolt, or a volley's three; a
@@ -683,11 +715,28 @@ magic_test() {
             failed=1
         fi
     done
+    peers=$(count_positive_peers "$host" magic-host arrow_hits)
+    if [ "$peers" -lt 1 ]; then
+        echo "FAIL host: no arrow from the bow hit anything ($(grep -E '^\[magic-host\]' "$host"))"
+        failed=1
+    fi
     peers=$(count_positive_peers "$host" magic-host enchanted_hits)
     if [ "$peers" -lt 1 ]; then
         echo "FAIL host: no blow of an enchanted weapon reached the host as part magic ($(grep -E '^\[magic-host\]' "$host"))"
         failed=1
     fi
+    # Skeletons are weak to fire and not to water or earth: the fire staff's hits met the weakness, and the water
+    # and earth staffs' were taken as they are.
+    gate host "$host" combat-host 'v["weak_hits"] + 0 >= 1 && v["plain_hits"] + 0 >= 1' \
+        "the skeletons' weakness to fire, or their taking water and earth as they are, did not show in the hits" || failed=1
+    # Statuses: the host freezes a skeleton and stuns the next on cue (--status-drill), since they die too soon to be
+    # frozen by play alone. Every machine sees both, the frozen in their ice (but for the frame it takes to go up),
+    # and neither moving while it is held; fire leaves skeletons burning.
+    for log in $(session_logs); do
+        gate "$log" "$logs/$log.log" status-check 'index(v["enemy_statuses"], "frozen") > 0 && index(v["enemy_statuses"], "stunned") > 0 && index(v["enemy_statuses"], "burning") > 0 && v["held_frames"] + 0 >= 1 && v["ice_block_frames"] + 0 >= 1 && v["frozen_without_ice_frames"] * 20 <= v["ice_block_frames"] && v["held_moved_most"] + 0 < 0.05' \
+            "no skeleton seen frozen, stunned or burning, a frozen one without its ice, or a held one moving" || failed=1
+    done
+    gate host "$host" status-host 'v["drills"] + 0 >= 2' "the host froze and stunned nothing on cue" || failed=1
     # The host deals every barrier a blow as it goes up (counted above): while a barrier holds the blow costs no HP.
     gate host "$host" magic-host 'v["drill_hp_lost"] + 0 == 0' "a blow on a barrier that held cost its player HP" || failed=1
 
@@ -743,11 +792,22 @@ weapon_lineup() {
     echo "weapon-lineup: $ROOT/_staging/weapon-lineup.png"
 }
 
-# The staffs casting: each of the elements named ("fire,void"; all six with none) holds its spell on an area with
-# what it throws beside it. With "barriers", every staff's figure inside its barrier instead.
+# The staffs casting: each of the elements named ("fire,void") holds its spell on an area with what it throws beside
+# it. With "barriers", every staff's figure inside its barrier instead. All eight casting are wider than the field
+# between the fortresses can frame, so with none named they are taken four at a time.
 magic_lineup() {
-    local which=(--magic-lineup "${1:-all}")
-    [ "${1:-}" = barriers ] && which=(--magic-barriers)
+    if [ $# -eq 0 ]; then
+        local half=0 elements
+        for elements in fire,water,ice,wind lightning,earth,divine,void; do
+            half=$((half + 1))
+            magic_lineup "$elements" > /dev/null || return 1
+            cp "$ROOT/_staging/magic-lineup.png" "$ROOT/_staging/magic-lineup-$half.png"
+            echo "magic-lineup: $ROOT/_staging/magic-lineup-$half.png ($elements)"
+        done
+        return 0
+    fi
+    local which=(--magic-lineup "$1")
+    [ "$1" = barriers ] && which=(--magic-barriers)
     screenshot --no-enemies --no-ui --at 1.2 "${which[@]}" || return 1
     cp "$ROOT/_staging/screenshot.png" "$ROOT/_staging/magic-lineup.png"
     echo "magic-lineup: $ROOT/_staging/magic-lineup.png"
@@ -775,6 +835,7 @@ screenshot() {
             --start-orbs) args+=(--start-orbs "$2"); shift 2 ;;
             --start-armour) args+=(--start-armour "$2"); shift 2 ;;
             --trade-drill) args+=(--trade-drill); shift ;;
+            --status-drill) args+=(--status-drill); shift ;;
             --no-ui) args+=(--no-ui); shift ;;
             --no-enemies) args+=(--no-enemies); shift ;;
             --weapon) args+=(--weapon "$2"); shift 2 ;;

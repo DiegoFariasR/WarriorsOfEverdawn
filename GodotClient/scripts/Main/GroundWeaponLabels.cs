@@ -76,9 +76,9 @@ public partial class GroundWeaponLabels : Control
 
     // What a weapon does in the hands of a player with these stats.
     public static string DetailsOf(WeaponDefinition weapon, CharacterStats stats) =>
-        $"{weapon.Primary.Name} {DamageOf(weapon.Primary, stats)}  -  {(weapon.Primary.Projectile == null ? "reach" : "flies")} {weapon.Primary.Range:F1}\n"
-        + $"{weapon.Secondary.Name} {DamageOf(weapon.Secondary, stats)}{(weapon.Secondary.Channeled ? " a turn" : $" in {weapon.Secondary.BlastRadius:F1}")}  -  {weapon.Secondary.ManaCost} MP\n"
-        + $"{weapon.Lunge.Name} {DamageOf(weapon.Lunge, stats)}  -  "
+        $"{weapon.Primary.Name} {DealtBy(weapon.Primary, stats)}  -  {(weapon.Primary.Projectile == null ? "reach" : "flies")} {weapon.Primary.Range:F1}\n"
+        + $"{weapon.Secondary.Name} {DealtBy(weapon.Secondary, stats)}{(weapon.Secondary.Channeled ? " a turn" : weapon.Secondary.BlastRadius > 0f ? $" in {weapon.Secondary.BlastRadius:F1}" : "")}  -  {weapon.Secondary.ManaCost} MP\n"
+        + $"{weapon.Lunge.Name} {DealtBy(weapon.Lunge, stats)}  -  "
         + (weapon.Guard.Barrier is { } barrier ? $"barrier takes {barrier.Strength}" : $"guard stops {(1f - weapon.Guard.DamageTaken) * 100f:F0}%")
         + (weapon.Enchantment is { } element ? $"\n{EnchantedOf(element)}" : "");
 
@@ -88,6 +88,9 @@ public partial class GroundWeaponLabels : Control
     // What a skill deals in these hands; a volley as so many darts of so much: "3 x 12".
     public static string DamageOf(SkillDefinition skill, CharacterStats stats) =>
         skill.Projectiles > 1 ? $"{skill.Projectiles} x {StatRules.Damage(skill, stats)}" : StatRules.Damage(skill, stats).ToString();
+
+    // What a skill deals and of what type: "25 slash".
+    private static string DealtBy(SkillDefinition skill, CharacterStats stats) => $"{DamageOf(skill, stats)} {DamageTypes.NameOf(skill.Type)}";
 
     private IEnumerable<GroundWeapon> Near()
     {

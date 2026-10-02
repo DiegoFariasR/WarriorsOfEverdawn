@@ -18,6 +18,9 @@ public sealed record EnemyDefinition(string Id, int MaxHp, float MoveSpeed, floa
 
     // How often it leaves a magic orb beside its gold, from 0 (never) to 1 (always).
     public float OrbChance { get; init; }
+
+    // What it makes of each type of damage: nothing of any, unless said.
+    public Resistances Resistances { get; init; } = Resistances.None;
 }
 
 public static class Enemies
@@ -25,16 +28,27 @@ public static class Enemies
     // Further than the arena is long: a wave marches from its fortress on the players wherever they are.
     private const float MarchRange = 100f;
 
+    // Bare bone: whatever cuts, breaks or runs it through does a quarter more, and so do fire and the divine.
+    // First pass, and the one use of resistances so far.
+    public const int SkeletonWeakness = -25;
+
+    public static readonly Resistances Skeletal = Resistances.None
+        .With(DamageFamily.Physical, SkeletonWeakness)
+        .With(DamageType.Fire, SkeletonWeakness)
+        .With(DamageType.Divine, SkeletonWeakness);
+
     public static readonly EnemyDefinition SkeletonMinion = new("skeleton-minion", MaxHp: 40, MoveSpeed: 2.6f, AggroRange: MarchRange, AttackCooldown: 1.6f, Skills.MinionChop)
     {
         Gold = new GoldDrop(2, 4),
         OrbChance = 0.02f,
+        Resistances = Skeletal,
     };
 
     public static readonly EnemyDefinition SkeletonWarrior = new("skeleton-warrior", MaxHp: 70, MoveSpeed: 2.2f, AggroRange: MarchRange, AttackCooldown: 2.2f, Skills.WarriorChop)
     {
         Gold = new GoldDrop(6, 10),
         OrbChance = 0.06f,
+        Resistances = Skeletal,
     };
 
     // Fragile, so reaching it is the answer; it keeps its distance to make that take effort.
@@ -43,6 +57,7 @@ public static class Enemies
         KeepAway = 5f,
         Gold = new GoldDrop(3, 6),
         OrbChance = 0.03f,
+        Resistances = Skeletal,
     };
 
     public static IReadOnlyList<EnemyDefinition> All { get; } = new[] { SkeletonMinion, SkeletonWarrior, SkeletonArcher };

@@ -78,7 +78,7 @@ public sealed record LaunchOptions
     public WeaponDefinition? WeaponLineup { get; init; }
 
     // For looking at magic: the player's figure in a row in the field, once per staff of the elements named (all
-    // six with "all"), each casting; with MagicBarriers, every staff's figure inside its barrier instead. Null
+    // with "all"), each casting; with MagicBarriers, every staff's figure inside its barrier instead. Null
     // without the flag.
     public IReadOnlyList<Element>? MagicLineup { get; init; }
 
@@ -102,6 +102,10 @@ public sealed record LaunchOptions
     // Host only, for the self-tests: every barrier that goes up is dealt a blow, through the same path as a
     // skeleton's (NetSelfTest.Magic).
     public bool BarrierDrill { get; init; }
+
+    // --status-drill, on a bot host: every few seconds a skeleton is frozen, and the next stunned, whatever the
+    // fight has done to it. For the self-test: skeletons die too soon to be frozen by play alone.
+    public bool StatusDrill { get; init; }
 
     // Host only, for looking at a place: players start on this spot of the ground instead of in the town.
     public Godot.Vector3? StartAt { get; init; }
@@ -146,6 +150,7 @@ public sealed record LaunchOptions
                 "--start-armour" => options with { StartArmour = ArmourTierAfter(args, ref i) },
                 "--trade-drill" => options with { TradeDrill = true },
                 "--barrier-drill" => options with { BarrierDrill = true },
+                "--status-drill" => options with { StatusDrill = true },
                 _ => throw new ArgumentException($"Unknown launch argument '{args[i]}'"),
             };
         }

@@ -6,7 +6,7 @@ namespace WarriorsOfEverdawn.Core.Tests.Combat;
 public class CombatTimingTests
 {
     private const float Speed = 2.5f;
-    private static readonly SkillDefinition Swing = new("test-swing", Damage: 1, Range: 1f, HalfArc: 1f, HitTime: 0.6f);
+    private static readonly SkillDefinition Swing = new("test-swing", Damage: 1, Range: 1f, HalfArc: 1f, HitTime: 0.6f) { Type = DamageType.Slash };
 
     [Fact]
     public void A_single_moment_swing_closes_its_window_when_it_opens()

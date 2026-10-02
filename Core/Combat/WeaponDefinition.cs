@@ -72,6 +72,21 @@ public static class Weapons
     public static readonly WeaponDefinition SwordAndShield = new("sword-and-shield", "Sword and shield", Skills.SwordSlash, Skills.SwordSpin, Skills.SwordLunge,
         new GuardDefinition(HalfArc: 110f * Angles.DegToRad, DamageTaken: 0f, MoveSpeedFactor: 0.7f, ParryWindow: 0.3f));
 
+    // A hammer for both hands: slow, heavy blows that stun. Its guard stops nearly everything and all but roots
+    // its wielder.
+    public static readonly WeaponDefinition Warhammer = new("warhammer", "Warhammer", Skills.HammerSmash, Skills.HammerSpin, Skills.HammerLunge,
+        new GuardDefinition(HalfArc: 70f * Angles.DegToRad, DamageTaken: 0.1f, MoveSpeedFactor: 0.35f, ParryWindow: 0.15f));
+
+    // A claw on each hand, one weapon as a sword and shield are. Light, quick blows at arm's length; a guard of
+    // crossed claws that lets a third through and is quick to parry.
+    public static readonly WeaponDefinition Claws = new("claws", "Claws", Skills.ClawRake, Skills.ClawSpin, Skills.ClawLunge,
+        new GuardDefinition(HalfArc: 65f * Angles.DegToRad, DamageTaken: 0.35f, MoveSpeedFactor: 0.65f, ParryWindow: 0.25f));
+
+    // A bow and the arrows for it, which never run out. It deals from further off than anything of steel and less
+    // than any of it, and it is the poorest guard there is: a stave of wood held across the body.
+    public static readonly WeaponDefinition Bow = new("bow", "Bow", Skills.BowShot, Skills.BowVolley, Skills.BowLunge,
+        new GuardDefinition(HalfArc: 50f * Angles.DegToRad, DamageTaken: 0.5f, MoveSpeedFactor: 0.6f, ParryWindow: 0.15f));
+
     // Every staff's guard is the same barrier, first pass: a shell all round that takes 40 before it gives and comes
     // back at 8 a second once it has been down for 2 s. Nothing gets past it while it holds, and it parries nothing.
     public static readonly GuardDefinition Barrier = new(HalfArc: MathF.PI, DamageTaken: 0f, MoveSpeedFactor: 0.5f, ParryWindow: 0f)
@@ -83,7 +98,7 @@ public static class Weapons
     private static readonly Dictionary<(string Kind, Element? Enchantment, int Level), WeaponDefinition> Made = new();
 
     // Weapons of steel and wood: what the weaponsmith sells.
-    public static IReadOnlyList<WeaponDefinition> Arms { get; } = new[] { Greatsword, Quarterstaff, Spear, Scythe, SwordAndShield };
+    public static IReadOnlyList<WeaponDefinition> Arms { get; } = new[] { Greatsword, Quarterstaff, Spear, Scythe, SwordAndShield, Bow, Claws, Warhammer };
 
     // A magic staff for each element: a bolt or a volley, a spell held on an area, and the barrier.
     public static IReadOnlyList<WeaponDefinition> Staffs { get; } = Elements.All.Select(StaffFor).ToList();

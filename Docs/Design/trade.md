@@ -6,15 +6,15 @@ Sellers stand in the allied town and trade what players have earned for goods. T
 
 | Seller | Stands | Trades | Offers |
 |---|---|---|---|
-| Weaponsmith | The town's armoury (the room on the right as one comes in by the gate) | Gold for weapons | Every weapon of steel or wood in its plain make (five), the fire staff and the fire wand, 50 gold each |
+| Weaponsmith | The town's armoury (the room on the right as one comes in by the gate) | Gold for weapons | Every weapon of steel or wood in its plain make (eight, the bow, the claws and the warhammer among them), the fire staff and the fire wand, 50 gold each |
 | Blacksmith | At the anvil in the courtyard | Gold and orbs for better weapons and armour | Three, always in the same slots: the weapon in the buyer's hand one level better, the weapon on its back one level better, and its armour one tier better |
-| Enchanter | On a rug by a shrine of candles, at the front of the courtyard on the blacksmith's side | Gold and orbs for an element on the weapon in hand | Six, always in the same slots, one for each element: for a weapon of steel or wood that element laid on it, for a staff or a wand the staff or wand of that element |
+| Enchanter | On a rug by a shrine of candles, at the front of the courtyard on the blacksmith's side | Gold and orbs for an element on the weapon in hand | Eight, always in the same slots, one for each element: for a weapon of steel or wood that element laid on it, for a staff or a wand the staff or wand of that element |
 | Merchant | At its stall by the training dummy, across the courtyard from the anvil | Gold for what the player carries | Three, always in the same slots: gold for the weapon in the player's hand, for the weapon on its back, and for a magic orb |
 
 - A seller is a figure on its spot with its name over its head, seen through walls so it can be found from across the town. It is solid, and walked round like any prop.
 - Within 2.5 of one, "E - trade" shows over it. E (Start on a controller) opens its window. A player who is down, or already trading, gets no prompt.
 - Where sellers stand is the town layout's business: a marker `seller-<id>` with the way they face ([level-layouts.md](level-layouts.md)). A marker for a seller nobody knows stops the arena from loading, and a seller with no marker fails a Core test.
-- What a seller offers is `Core/Trade` (`Sellers`): a name, a line saying what for what, and up to nine offers, worked out from what the buyer carries and wears. An offer is a weapon or a tier of armour and a cost in gold, souls and orbs (most often one of them); a weapon has either nowhere in particular to go (one for sale) or the slot whose weapon it replaces (an improvement); and an offer has a reason when it cannot be had. The trade can go the other way: an offer that pays is the player selling, and what is handed over is its cost (an orb) or the weapon in the slot it names.
+- What a seller offers is `Core/Trade` (`Sellers`): a name, a line saying what for what, and up to twelve offers, worked out from what the buyer carries and wears. An offer is a weapon or a tier of armour and a cost in gold, souls and orbs (most often one of them); a weapon has either nowhere in particular to go (one for sale) or the slot whose weapon it replaces (an improvement); and an offer has a reason when it cannot be had. The trade can go the other way: an offer that pays is the player selling, and what is handed over is its cost (an orb) or the weapon in the slot it names.
 
 ## Weapon levels
 
@@ -35,7 +35,7 @@ A weapon has a level from 0 (plain) to 10, shown in its name: "Greatsword +3". T
 
 ## The enchanter
 
-Like the blacksmith it works on what the player has, and offers only what fits it: its six slots are the six elements, always in the same order, and what they offer goes by the weapon in the player's hand ([magic.md](magic.md)).
+Like the blacksmith it works on what the player has, and offers only what fits it: its eight slots are the eight elements, always in the same order (the window has twelve), and what they offer goes by the weapon in the player's hand ([magic.md](magic.md)).
 
 | In hand | Each slot offers | Cost (first-pass) |
 |---|---|---|
@@ -75,7 +75,7 @@ The same for every seller (`Main/ShopPanel`), opened over the game, which dims b
 | Part | Shows |
 |---|---|
 | Heading | The seller's name and its line ("Plain weapons for gold"); on the right, the gold, souls and orbs the player carries |
-| Slots | Nine, in three rows of three, numbered 1 to 9. A slot with an offer shows its name and cost ("80 gold + 1 orb" on two lines); the rest show a dash. A cost the player cannot pay is red; an offer that cannot be had is greyed |
+| Slots | Twelve, in three rows of four, numbered 1 to 12; the number keys reach the first nine, the arrows and the mouse all of them. A slot with an offer shows its name and cost ("80 gold + 1 orb" on two lines); the rest show a dash. A cost the player cannot pay is red; an offer that cannot be had is greyed |
 | Chosen offer | To the right: the name; what it is (a weapon's three lines as a weapon on the ground shows them, or for an improvement what each skill deals now and would deal, and the level out of 10); the cost and how much the player is short; what having it does; the outcome of the last purchase; and the button, "Buy" or "Improve" |
 | Foot | The keys |
 
@@ -84,7 +84,7 @@ The same for every seller (`Main/ShopPanel`), opened over the game, which dims b
 - The window opens on the first offer that can be had, and the choice moves to one that can if the chosen offer stops being so.
 - **Closing:** Esc, or B on a controller. It also closes if the player goes down.
 - The player stands still while the window is open: its controls ask for nothing.
-- Nine slots because that is what the number keys reach and what fits beside the detail pane at the game's window size (the window is 804 by 440 in a 1152 by 648 game). A seller with more than nine offers would need pages; none has.
+- Twelve slots, since the weaponsmith came to sell ten things: a fourth column, which still fits beside the detail pane at the game's window size (the window is 960 by 440 in a 1152 by 648 game). It was nine, what the number keys reach. A seller with more than twelve offers would need pages; none has.
 
 ## Buying a weapon
 
@@ -120,7 +120,7 @@ That an improved weapon hits harder where it counts was checked in a solo fight 
 ## Open questions
 
 - Souls still buy nothing: all four sellers trade in gold, and the blacksmith in orbs as well.
-- What an enchantment costs against what it gives: today it converts damage and adds nothing ([magic.md](magic.md)).
+- What an enchantment costs against what it gives: it converts 40% of a blow's damage and of its buildup to the element ([magic.md](magic.md)), which on skeletons, weak to every blade, is seldom a gain.
 - What the merchant pays: half the gold put into a weapon and 100 gold for an orb are first-pass. Whether it should buy souls, and whether more things should exist to sell (things monsters leave, kept in a bag): today a player carries only two weapons and its purse.
 - What each tier of armour looks like: a first pick that reads as leathers growing into plate. The tiers' names (worn clothes, Leather, Mail, Scale) do not say what is seen. Everdawn tints parts by palette, which would give more looks from the same models (a darker, bluer plate for the tempered one); nothing is tinted here yet.
 - Whether tempered plate stopping half of every blow, on top of a guard, is too much: armour's numbers are first-pass.

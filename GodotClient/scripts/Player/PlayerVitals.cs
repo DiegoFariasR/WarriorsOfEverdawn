@@ -6,6 +6,7 @@ using WarriorsOfEverdawn.Core.Loot;
 using WarriorsOfEverdawn.Core.Stats;
 using WarriorsOfEverdawn.Core.Trade;
 using WarriorsOfEverdawn.Main;
+using WarriorsOfEverdawn.Theme;
 using WarriorsOfEverdawn.Util;
 
 namespace WarriorsOfEverdawn.Player;
@@ -14,6 +15,7 @@ namespace WarriorsOfEverdawn.Player;
 // wears, and the gold, souls and magic orbs it has earned and not yet spent.
 public partial class PlayerVitals : Node
 {
+    // A hit of no damage type: the game's own.
     private static readonly Color DamageColor = new(1f, 0.35f, 0.3f);
     private static readonly Color ParryColor = new(1f, 0.85f, 0.35f);
     private static readonly Color BlockColor = new(0.8f, 0.88f, 1f);
@@ -22,6 +24,7 @@ public partial class PlayerVitals : Node
     private readonly Purse _purse = new();
     private readonly ArmourWear _wear = new();
     private readonly BarrierPool _barrier = new(Weapons.Barrier.Barrier!);
+    private readonly StatusBars _status = new();
 
     [Export]
     public int Hp { get; set; } = PlayerRules.MaxHp;
@@ -43,7 +46,26 @@ public partial class PlayerVitals : Node
     [Export]
     public int Barrier { get; set; } = Weapons.Barrier.Barrier!.Strength;
 
+    // The player's statuses (Core's Statuses, as a number): the host's to work out, like the HP they wear down;
+    // every machine's to show, and its own machine's to obey.
+    [Export]
+    public int StatusMask { get; set; }
+
+    public Statuses Statuses => (Statuses)StatusMask;
+
+    // Frozen or stunned: it neither moves nor acts.
+    public bool IsLost => (Statuses & (Statuses.Frozen | Statuses.Stunned)) != Statuses.None;
+
+    // The share of its run and attack speed it keeps: less while chilled.
+    public float Speed => Statuses.HasFlag(Statuses.Chilled) ? StatusRules.ChilledSpeed : 1f;
+
+    // Host only: the bars themselves, for what the player deals and takes.
+    public StatusBars Status => _status;
+
     public event Action<int>? Hit;
+
+    // Host only: a burn or a wound bit this player for so much.
+    public static event Action<PlayerCharacter, DamageType, int>? StatusBit;
 
     // Host only, PvP: attacker peer, victim peer, damage taken.
     public static event Action<long, long, int>? DamagedByPlayer;
@@ -60,7 +82,7 @@ public partial class PlayerVitals : Node
     {
         var vitals = new PlayerVitals { Name = "Vitals" };
         var config = new SceneReplicationConfig();
-        foreach (var property in new[] { PropertyName.Hp, PropertyName.Gold, PropertyName.Souls, PropertyName.Orbs, PropertyName.Armour, PropertyName.Barrier })
+        foreach (var property in new[] { PropertyName.Hp, PropertyName.Gold, PropertyName.Souls, PropertyName.Orbs, PropertyName.Armour, PropertyName.Barrier, PropertyName.StatusMask })
         {
             var path = new NodePath($".:{property}");
             config.AddProperty(path);
@@ -73,8 +95,9 @@ public partial class PlayerVitals : Node
     }
 
     // Host only: an attack from `from`, which the player's guard may block (a share of the damage gets through) or
-    // parry (none does). Whoever calls it reacts to a parry.
-    public GuardOutcome TakeAttack(int damage, Vector3 from)
+    // parry (none does). Whoever calls it reacts to a parry. `types` is the mask of the damage types it is of
+    // (DamageTypes.MaskOf), for the colour it shows in.
+    public GuardOutcome TakeAttack(int damage, Vector3 from, int types)
     {
         // A barrier that is spent is no guard at all.
         var guard = Player.Weapon?.Guard;
@@ -92,7 +115,7 @@ public partial class PlayerVitals : Node
         int through = _wear.Through(Armours.AtTier(Armour), past);
         if (through > 0)
         {
-            TakeHit(through);
+            TakeHit(through, types);
         }
 
         return outcome;
@@ -105,6 +128,19 @@ public partial class PlayerVitals : Node
         {
             _barrier.Advance((float)delta, up: Player.IsGuarding && Player.Weapon?.Guard.Barrier != null);
             Barrier = _barrier.Left;
+
+            // Burns and wounds bite past any guard; the armour takes its share of each as of any blow.
+            foreach (var tick in _status.Advance((float)delta, _health.Current, _status.Adjusted(Resistances.None)))
+            {
+                int through = _wear.Through(Armours.AtTier(Armour), tick.Damage);
+                if (through > 0)
+                {
+                    StatusBit?.Invoke(Player, tick.Type, through);
+                    TakeHit(through, DamageTypes.MaskOf(new[] { tick.Type }));
+                }
+            }
+
+            StatusMask = (int)_status.Active;
         }
     }
 
@@ -158,7 +194,7 @@ public partial class PlayerVitals : Node
     public void Wear(ArmourDefinition armour) => Armour = armour.Tier;
 
     // Damage no guard can stop.
-    public void TakeHit(int damage)
+    public void TakeHit(int damage, int types)
     {
         if (!Multiplayer.IsServer())
         {
@@ -173,9 +209,10 @@ public partial class PlayerVitals : Node
         }
 
         Hp = _health.Current;
-        Rpc(MethodName.ShowHit, taken);
+        Rpc(MethodName.ShowHit, taken, types);
         if (_health.IsDead)
         {
+            _status.Clear();
             Rpc(MethodName.Downed);
             GetTree().CreateTimer(PlayerRules.RespawnDelay).Timeout += Respawn;
         }
@@ -211,13 +248,21 @@ public partial class PlayerVitals : Node
             return;
         }
 
+        // As with a blow on a skeleton: by what this player's bars and the attacker's make of it, and what gets
+        // past the guard builds this player's bars.
+        var dealer = attacker.Vitals.Status;
+        var resistances = _status.Adjusted(Resistances.None);
         int before = _health.Current;
-        TakeAttack(StatRules.Damage(skill, attacker.Stats), attacker.NetPosition);
+        TakeAttack(StatRules.Damage(skill, attacker.Stats, resistances, dealer), attacker.NetPosition, DamageTypes.MaskOf(skill.Types));
         if (before > _health.Current)
         {
+            StatRules.Afflict(_status, skill, attacker.Stats, resistances, dealer);
             DamagedByPlayer?.Invoke(attackerId, Player.PeerId, before - _health.Current);
         }
     }
+
+    // Host only: the player starts a skill. What of it is divine or void builds on the player itself.
+    public void Cast(SkillDefinition skill) => _status.BuildFromCasting(skill);
 
     private void Respawn()
     {
@@ -228,14 +273,15 @@ public partial class PlayerVitals : Node
         }
 
         _health.RestoreFull();
+        _status.Clear();
         Hp = _health.Current;
         Rpc(MethodName.Revived, ArenaMap.In(GetTree()).RevivePointFor(Player.PeerId));
     }
 
     [Rpc(MultiplayerApi.RpcMode.Authority, CallLocal = true, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-    private void ShowHit(int amount)
+    private void ShowHit(int amount, int types)
     {
-        FloatingText.Spawn(Player, amount.ToString(), DamageColor);
+        FloatingText.Spawn(Player, amount.ToString(), types == DamageTypes.NoTypes ? DamageColor : DamageTypeColours.Number(types));
         Player.Flash.Flash();
         Hit?.Invoke(amount);
     }

@@ -51,6 +51,19 @@ STRUCTURE = ("wall", "pillar")
 # out to the wall's face (or, for the shelves, a quarter of the way).
 ON_FACE = WALL_THICK / 2
 SHELVES_OUT = 0.25
+# Flames: scene-linear colours, as the layout format has them.
+FIRE = [1.0, 0.342, 0.084]
+CANDLE = [1.0, 0.57, 0.21]
+# Pieces that burn, and the light each gives: where in the piece's box the flame is (0 to 1 across x, up y and along
+# z, so a wall torch's is at the end that stands out from the wall), then colour, energy and range in metres. The
+# models carry no light of their own, and a flame that lights nothing reads as painted on.
+BURNING = {
+    "torch_mounted": ((0.5, 0.95, 1.0), FIRE, 1.6, 5.0),
+    "post_lantern": ((0.5, 0.75, 0.85), FIRE, 1.4, 5.0),
+    "Campfire_Logs": ((0.5, 1.0, 0.5), FIRE, 2.2, 7.0),
+    "shrine_candles": ((0.5, 1.05, 0.5), CANDLE, 1.0, 3.5),
+    "skull_candle": ((0.5, 1.05, 0.5), CANDLE, 1.0, 3.5),
+}
 
 
 class Fort:
@@ -65,7 +78,7 @@ class Fort:
         self.wall, self.worn, self.safe = wall, worn, safe
         self.half_x, self.half_z = ACROSS * SEGMENT / 2, DEEP * SEGMENT / 2
         self.assets, self.placements, self.solids = {}, [], []
-        self.markers, self.areas = [], []
+        self.markers, self.areas, self.lights = [], [], []
         # The longest prefix wins: banners keep their own colours whatever the walls wear.
         self.textures = {DUNGEON_PREFIX: texture, DUNGEON_PREFIX + "banner_": STONE}
 
@@ -109,6 +122,13 @@ class Fort:
         if shape is not None:
             placement["shape"] = shape
         self.placements.append(placement)
+        if name in BURNING:
+            at, colour, energy, reach = BURNING[name]
+            lo, hi = lc.bounds(res)
+            fx, fy, fz = (lo[i] + (hi[i] - lo[i]) * at[i] for i in range(3))
+            ox, oz = lc.turned(fx * scale, fz * scale, yaw)
+            self.lights.append({"position": [round(position[0] + ox, 3), round(position[1] + fy * scale, 3), round(position[2] + oz, 3)],
+                                "color": colour, "energy": energy, "range": reach})
 
     def marker(self, name, x, d, yaw=None):
         """A named spot; with a yaw, the way whoever stands on it faces (0 toward the gate)."""
@@ -227,7 +247,8 @@ class Fort:
 
     def layout(self):
         return {"version": lc.LAYOUT_VERSION, "assets": self.assets, "textures": self.textures,
-                "placements": self.placements, "markers": self.markers, "areas": self.areas, "meshes": []}
+                "placements": self.placements, "markers": self.markers, "areas": self.areas, "meshes": [],
+                "lights": self.lights}
 
 
 class Room:
@@ -446,7 +467,7 @@ def main():
             f.write("\n")
         solids = sum(1 for p in layout["placements"] if p.get("solid"))
         print(f"[level-fortresses] seed {args.seed}: {name}: {len(layout['placements'])} placements ({solids} solid), "
-              f"{len(layout['markers'])} markers, {len(layout['areas'])} areas -> {path}")
+              f"{len(layout['markers'])} markers, {len(layout['areas'])} areas, {len(layout['lights'])} lights -> {path}")
 
 
 if __name__ == "__main__":

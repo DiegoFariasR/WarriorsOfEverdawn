@@ -10,7 +10,7 @@ using WarriorsOfEverdawn.Util;
 
 namespace WarriorsOfEverdawn.Main;
 
-// Every bolt and dart a staff has thrown that is still in flight. The caster's machine looses them and decides what
+// Every bolt and dart a staff has thrown, and every arrow a player's bow has loosed, that is still in flight. The caster's machine looses them and decides what
 // they hit, as it does for its swings; every machine flies its own copy of each from the same start along the same
 // straight line, and stops it at a wall on its own, so one costs a message to loose and one more only if it hits a
 // body. Looks apart, a skeleton's arrows (Enemy/Arrows) are the same thing decided by the host.
@@ -48,23 +48,46 @@ public partial class Bolts : Node3D
     // On every machine, from the caster's own (PlayerCharacter.LooseBolt): `id` tells the caster's bolts apart.
     public void Fly(PlayerCharacter caster, int id, SkillDefinition skill, Vector3 from, float yaw)
     {
-        if (skill.Projectile == null || skill.Element is not { } element)
+        if (skill.Projectile == null)
         {
-            GD.PushError($"[Bolts] {skill.Id} throws nothing, or nothing of an element; no bolt");
+            GD.PushError($"[Bolts] {skill.Id} throws nothing; no bolt");
             return;
         }
 
         var direction = Yaw.Forward(yaw);
-        var node = Thrown(skill, element, direction);
+        var node = Thrown(skill, direction);
         AddChild(node);
         node.GlobalPosition = from;
-        _flights[(caster.PeerId, id)] = new Flight(caster, skill, element, from, direction, node);
+        _flights[(caster.PeerId, id)] = new Flight(caster, skill, from, direction, node);
         Loosed?.Invoke(caster, skill);
     }
 
-    // What a skill throws, heading that way: a bolt is Everdawn's ball; a volley's dart its bipyramid, point first.
-    public static MeshInstance3D Thrown(SkillDefinition skill, Element element, Vector3 direction)
+    // Whether what the skill throws is an arrow: a thing of wood and steel, not of an element.
+    public static bool IsArrow(SkillDefinition skill) => DamageTypes.FamilyOf(skill.Type) == DamageFamily.Physical;
+
+    // What a skill throws, heading that way: a bolt is Everdawn's ball; a volley's dart its bipyramid, point first;
+    // a bow's is an arrow, with the bow's enchantment playing over it if it has one.
+    public static Node3D Thrown(SkillDefinition skill, Vector3 direction)
     {
+        if (IsArrow(skill))
+        {
+            var arrow = Assets.InstantiateAtOrigin(CombatVisuals.ArrowModel);
+            ToonLook.ApplyToWeapon(arrow);
+            if (skill.Element is { } enchantment)
+            {
+                foreach (var mesh in arrow.FindChildren("*", nameof(MeshInstance3D), recursive: true, owned: false).OfType<MeshInstance3D>())
+                {
+                    mesh.MaterialOverlay = ElementLooks.Enchantment(enchantment);
+                }
+            }
+
+            // The model's point is its -Y end.
+            var along = -direction;
+            arrow.Basis = new Basis(along.Cross(Vector3.Up), along, Vector3.Up);
+            return arrow;
+        }
+
+        var element = skill.Element ?? throw new InvalidOperationException($"{skill.Id} throws magic of no element");
         var projectile = skill.Projectile!;
         var node = ElementLooks.Made(element, skill.Projectiles > 1
             ? ElementLooks.Bipyramid(projectile.Radius, projectile.Radius * 4f)
@@ -140,13 +163,18 @@ public partial class Bolts : Node3D
     }
 
     // The bolt goes, and a burst of its element swells and is gone where it ended: a puff for a bolt, and for a ball
-    // that bursts, as wide as what it catches.
+    // that bursts, as wide as what it catches. A plain arrow just goes.
     private void Finish(Flight flight, Vector3 at)
     {
         flight.Node.QueueFree();
+        if (flight.Skill.Element is not { } element)
+        {
+            return;
+        }
+
         float blast = flight.Skill.BlastRadius;
         float radius = flight.Skill.Projectile!.Radius;
-        var burst = ElementLooks.Made(flight.Element, new SphereMesh { Radius = radius, Height = radius * 2f, RadialSegments = 16, Rings = 8 });
+        var burst = ElementLooks.Made(element, new SphereMesh { Radius = radius, Height = radius * 2f, RadialSegments = 16, Rings = 8 });
         AddChild(burst);
         burst.GlobalPosition = at;
         BurstsShowing++;
@@ -167,11 +195,10 @@ public partial class Bolts : Node3D
 
     private sealed class Flight
     {
-        public Flight(PlayerCharacter caster, SkillDefinition skill, Element element, Vector3 from, Vector3 direction, Node3D node)
+        public Flight(PlayerCharacter caster, SkillDefinition skill, Vector3 from, Vector3 direction, Node3D node)
         {
             Caster = caster;
             Skill = skill;
-            Element = element;
             From = from;
             Direction = direction;
             Node = node;
@@ -180,8 +207,6 @@ public partial class Bolts : Node3D
         public PlayerCharacter Caster { get; }
 
         public SkillDefinition Skill { get; }
-
-        public Element Element { get; }
 
         public Vector3 From { get; }
 

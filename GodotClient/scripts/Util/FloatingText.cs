@@ -9,8 +9,12 @@ public static class FloatingText
     private const float Rise = 1f;
     public const float Duration = 0.8f;
 
-    // `above` lifts it clear of another text spawned over the same anchor at the same moment.
-    public static void Spawn(Node3D anchor, string text, Color color, float above = 0f)
+    private const int FontSize = 64;
+    private const int OutlineSize = 12;
+
+    // `above` lifts it clear of another text spawned over the same anchor at the same moment; `scale` writes it
+    // larger or smaller than the rest.
+    public static void Spawn(Node3D anchor, string text, Color color, float above = 0f, float scale = 1f)
     {
         var label = new Label3D
         {
@@ -18,8 +22,8 @@ public static class FloatingText
             Font = UiTheme.Numbers,
             Modulate = color,
             OutlineModulate = Colors.Black,
-            FontSize = 64,
-            OutlineSize = 12,
+            FontSize = Mathf.RoundToInt(FontSize * scale),
+            OutlineSize = Mathf.RoundToInt(OutlineSize * scale),
             PixelSize = 0.01f,
             Billboard = BaseMaterial3D.BillboardModeEnum.Enabled,
             NoDepthTest = true,

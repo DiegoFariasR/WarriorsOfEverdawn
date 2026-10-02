@@ -22,8 +22,6 @@ public partial class GroundWeapons : Node3D
     // Just clear of the ground, so the model does not fight with it for the same pixels.
     private const float RestHeight = 0.06f;
 
-    // How far to the side of a weapon its off-hand piece lies: clear of the sword's guard, with a gap.
-    private const float OffHandBeside = 0.8f;
 
     private readonly Dictionary<int, (GroundWeapon Item, Node3D Model)> _lying = new();
     private int _nextId;
@@ -140,19 +138,18 @@ public partial class GroundWeapons : Node3D
 
         // Weapon models stand along +Y from wherever their grip is; laid on its side, the weapon rests on its middle.
         pivot.Rotation = new Vector3(Mathf.Pi / 2f, yaw, 0f);
-        model.Scale = Vector3.One * look.Scale;
-        model.Position = -MiddleOf(model) * look.Scale;
+        model.Basis = Basis.FromEuler(look.GroundRotation).Scaled(Vector3.One * look.Scale);
+        model.Position = -(model.Basis * MiddleOf(model));
         pivot.AddChild(model);
 
-        // What goes in the other hand lies beside the weapon, face up: a shield's face is its +Z, which laying the
-        // weapon down turns to the ground.
+        // What goes in the other hand lies beside the weapon, as its look says it lies.
         if (look.OffHand is { } piece)
         {
             var beside = Assets.InstantiateAtOrigin(piece.Model);
             ToonLook.ApplyToWeapon(beside);
             CharacterRig.Adorned(beside, look with { Glow = null });
-            beside.Basis = Basis.FromEuler(new Vector3(0f, Mathf.Pi, 0f));
-            beside.Position = Vector3.Right * OffHandBeside - beside.Basis * MiddleOf(beside);
+            beside.Basis = Basis.FromEuler(piece.GroundRotation).Scaled(Vector3.One * piece.Scale);
+            beside.Position = Vector3.Right * piece.GroundBeside - beside.Basis * MiddleOf(beside);
             pivot.AddChild(beside);
         }
 

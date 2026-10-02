@@ -31,6 +31,7 @@ public partial class NetSelfTest
     private const float DrillAfter = 0.3f;
 
     private readonly Dictionary<long, int> _boltHitsByPeer = new();
+    private readonly Dictionary<long, int> _arrowHitsByPeer = new();
     private readonly Dictionary<long, int> _areaHitsByPeer = new();
     private readonly Dictionary<long, int> _enchantedHitsByPeer = new();
     private readonly Dictionary<long, int> _blastHitsByPeer = new();
@@ -132,9 +133,19 @@ public partial class NetSelfTest
     // Host only (the event fires where damage is applied).
     private void CountMagicHit(long attacker, SkillDefinition skill)
     {
+        // A blow or an arrow of an enchanted weapon: part magic, whatever else it is counted as.
+        if (skill is { Element: not null, MagicShare: > 0f and < 1f })
+        {
+            _enchantedHitsByPeer[attacker] = _enchantedHitsByPeer.GetValueOrDefault(attacker) + 1;
+        }
+
         if (skill.BlastRadius > 0f)
         {
             _blastHitsByPeer[attacker] = _blastHitsByPeer.GetValueOrDefault(attacker) + 1;
+        }
+        else if (skill.Projectile != null && Bolts.IsArrow(skill))
+        {
+            _arrowHitsByPeer[attacker] = _arrowHitsByPeer.GetValueOrDefault(attacker) + 1;
         }
         else if (skill.Projectile != null)
         {
@@ -143,10 +154,6 @@ public partial class NetSelfTest
         else if (skill.Area != null)
         {
             _areaHitsByPeer[attacker] = _areaHitsByPeer.GetValueOrDefault(attacker) + 1;
-        }
-        else if (skill is { Element: not null, MagicShare: > 0f and < 1f })
-        {
-            _enchantedHitsByPeer[attacker] = _enchantedHitsByPeer.GetValueOrDefault(attacker) + 1;
         }
     }
 
@@ -168,7 +175,7 @@ public partial class NetSelfTest
             if (_barrierUpFor[peer] >= DrillAfter && player.Vitals.Barrier >= DrillBlow && _drilledThisRaise.Add(peer))
             {
                 int hp = player.Vitals.Hp;
-                player.Vitals.TakeAttack(DrillBlow, player.GlobalPosition + Yaw.Forward(player.AimYaw));
+                player.Vitals.TakeAttack(DrillBlow, player.GlobalPosition + Yaw.Forward(player.AimYaw), DamageTypes.NoTypes);
                 _drillsByPeer[peer] = _drillsByPeer.GetValueOrDefault(peer) + 1;
                 _drillHpLost += hp - player.Vitals.Hp;
             }
@@ -244,7 +251,7 @@ public partial class NetSelfTest
             + $"barrier_least={(_barrierLeast == int.MaxValue ? -1 : _barrierLeast)} barrier_now={local?.Vitals.Barrier ?? -1} barrier_rises={_barrierRises} alight_frames={_alightFrames} dark_frames={_darkFrames} plain_alight_frames={_plainAlightFrames} barrier_full={Weapons.Barrier.Barrier!.Strength}");
         if (Multiplayer.IsServer())
         {
-            GD.Print($"[magic-host] bolt_hits={PerPeer(_boltHitsByPeer)} area_hits={PerPeer(_areaHitsByPeer)} blast_hits={PerPeer(_blastHitsByPeer)} enchanted_hits={PerPeer(_enchantedHitsByPeer)} barrier_took={PerPeer(_barrierTookByPeer)} "
+            GD.Print($"[magic-host] bolt_hits={PerPeer(_boltHitsByPeer)} arrow_hits={PerPeer(_arrowHitsByPeer)} area_hits={PerPeer(_areaHitsByPeer)} blast_hits={PerPeer(_blastHitsByPeer)} enchanted_hits={PerPeer(_enchantedHitsByPeer)} barrier_took={PerPeer(_barrierTookByPeer)} "
                 + $"barrier_drills={PerPeer(_drillsByPeer)} drill_blow={DrillBlow} drill_hp_lost={_drillHpLost}");
         }
     }

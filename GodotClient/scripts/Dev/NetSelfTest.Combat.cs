@@ -15,6 +15,12 @@ public partial class NetSelfTest
 {
     private readonly Dictionary<string, int> _hitsBySkill = new();
     private readonly Dictionary<long, int> _enemyDamageByPeer = new();
+
+    // On the host: hits on skeletons by damage type, and how many met a weakness, a resistance or neither.
+    private readonly Dictionary<DamageType, int> _hitsByType = new();
+    private int _weakHits;
+    private int _resistedHits;
+    private int _plainHits;
     private readonly Dictionary<long, int> _playerDamageByAttacker = new();
     private int _hitsSent;
 
@@ -51,7 +57,9 @@ public partial class NetSelfTest
         if (Multiplayer.IsServer())
         {
             GD.Print($"[combat-host] damage_by_peer={string.Join(",", _enemyDamageByPeer.OrderBy(p => p.Key).Select(p => $"{p.Key}:{p.Value}"))} "
-                + $"biggest_hit_by_skill={string.Join(",", _biggestHitBySkill.Select(h => $"{h.Key}:{h.Value}"))}");
+                + $"biggest_hit_by_skill={string.Join(",", _biggestHitBySkill.Select(h => $"{h.Key}:{h.Value}"))} "
+                + $"hits_by_type={string.Join(",", _hitsByType.OrderBy(h => h.Key).Select(h => $"{DamageTypes.NameOf(h.Key)}:{h.Value}"))} "
+                + $"weak_hits={_weakHits} resisted_hits={_resistedHits} plain_hits={_plainHits}");
         }
 
         GD.Print($"[pvp-check] me={me} pvp={SessionRules.Pvp} hits_on_players={_playerHitsSent}");
@@ -69,8 +77,16 @@ public partial class NetSelfTest
         NoteCorpse(enemy);
     }
 
-    private void OnEnemyDamaged(long attacker, SkillDefinition skill, int amount)
+    private void OnEnemyDamaged(long attacker, SkillDefinition skill, int amount, int leaning)
     {
+        foreach (var type in skill.Types)
+        {
+            _hitsByType[type] = _hitsByType.GetValueOrDefault(type) + 1;
+        }
+
+        _weakHits += leaning > 0 ? 1 : 0;
+        _resistedHits += leaning < 0 ? 1 : 0;
+        _plainHits += leaning == 0 ? 1 : 0;
         _enemyDamageByPeer[attacker] = _enemyDamageByPeer.GetValueOrDefault(attacker) + amount;
         _biggestHitBySkill[skill.Id] = Mathf.Max(_biggestHitBySkill.GetValueOrDefault(skill.Id), amount);
         CountMagicHit(attacker, skill);

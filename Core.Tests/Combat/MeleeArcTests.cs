@@ -8,7 +8,7 @@ namespace WarriorsOfEverdawn.Core.Tests.Combat;
 public class MeleeArcTests
 {
     private const float Radius = 0.5f;
-    private static readonly SkillDefinition Swing = new("test-swing", Damage: 10, Range: 2f, HalfArc: MathF.PI / 4f, HitTime: 0.5f);
+    private static readonly SkillDefinition Swing = new("test-swing", Damage: 10, Range: 2f, HalfArc: MathF.PI / 4f, HitTime: 0.5f) { Type = DamageType.Slash };
 
     private static bool HitsAt(float yawFromAim, float edgeDistance) =>
         MeleeArc.Hits(Vector2.Zero, aimYaw: 0f, Swing, Ground.Forward(yawFromAim) * (edgeDistance + Radius), Radius);

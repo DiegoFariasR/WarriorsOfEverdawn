@@ -45,7 +45,7 @@ public partial class Arena : Node3D
             GD.Print("[window] --ai-playtest: minimized, no focus");
         }
 
-        WorldLook.Apply(GetNode<WorldEnvironment>("WorldEnvironment"), GetNode<DirectionalLight3D>("Sun"));
+        WorldLook.Apply(GetNode<WorldEnvironment>("WorldEnvironment"), GetNode<DirectionalLight3D>("Sun"), GetNode<Camera3D>("Camera"));
         _players = GetNode<Node3D>("Players");
         _spawner = GetNode<MultiplayerSpawner>("PlayerSpawner");
         _camera = GetNode<ArenaCamera>("Camera");
@@ -91,7 +91,7 @@ public partial class Arena : Node3D
 
         if (_options.Bot)
         {
-            _selfTest = new NetSelfTest(_players, _hud) { Name = "NetSelfTest", TradeDrill = _options.TradeDrill, BarrierDrill = _options.BarrierDrill };
+            _selfTest = new NetSelfTest(_players, _hud) { Name = "NetSelfTest", TradeDrill = _options.TradeDrill, BarrierDrill = _options.BarrierDrill, StatusDrill = _options.StatusDrill };
             AddChild(_selfTest);
         }
 
@@ -174,7 +174,7 @@ public partial class Arena : Node3D
         }
 
         GD.Print($"[net] --down-at: taking down player {target.Name}");
-        target.Vitals.TakeHit(target.Vitals.Hp);
+        target.Vitals.TakeHit(target.Vitals.Hp, DamageTypes.NoTypes);
     }
 
     private void StartHost()

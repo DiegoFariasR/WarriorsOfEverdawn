@@ -26,6 +26,9 @@ public static class RigAnimations
     public const string SpinLoop = "melee/Melee_2H_Attack_Spinning";
     public const string Stab = "melee/Melee_2H_Attack_Stab";
     public const string OneHandedStab = "melee/Melee_1H_Attack_Stab";
+    public const string DualSlice = "melee/Melee_Dualwield_Attack_Slice";
+    public const string DualStab = "melee/Melee_Dualwield_Attack_Stab";
+    public const string Punch = "melee/Melee_Unarmed_Attack_Punch_A";
     public const string Guard = "melee/Melee_Blocking";
     public const string DashForward = "moveadv/Dodge_Forward";
     public const string DashBackward = "moveadv/Dodge_Backward";

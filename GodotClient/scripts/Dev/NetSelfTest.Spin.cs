@@ -70,7 +70,7 @@ public partial class NetSelfTest
     private void MeasureSpinTurn(float delta)
     {
         var local = LocalPlayer();
-        if (local == null || local.ActiveSkill is not { Channeled: true })
+        if (local == null || local.ActiveSkill is not { Channeled: true } spin)
         {
             _lastRootYaw = null;
             return;
@@ -82,7 +82,7 @@ public partial class NetSelfTest
         float weight = local.Animator.AttackWeight;
         if (_lastRootYaw is { } last)
         {
-            float revolutions = delta * local.AttackSpeed / local.Animator.AttackClipLength;
+            float revolutions = delta * CombatTiming.SwingSpeed(spin, local.AttackSpeed) / local.Animator.AttackClipLength;
             _spinRevolutions += revolutions;
 
             // Only full-strength frames: fading in or out, the root blends back toward the plain pose and turns
