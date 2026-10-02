@@ -26,7 +26,7 @@ Godot self-tests (headless):
                     with the right weapons in hand and the cost taken or the pay given
   camera-test       In every camera mode, W must move up the screen and D right; HUD sits on screen
   wall-test         Bolts, balls and arrows loosed at a wall, from afar and from against it, must end at it
-  parts-test        Every part of the catalogue put on a figure, and 200 figures drawn at random from each pool
+  parts-test        Every part and alias of the catalogue put on a figure, and 200 figures drawn at random from each pool
   smoke             camera-test, wall-test, parts-test, net-test, pvp-test, trade-test and magic-test in turn; fails
                     if any fails
   playtest          net-test made 2.5 minutes long with a player downed on cue: every net-test gate plus waves,

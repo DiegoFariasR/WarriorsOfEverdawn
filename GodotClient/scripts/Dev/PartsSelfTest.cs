@@ -71,12 +71,34 @@ public partial class PartsSelfTest : Node
             }
         }
 
+        // An alias is its real part turned on the bone that carries it: not skinned, and sized as that part is.
+        // No figure here wears one, so they are put on through the kit's Mount, as Everdawn does.
+        foreach (var (alias, pose) in PartsCatalog.Aliases)
+        {
+            try
+            {
+                var real = catalog.Get(pose.RealStem);
+                var worn = CharacterBody.Mount(skeleton, new[] { (real.Slot, alias) });
+                float expected = CharacterBody.ScaleOf(real.Slot, real);
+                bool right = worn.Count > 0 && worn.All(w => w.Mesh.Skin == null && w.Mesh.GetParent() is BoneAttachment3D on && on.BoneName == real.Bone
+                    && Mathf.Abs(w.Mesh.Transform.Basis.Scale.Y - expected) <= ScaleSlack);
+                if (!right)
+                {
+                    failures.Add($"{alias}: not hung on '{real.Bone}' at {expected:F3} of its size");
+                }
+            }
+            catch (Exception problem)
+            {
+                failures.Add($"{alias}: {problem.Message}");
+            }
+        }
+
         foreach (string failure in failures)
         {
             GD.Print($"[parts-check] FAIL {failure}");
         }
 
-        GD.Print($"[parts-check] parts={catalog.Parts.Count} origins={catalog.Origins.Count} failed={failures.Count}");
+        GD.Print($"[parts-check] parts={catalog.Parts.Count} aliases={PartsCatalog.Aliases.Count} origins={catalog.Origins.Count} failed={failures.Count}");
 
         bool pools = true;
         foreach (var pool in LookPools.All)

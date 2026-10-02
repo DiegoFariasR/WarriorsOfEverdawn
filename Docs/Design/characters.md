@@ -31,7 +31,7 @@ Who looks like what:
 
 ## Putting a figure together
 
-The kit's `CharacterBody` (`kit/godot/`), after Everdawn's `CharacterAssembler`:
+The kit's `CharacterBody` (`kit/godot/`). Its `Mount` is what both games put parts on a skeleton with; `Build` and `Dress` are this game's way in, a medium-rig figure in a `CharacterLook` with the toon look on it:
 
 - `Build(look)` is the skeleton alone (`kit/rig/Rig_Medium.glb`) with the look's parts on it. `Dress(skeleton, look)` puts another look on a figure that is already standing, in place of what it wore; what it holds stays in its hands.
 - A skinned part's mesh goes under the skeleton as it is. One that is not skinned (a skeleton's helmet and hood, a strapped-on pack) hangs on the bone it hangs from in its own model, or on the catalogue's bone when its model has no rig.
@@ -44,7 +44,7 @@ The kit's `CharacterBody` (`kit/godot/`), after Everdawn's `CharacterAssembler`:
 **Everdawn's, by Everdawn's rule, from the same two constants** (the kit's `HeadSizing`): the head and the face are drawn at 0.75 of their modelled size, and what the head carries at 0.825, a little bigger so it still fits over the head. Both shrink towards the head bone's resting place, so the head stays on the neck. It is the one thing Everdawn changes about a KayKit figure's proportions.
 
 - Which parts are which goes by the slot and the catalogue's bone, as above. Before the parts, whole models were sorted by mesh name, which left the blacksmith's goggles at full size.
-- Two things are not as Everdawn's own assembler does them, which is not on the kit's `CharacterBody` yet. A skeleton's eyes and jaw are sized with its skull (0.75); Everdawn sizes them as headgear (0.825). And what is worn on the body (a medal, a breastplate, a pouch, a tail) keeps its size; Everdawn's name rule takes those for headgear and pulls them towards the head.
+- Both games size and place parts by the one rule (`CharacterBody.Mount`). It replaced Everdawn's name rule, under which a skeleton's eyes and jaw were sized as headgear (0.825) and what is worn on the body (a medal, a breastplate, a pouch, a tail) was shrunk towards the head.
 - **Players are bare-headed for the head's sake.** With the same numbers, figures here read bigger-headed in play than Everdawn's; side by side from the front, bare-headed, they are the same (`./dev.sh look-lineup Barbarian:bare,Knight:bare,Knight`). Two things differ. Everdawn's heroes are mostly bare-headed, where the player here wore the Knight's great helm, which is drawn bigger than the head under it and is the widest thing on the figure; so the helm came off (the sellers keep their hats and hood, the skeleton warrior its helmet). And the angled and top-down cameras look down from 56 and 90 degrees, where Everdawn's battle camera stands beside the fighters about 21 up (the camera behind the player, at 22, is the same): seen from above the body is foreshortened and the head, on top, is not. The numbers were 0.55 and 0.605 for a while for that reason, and were put back to Everdawn's. Open: whether heads are sized by camera.
 - `[head-check]` (net-test) and `parts-test` only read the scale back off the meshes: whether a size looks right is a screenshot question (`./dev.sh look-lineup`).
 
@@ -107,6 +107,6 @@ Everdawn's alone: the character creator screen, face expressions, portraits, pal
 
 ## Open questions
 
-- **Everdawn's assembler on the kit's.** Everdawn reads the kit's catalogue and parts, but still puts its figures together with its own `CharacterAssembler` (weapons, palettes per cell, face expressions, the large rig), not the kit's `CharacterBody`.
+- **The toon look in Everdawn.** Everdawn mounts its parts with the kit's `CharacterBody.Mount`, but still has its own materials (palettes mixed cell by cell, per-origin textures, its own toon and metal code), not the kit's `ToonLook`.
 - Which figures are drawn at random, and from what seed.
 - Players choosing their own figure.
