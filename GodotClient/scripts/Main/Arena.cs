@@ -66,18 +66,30 @@ public partial class Arena : Node3D
 
         AddChild(new Arrows { Name = Arrows.NodeName });
         AddChild(new GroundWeapons { Name = GroundWeapons.NodeName });
-        AddChild(new Loot { Name = Loot.NodeName });
+        AddChild(new Loot { Name = Loot.NodeName, OrbChance = _options.OrbChance });
+        var market = new Market { Name = Market.NodeName };
+        AddChild(market);
+        market.Build(_map);
         _hud = new Hud { Name = "Hud", Visible = !_options.NoUi };
         _hud.Bars.Camera = _camera;
         _hud.GroundLabels.Camera = _camera;
         AddChild(_hud);
+
+        // The window asks, the market carries it to the host and brings back the answer; the player stands still
+        // for as long as the window is open.
+        _hud.Shop.BuyAsked += market.Buy;
+        _hud.Shop.Opened += () => SetTrading(true);
+        _hud.Shop.Closed += () => SetTrading(false);
+        market.Bought += (_, item) => _hud.Shop.ShowBought(item);
+        market.Refused += _hud.Shop.ShowRefused;
         _camera.ModeChanged += mode => _hud.ShowNotice($"Camera {mode.Label()}  -  C to change, wheel to zoom");
         _camera.SetMode(_options.Camera ?? CameraModes.Default);
+        _camera.Zoom = _options.Zoom ?? _camera.Zoom;
         _players.ChildEnteredTree += OnPlayerEntered;
 
         if (_options.Bot)
         {
-            _selfTest = new NetSelfTest(_players, _hud) { Name = "NetSelfTest" };
+            _selfTest = new NetSelfTest(_players, _hud) { Name = "NetSelfTest", TradeDrill = _options.TradeDrill };
             AddChild(_selfTest);
         }
 
@@ -85,6 +97,11 @@ public partial class Arena : Node3D
         {
             // With --quit-after the session length is set elsewhere (the playtest), so the last frame doesn't end it.
             AddChild(new ScreenshotCapture(shot, Quit, quitWhenDone: _options.QuitAfter <= 0f) { Name = "ScreenshotCapture" });
+        }
+
+        if (_options.ArmourLineup is { } outfits)
+        {
+            AddChild(new ArmourLineup(outfits) { Name = "ArmourLineup" });
         }
 
         if (_options.SwingSurvey)
@@ -211,7 +228,7 @@ public partial class Arena : Node3D
 
     private void SpawnPlayerFor(long peerId)
     {
-        _spawner.Spawn(new Godot.Collections.Array { peerId, _map.PlayerSpawnFor(_nextSpawnSlot++) });
+        _spawner.Spawn(new Godot.Collections.Array { peerId, _options.StartAt ?? _map.PlayerSpawnFor(_nextSpawnSlot++) });
     }
 
     // Runs on every peer: on the host through Spawn(), on clients when the spawn replicates.
@@ -227,9 +244,30 @@ public partial class Arena : Node3D
         return EnemyCharacter.Create(args[0].AsString(), Enemies.ById(args[1].AsString()), args[2].AsVector3(), args[3].AsSingle());
     }
 
+    private void SetTrading(bool trading)
+    {
+        if (_hud.Player is { Controls: { } controls } player && IsInstanceValid(player))
+        {
+            player.IsTrading = trading;
+            controls.Suspended = trading;
+        }
+    }
+
     private void OnPlayerEntered(Node node)
     {
-        if (node is not PlayerCharacter player || !player.IsMultiplayerAuthority())
+        if (node is not PlayerCharacter player)
+        {
+            return;
+        }
+
+        if (Multiplayer.IsServer())
+        {
+            player.Vitals.EarnGold(_options.StartGold);
+            player.Vitals.EarnOrbs(_options.StartOrbs);
+            player.Vitals.Wear(Armours.AtTier(_options.StartArmour));
+        }
+
+        if (!player.IsMultiplayerAuthority())
         {
             return;
         }
@@ -246,6 +284,7 @@ public partial class Arena : Node3D
         _map.CameraSubject = player;
         _hud.Player = player;
         _hud.GroundLabels.Player = player;
+        player.TradeAsked += seller => _hud.Shop.Open(seller, player);
     }
 
     private void Quit(int exitCode)

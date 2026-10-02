@@ -3,7 +3,6 @@ using System.Linq;
 using Godot;
 using WarriorsOfEverdawn.Enemy;
 using WarriorsOfEverdawn.Player;
-using WarriorsOfEverdawn.Util;
 
 namespace WarriorsOfEverdawn.Dev;
 
@@ -28,7 +27,7 @@ public partial class NetSelfTest
         }
 
         string where = _map.IsSafe(local.GlobalPosition) ? "town"
-            : _map.Fortress.Contains(Yaw.ToGround(local.GlobalPosition)) ? "fortress"
+            : _map.InFortress(local.GlobalPosition) ? "fortress"
             : "field";
         _secondsWhere[where] = _secondsWhere.GetValueOrDefault(where) + delta;
         if (local.IsDowned)

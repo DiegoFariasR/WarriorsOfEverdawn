@@ -6,16 +6,18 @@ using System.Text.Json;
 
 namespace WarriorsOfEverdawn.Core.Level;
 
-// Solid pieces block movement; the rest is walked through.
-public sealed record LayoutPlacement(string Asset, Vector3 Position, Quaternion Rotation, Vector3 Scale, bool Solid);
+// Solid pieces block movement; the rest is walked through. A solid blocks as its whole box does, or with FollowsMesh
+// as its mesh does: a doorway is walked through.
+public sealed record LayoutPlacement(string Asset, Vector3 Position, Quaternion Rotation, Vector3 Scale, bool Solid, bool FollowsMesh = false);
 
 // Faces are Blender polygons: vertex indices in counter-clockwise order.
 public sealed record LayoutMesh(string Name, IReadOnlyList<Vector3> Vertices, IReadOnlyList<IReadOnlyList<int>> Faces, Vector3 LinearColor);
 
 public sealed record LayoutLight(Vector3 Position, Vector3 LinearColor, float Energy, float Range, float? HaloRadius);
 
-// A named point on the ground: where players start, where a wave rises, the middle of a gate.
-public sealed record LayoutMarker(string Name, Vector3 Position);
+// A named point on the ground: where players start, where a wave rises, the middle of a gate. Yaw is the way whoever
+// stands there faces, in radians about +Y, for the markers that someone stands on.
+public sealed record LayoutMarker(string Name, Vector3 Position, float Yaw = 0f);
 
 // A named rectangle of ground, by its corners on the ground plane (x, z).
 public sealed record LayoutArea(string Name, Vector2 Min, Vector2 Max)
@@ -40,7 +42,14 @@ public sealed record LevelLayout(
 {
     public const int SupportedVersion = 1;
 
+    private const string MeshShape = "mesh";
+
     public IEnumerable<Vector3> MarkersNamed(string name) => Markers.Where(m => m.Name == name).Select(m => m.Position);
+
+    // Markers named `prefix` and something after it: the rest of the name says who or what the marker is for.
+    public IEnumerable<(string Who, LayoutMarker Marker)> MarkersStarting(string prefix) =>
+        Markers.Where(m => m.Name.Length > prefix.Length && m.Name.StartsWith(prefix, StringComparison.Ordinal))
+            .Select(m => (m.Name[prefix.Length..], m));
 
     public IEnumerable<LayoutArea> AreasNamed(string name) => Areas.Where(a => a.Name == name);
 
@@ -61,12 +70,7 @@ public sealed record LevelLayout(
                 ? textureMap.EnumerateObject().ToDictionary(t => t.Name, t => t.Value.GetString()!)
                 : new Dictionary<string, string>();
             var placements = root.GetProperty("placements").EnumerateArray()
-                .Select(p => new LayoutPlacement(
-                    p.GetProperty("asset").GetString()!,
-                    ReadVector3(p.GetProperty("position")),
-                    ReadQuaternion(p.GetProperty("rotation")),
-                    ReadVector3(p.GetProperty("scale")),
-                    p.TryGetProperty("solid", out var solid) && solid.GetBoolean()))
+                .Select(p => ReadPlacement(p, sourceName))
                 .ToList();
             foreach (var placement in placements.Where(p => !assets.ContainsKey(p.Asset)))
             {
@@ -77,7 +81,10 @@ public sealed record LevelLayout(
                 assets,
                 textures,
                 placements,
-                ReadList(root, "markers", m => new LayoutMarker(m.GetProperty("name").GetString()!, ReadVector3(m.GetProperty("position")))),
+                ReadList(root, "markers", m => new LayoutMarker(
+                    m.GetProperty("name").GetString()!,
+                    ReadVector3(m.GetProperty("position")),
+                    m.TryGetProperty("yaw", out var yaw) ? yaw.GetSingle() : 0f)),
                 ReadList(root, "areas", a => new LayoutArea(a.GetProperty("name").GetString()!, ReadVector2(a.GetProperty("min")), ReadVector2(a.GetProperty("max")))),
                 ReadList(root, "meshes", ReadMesh),
                 ReadList(root, "lights", ReadLight));
@@ -86,6 +93,25 @@ public sealed record LevelLayout(
         {
             throw new FormatException($"{sourceName}: invalid level layout: {ex.Message}", ex);
         }
+    }
+
+    private static LayoutPlacement ReadPlacement(JsonElement p, string sourceName)
+    {
+        string asset = p.GetProperty("asset").GetString()!;
+        bool solid = p.TryGetProperty("solid", out var solidValue) && solidValue.GetBoolean();
+        string? shape = p.TryGetProperty("shape", out var shapeValue) ? shapeValue.GetString() : null;
+        if (shape != null && (shape != MeshShape || !solid))
+        {
+            throw new FormatException($"{sourceName}: placement of '{asset}' has shape '{shape}'; only a solid may have one, and only \"{MeshShape}\"");
+        }
+
+        return new LayoutPlacement(
+            asset,
+            ReadVector3(p.GetProperty("position")),
+            ReadQuaternion(p.GetProperty("rotation")),
+            ReadVector3(p.GetProperty("scale")),
+            solid,
+            FollowsMesh: shape == MeshShape);
     }
 
     private static List<T> ReadList<T>(JsonElement root, string name, Func<JsonElement, T> read) =>

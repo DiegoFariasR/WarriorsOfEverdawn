@@ -26,6 +26,7 @@ public partial class GhostTrail : Node
     private readonly string _modelPath;
     private WeaponLook? _inHand;
     private WeaponLook? _onBack;
+    private int _armour;
     private readonly List<Ghost> _pool = new();
     private Skeleton3D _sourceSkeleton = null!;
     private float _emitLeft;
@@ -68,6 +69,21 @@ public partial class GhostTrail : Node
 
         _inHand = inHand;
         _onBack = onBack;
+        Rebuild();
+    }
+
+    // Ghosts wear the character's armour too.
+    public void SetArmour(int tier)
+    {
+        if (tier != _armour)
+        {
+            _armour = tier;
+            Rebuild();
+        }
+    }
+
+    private void Rebuild()
+    {
         if (!IsNodeReady())
         {
             return;
@@ -162,6 +178,7 @@ public partial class GhostTrail : Node
         }
 
         CharacterRig.ShrinkHead(body);
+        ArmourLook.Wear(body.GetNode<Skeleton3D>(RigAnimations.SkeletonPath), _armour);
         root.AddChild(body);
         AddChild(root);
 

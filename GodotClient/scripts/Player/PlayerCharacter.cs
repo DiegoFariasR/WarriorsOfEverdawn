@@ -7,6 +7,7 @@ using WarriorsOfEverdawn.Core;
 using WarriorsOfEverdawn.Core.Combat;
 using WarriorsOfEverdawn.Core.Locomotion;
 using WarriorsOfEverdawn.Core.Stats;
+using WarriorsOfEverdawn.Core.Trade;
 using WarriorsOfEverdawn.Enemy;
 using WarriorsOfEverdawn.Main;
 using WarriorsOfEverdawn.Util;
@@ -55,6 +56,9 @@ public partial class PlayerCharacter : CharacterBody3D
     private BoneAttachment3D _hand = null!;
     private BoneAttachment3D _back = null!;
     private bool _reportedUnknownWeapon;
+
+    // The tier of armour the figure is dressed in; -1 before the first look is put on.
+    private int _armourShown;
     private SkillDefinition? _active;
     private SkillDefinition? _swing;
     private int _swingButton = -1;
@@ -174,6 +178,12 @@ public partial class PlayerCharacter : CharacterBody3D
     // On the owner: the weapon it reached for was taken by someone else first.
     public event Action? PickUpRefused;
 
+    // On the owner: the seller's window is open over the game.
+    public bool IsTrading { get; set; }
+
+    // On the owner: it asked the seller in reach to trade.
+    public event Action<SellerDefinition>? TradeAsked;
+
     public float CooldownRemaining(int skill) => _cooldowns.Remaining(skill, _clock);
 
     public bool CanUse(int button) =>
@@ -205,6 +215,7 @@ public partial class PlayerCharacter : CharacterBody3D
         player._back = CharacterRig.AttachToBack(body, backLook);
         CharacterRig.ShrinkHead(body);
         player.Skeleton = body.GetNode<Skeleton3D>(RigAnimations.SkeletonPath);
+        ArmourLook.Wear(player.Skeleton, player._armourShown);
         player.Trail = new WeaponTrail(player._hand, TrailTint) { Name = "Trail" };
         player.AddChild(player.Trail);
         player.Flash = new HitFlash(body) { Name = "HitFlash" };
@@ -385,6 +396,10 @@ public partial class PlayerCharacter : CharacterBody3D
                 _pickUpPending = true;
                 GroundWeapons.In(GetTree()).PickUp(lying.Id);
             }
+            else if (Controls.InteractPressed && Market.In(GetTree()).InReachOf(GlobalPosition) is { } seller)
+            {
+                TradeAsked?.Invoke(seller.Seller);
+            }
         }
 
         if (!IsDowned && Controls.SkillHeld is { } button && !_animator.IsAttacking && CanUse(button))
@@ -420,11 +435,37 @@ public partial class PlayerCharacter : CharacterBody3D
         GroundWeapons.In(GetTree()).Drop(weapon, GlobalPosition, AimYaw);
     }
 
+    // The host sold this player the weapon. One bought takes a free slot, or with none the hand, whose weapon is put
+    // down where the player stands; an improved one takes the place of the weapon it was made from, in its slot.
+    internal void OnBought(WeaponDefinition weapon, WeaponSlot? slot)
+    {
+        var (sets, putDown) = TradeRules.Receive(new WeaponSets(_weapon, _stowed), weapon, slot);
+        if (putDown != null)
+        {
+            GroundWeapons.In(GetTree()).Drop(putDown, GlobalPosition + Yaw.Forward(AimYaw) * Pickups.InFront, AimYaw);
+        }
+
+        Carry(sets);
+    }
+
     // Someone else took it first.
     internal void OnPickUpRefused()
     {
         _pickUpPending = false;
         PickUpRefused?.Invoke();
+    }
+
+    // Brings the armour shown in line with the tier the host says is worn.
+    private void ShowArmour()
+    {
+        if (Vitals.Armour == _armourShown)
+        {
+            return;
+        }
+
+        _armourShown = Vitals.Armour;
+        ArmourLook.Wear(Skeleton, _armourShown);
+        Ghosts.SetArmour(_armourShown);
     }
 
     // Brings the weapons shown in hand and on the back in line with WeaponId and StowedWeaponId.
@@ -619,6 +660,7 @@ public partial class PlayerCharacter : CharacterBody3D
     private void Present(float delta)
     {
         ShowWeapons();
+        ShowArmour();
         float speed = NetVelocity.Length();
         bool moving = speed > MovingThreshold;
         float targetBodyYaw = _shownAimYaw;
@@ -667,11 +709,18 @@ public partial class PlayerCharacter : CharacterBody3D
         }
     }
 
+    // What a seller needs to know of this player: what it carries and wears.
+    public Buyer AsBuyer() => new(new WeaponSets(_weapon, _stowed), Vitals.Armour);
+
+    // The skill of that id as the weapons this player carries have it: an improved weapon's hits harder than the
+    // plain skill the id names. Throws for an id no weapon has.
+    public SkillDefinition SkillById(string skillId) => new WeaponSets(_weapon, _stowed).SkillById(skillId);
+
     private SkillDefinition? FindSkill(string skillId)
     {
         try
         {
-            return Weapons.SkillById(skillId);
+            return SkillById(skillId);
         }
         catch (KeyNotFoundException e)
         {

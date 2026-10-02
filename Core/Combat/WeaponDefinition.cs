@@ -11,6 +11,18 @@ public sealed record WeaponDefinition(string Id, string Name, SkillDefinition Pr
     public const int PrimaryButton = 0;
     public const int SecondaryButton = 1;
 
+    // How far a weapon can be improved.
+    public const int MaxLevel = 10;
+
+    // 0 for the plain make. Each level above it adds to the damage of every skill (Weapons.AtLevel), and shows in the
+    // id and the name: "greatsword+3", "Greatsword +3".
+    public int Level { get; init; }
+
+    // The id of the plain weapon this is a make of; its own, for a plain one. How it looks and is held go by this.
+    public string Kind { get; init; } = Id;
+
+    public IEnumerable<SkillDefinition> Skills => new[] { Primary, Secondary, Lunge };
+
     public SkillDefinition Skill(int button) => button switch
     {
         PrimaryButton => Primary,
@@ -21,6 +33,13 @@ public sealed record WeaponDefinition(string Id, string Name, SkillDefinition Pr
 
 public static class Weapons
 {
+    // Each level adds this share of a plain skill's damage, and never less than 1, so every level hits harder than
+    // the one before whatever the skill.
+    public const float DamagePerLevel = 0.1f;
+
+    // Between a weapon's kind and its level, in ids and names.
+    private const char LevelMark = '+';
+
     // Guards, first pass: the greatsword stops everything in front and slows most; the staff covers the widest arc and
     // parries most easily; the spear guards a narrow front; the scythe lets the most through and parries hardest but
     // moves best.
@@ -36,22 +55,82 @@ public static class Weapons
     public static readonly WeaponDefinition Scythe = new("scythe", "Scythe", Skills.ScytheSwing, Skills.ScytheSpin, Skills.ScytheLunge,
         new GuardDefinition(HalfArc: 70f * Angles.DegToRad, DamageTaken: 0.4f, MoveSpeedFactor: 0.6f, ParryWindow: 0.15f));
 
-    // Also the order the weapon key cycles through.
+    private static readonly Dictionary<(string Kind, int Level), WeaponDefinition> Improved = new();
+
+    // The plain makes. Also the order the weapon key cycles through.
     public static IReadOnlyList<WeaponDefinition> All { get; } = new[] { Greatsword, Quarterstaff, Spear, Scythe };
 
     public static WeaponDefinition Default => Greatsword;
 
-    public static WeaponDefinition ById(string id) =>
-        All.FirstOrDefault(w => w.Id == id) ?? throw new KeyNotFoundException($"Unknown weapon '{id}'");
+    // A weapon by its id, improved ones included: "spear", "spear+4".
+    public static WeaponDefinition ById(string id)
+    {
+        int mark = id.IndexOf(LevelMark);
+        string kind = mark < 0 ? id : id[..mark];
+        var plain = All.FirstOrDefault(w => w.Id == kind) ?? throw new KeyNotFoundException($"Unknown weapon '{id}'");
+        if (mark < 0)
+        {
+            return plain;
+        }
 
-    // Swings and hits travel between machines as skill ids, so they resolve even while a weapon change is in flight.
+        return int.TryParse(id[(mark + 1)..], out int level) && level is >= 1 and <= WeaponDefinition.MaxLevel
+            ? AtLevel(plain, level)
+            : throw new KeyNotFoundException($"Unknown weapon '{id}': a level is from 1 to {WeaponDefinition.MaxLevel}");
+    }
+
+    // The plain weapon an improved one is a make of; a plain one is its own.
+    public static WeaponDefinition Plain(WeaponDefinition weapon) => ById(weapon.Kind);
+
+    // The weapon's kind at this level, whatever level it is at now: the same weapon with every skill hitting harder.
+    public static WeaponDefinition AtLevel(WeaponDefinition weapon, int level)
+    {
+        if (level is < 0 or > WeaponDefinition.MaxLevel)
+        {
+            throw new ArgumentOutOfRangeException(nameof(level), level, $"A weapon's level is from 0 to {WeaponDefinition.MaxLevel}");
+        }
+
+        var plain = Plain(weapon);
+        if (level == 0)
+        {
+            return plain;
+        }
+
+        lock (Improved)
+        {
+            if (!Improved.TryGetValue((plain.Id, level), out var improved))
+            {
+                improved = plain with
+                {
+                    Id = $"{plain.Id}{LevelMark}{level}",
+                    Name = $"{plain.Name} {LevelMark}{level}",
+                    Level = level,
+                    Primary = Harder(plain.Primary, level),
+                    Secondary = Harder(plain.Secondary, level),
+                    Lunge = Harder(plain.Lunge, level),
+                };
+                Improved[(plain.Id, level)] = improved;
+            }
+
+            return improved;
+        }
+    }
+
+    // What a skill dealing `plain` deals on a weapon of this level.
+    public static int DamageAtLevel(int plain, int level) =>
+        plain <= 0 ? plain : plain + level * Math.Max(1, (int)MathF.Round(plain * DamagePerLevel));
+
+    // The plain skill of that id. Swings and hits travel between machines as skill ids; whoever needs what the skill
+    // does on the weapon a player is holding asks that player's WeaponSets.
     public static SkillDefinition SkillById(string id) =>
-        All.SelectMany(w => new[] { w.Primary, w.Secondary, w.Lunge }).FirstOrDefault(s => s.Id == id)
+        All.SelectMany(w => w.Skills).FirstOrDefault(s => s.Id == id)
         ?? throw new KeyNotFoundException($"No weapon has a skill '{id}'");
 
+    // The plain weapon after this one's kind, in the order the weapon key cycles through.
     public static WeaponDefinition Next(WeaponDefinition weapon)
     {
-        int index = All.ToList().IndexOf(weapon);
-        return index >= 0 ? All[(index + 1) % All.Count] : throw new KeyNotFoundException($"Unknown weapon '{weapon.Id}'");
+        int index = All.ToList().IndexOf(Plain(weapon));
+        return All[(index + 1) % All.Count];
     }
+
+    private static SkillDefinition Harder(SkillDefinition skill, int level) => skill with { Damage = DamageAtLevel(skill.Damage, level) };
 }

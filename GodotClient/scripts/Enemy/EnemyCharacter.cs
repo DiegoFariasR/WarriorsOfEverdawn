@@ -56,7 +56,7 @@ public partial class EnemyCharacter : CharacterBody3D
 
     public static event Action<EnemyCharacter>? Died;
 
-    public static event Action<long, int>? DamageTaken;
+    public static event Action<long, SkillDefinition, int>? DamageTaken;
 
     // Host only: a player's guard parried this skeleton's swing.
     public static event Action<EnemyCharacter>? Parried;
@@ -394,17 +394,6 @@ public partial class EnemyCharacter : CharacterBody3D
             return;
         }
 
-        SkillDefinition skill;
-        try
-        {
-            skill = Weapons.SkillById(skillId);
-        }
-        catch (KeyNotFoundException e)
-        {
-            GD.PushError($"[Enemy {Name}] {e.Message} (from peer {Multiplayer.GetRemoteSenderId()})");
-            return;
-        }
-
         if (IsDead)
         {
             return;
@@ -419,9 +408,22 @@ public partial class EnemyCharacter : CharacterBody3D
             return;
         }
 
+        // As the weapon the attacker carries has the skill, by what the host sees it carrying: an improved weapon
+        // hits harder.
+        SkillDefinition skill;
+        try
+        {
+            skill = attacker.SkillById(skillId);
+        }
+        catch (KeyNotFoundException e)
+        {
+            GD.PushError($"[Enemy {Name}] {e.Message} (from peer {attackerId})");
+            return;
+        }
+
         int taken = _health.TakeDamage(StatRules.Damage(skill.Damage, attacker.Stats));
         Hp = _health.Current;
-        DamageTaken?.Invoke(attackerId, taken);
+        DamageTaken?.Invoke(attackerId, skill, taken);
         bool staggered = !_health.IsDead && _stagger.TryApply(_clock);
         Rpc(MethodName.ShowHit, taken, staggered);
         if (_health.IsDead)

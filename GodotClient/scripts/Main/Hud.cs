@@ -23,9 +23,12 @@ public partial class Hud : CanvasLayer
 
     private readonly Label _notice = UiTheme.MakeLabel("", UiTheme.Words, 20, UiTheme.GoldHi, outline: 6);
     private readonly Label _status = UiTheme.MakeLabel("", UiTheme.Words, 13, UiTheme.StatusFallen, outline: 3);
-    private readonly Label[] _statValues = new Label[3];
+    private readonly Label[] _statValues = new Label[4];
     private readonly Label _gold = UiTheme.MakeLabel("0", UiTheme.Numbers, 16, UiTheme.GoldHi);
     private readonly Label _souls = UiTheme.MakeLabel("0", UiTheme.Numbers, 16, SoulText);
+
+    // White, and tinted each frame with the colour the orbs themselves are passing through.
+    private readonly Label _orbs = UiTheme.MakeLabel("0", UiTheme.Numbers, 16, Colors.White);
     private readonly (Label Name, Label Cost, Label Cooldown, ColorRect Dim)[] _slots = new (Label, Label, Label, ColorRect)[SkillSlots.Length];
 
     private const string NoSkill = "-";
@@ -53,6 +56,8 @@ public partial class Hud : CanvasLayer
 
     public GroundWeaponLabels GroundLabels { get; } = new() { Name = "GroundWeaponLabels" };
 
+    public ShopPanel Shop { get; } = new() { Name = "Shop" };
+
     public Control PlayerFrame { get; private set; } = null!;
 
     public Control SkillBar { get; private set; } = null!;
@@ -64,6 +69,10 @@ public partial class Hud : CanvasLayer
     public string ShownGold => _gold.Text;
 
     public string ShownSouls => _souls.Text;
+
+    public string ShownOrbs => _orbs.Text;
+
+    public string ShownArmour => _statValues[3].Text;
 
     public override void _Ready()
     {
@@ -78,6 +87,9 @@ public partial class Hud : CanvasLayer
         _notice.AnchorRight = 1f;
         _notice.OffsetTop = 24f;
         AddChild(_notice);
+
+        // Last, so it opens over everything else.
+        AddChild(Shop);
     }
 
     public void ShowNotice(string text)
@@ -119,8 +131,11 @@ public partial class Hud : CanvasLayer
         _statValues[0].Text = Player.Stats.Str.ToString();
         _statValues[1].Text = Player.Stats.Wis.ToString();
         _statValues[2].Text = Player.Stats.Agi.ToString();
+        _statValues[3].Text = Player.Vitals.Armour.ToString();
         _gold.Text = Player.Vitals.Gold.ToString();
         _souls.Text = Player.Vitals.Souls.ToString();
+        _orbs.Text = Player.Vitals.Orbs.ToString();
+        _orbs.Modulate = MagicOrb.ColourNow();
         _status.Text = Player.IsDowned ? "Down - back up in a moment" : "";
 
         int charges = Player.DashCharges;
@@ -165,8 +180,10 @@ public partial class Hud : CanvasLayer
         column.AddChild(manaRoot);
 
         var stats = new HBoxContainer();
-        stats.AddThemeConstantOverride("separation", 18);
-        string[] names = { "STR", "WIS", "AGI" };
+        stats.AddThemeConstantOverride("separation", 14);
+
+        // ARM is the tier of armour worn, from 0.
+        string[] names = { "STR", "WIS", "AGI", "ARM" };
         for (int i = 0; i < names.Length; i++)
         {
             var stat = new HBoxContainer();
@@ -182,7 +199,7 @@ public partial class Hud : CanvasLayer
         // Earned, with nothing to spend them on yet.
         var purse = new HBoxContainer();
         purse.AddThemeConstantOverride("separation", 18);
-        foreach (var (name, value) in new[] { ("Gold", _gold), ("Souls", _souls) })
+        foreach (var (name, value) in new[] { ("Gold", _gold), ("Souls", _souls), ("Orbs", _orbs) })
         {
             var earned = new HBoxContainer();
             earned.AddThemeConstantOverride("separation", 5);

@@ -12,11 +12,13 @@ Quick lookup for `./dev.sh` subcommands and `Tools/*.py` scripts. Subagents refe
 | Import copied-in assets | `./dev.sh import` |
 | Check a client change end to end (movement, combat, animation, VFX, HUD, dash, guard, across 3 peers) | `./dev.sh net-test` |
 | Check player-on-player hits and damage | `./dev.sh pvp-test` |
+| Check sellers, the shop window, purchases and weapon improvements (cost taken, weapon delivered, refusals) | `./dev.sh trade-test` |
 | Check camera modes, controls mapping and HUD layout | `./dev.sh camera-test` |
 | Run all three self-tests (the client regression gate) | `./dev.sh smoke` |
+| See every tier of armour on the Knight from the front, or try other outfits on it | `./dev.sh armour-lineup [Outfit,Outfit,...]` -> `_staging/armour-lineup.png` |
 | Measure a weapon skill's hit time and reach from its clip (standing and moving), or when a ranged enemy's shot leaves | `./dev.sh swing-survey` |
 | Check what lives across a session: waves, removal of the dead and of damage numbers, node count per wave, going down and back up | `./dev.sh playtest [--screenshots N]` (about 3 minutes) |
-| See what the game draws (a bot plays solo; off-screen, minimized window) | `./dev.sh screenshot [--at S] [--frames N --interval S] [--camera 1-4] [--no-ui] [--no-enemies] [--weapon <id>] [--back-weapon <id>]` -> `_staging/screenshot.png` or `_staging/screenshot_<n>.png` |
+| See what the game draws (a bot plays solo; off-screen, minimized window) | `./dev.sh screenshot [--at S] [--frames N --interval S] [--camera 1-4] [--zoom F] [--no-ui] [--no-enemies] [--weapon <id>] [--back-weapon <id>]` -> `_staging/screenshot.png` or `_staging/screenshot_<n>.png` |
 | Enlarge a small part of a capture | `python Tools/zoom_region.py <png> <x> <y> <w> <h> [--scale N]` (`--grid` to find coordinates) |
 | Project-wide drift sweep | `./dev.sh health` (`--only <check>`, `--skip <check>`, `--list`) |
 | Find broken links, `file:line` refs and `./dev.sh` commands in the docs | `./dev.sh check-docs` (`--fix` re-points moved files) |
@@ -33,6 +35,7 @@ Quick lookup for `./dev.sh` subcommands and `Tools/*.py` scripts. Subagents refe
 |---|---|---|
 | `./dev.sh net-test` | `_staging/net-test/host.log`, `client1.log` .. `client3.log` (one per weapon) | `[net-check]`, `[combat-check]`, `[ranged-check]`, `[turn-check]`, `[head-check]`, `[speed-check]`, `[skill-check]`, `[trail-check]`, `[flash-check]`, `[ui-check]`, `[dash-check]`, `[spin-dash-check]`, `[lunge-check]`, `[pickup-check]`, `[loot-check]`, `[map-check]`, `[bot-check]` (not asserted on: where each bot spent the session and on what), `[carry-check]`, `[guard-check]`, `[reach-check]`, and the twist fields |
 | `./dev.sh pvp-test` | `_staging/pvp-test/host.log`, `client1.log` | `[pvp-check]`, `[pvp-host]`, `[combat-check]`, `[ui-check]` |
+| `./dev.sh trade-test` | `_staging/trade-test/<seller>/host.log`, `client1.log` | `[trade-check]`, `[trade-host]` |
 | `./dev.sh playtest` | `_staging/playtest/host.log`, `client1.log`, `client2.log` | everything net-test reads, plus `[wave-check]`, `[leak-check]`, `[down-check]` |
 | `./dev.sh camera-test` | `_staging/camera-test.log` | `[camera-check]`, `[layout-check]` |
 

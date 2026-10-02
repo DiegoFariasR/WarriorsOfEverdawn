@@ -56,6 +56,7 @@ public partial class NetSelfTest : Node
         TrackGround();
         TrackLoot();
         TrackMap();
+        TrackTrade();
     }
 
     public override void _ExitTree()
@@ -127,6 +128,7 @@ public partial class NetSelfTest : Node
         MeasurePickups();
         MeasureLoot();
         MeasureMap();
+        MeasureTrade((float)delta);
         MeasureBot((float)delta);
         MeasureSession((float)delta);
         MeasureDowns();
@@ -155,6 +157,7 @@ public partial class NetSelfTest : Node
         PrintPickupCheck(me);
         PrintLootCheck(me);
         PrintMapCheck(me);
+        PrintTradeCheck(me);
         PrintBotCheck(me);
     }
 

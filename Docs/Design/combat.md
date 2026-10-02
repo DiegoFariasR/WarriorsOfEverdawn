@@ -124,25 +124,28 @@ Every weapon draws a ribbon along its blade (`Character/WeaponTrail`, adapted fr
 - **Hit:** a 0.3 s stagger with a flinch, unless mid-swing. After a stagger a skeleton cannot be staggered again for 1 s (`Core/Combat/Stagger`). Without that, Spin's hits every 0.3 s kept skeletons staggered outside their reach: in a 20 s test they started 0 attacks. **Death:** `Skeletons_Death` (1 s at 2x), corpse removed after 3 s.
 - **Waves** (placeholder): 3 minions, 2 warriors and 2 archers, rising inside the enemy fortress, one to a spawn spot. The next wave comes 3 s after one is cleared. Not scaled by player count; the four-bot self-test sessions triple each wave (`--wave-scale 3`), since one wave shared by four is gone before the slower weapons get a turn.
 
-## Gold and souls
+## Gold, souls and orbs
 
-Two things a player earns, with nothing to spend them on yet (`Core/Loot`, `Main/Loot`). Both are kept per player by the host and last for the session.
+Three things a player earns (`Core/Loot`, `Main/Loot`). Gold buys weapons from the weaponsmith and, from the blacksmith, the first two tiers of armour; gold with orbs buys the later tiers and has the blacksmith make a weapon better, up to +10, each level hitting harder ([trade.md](trade.md)); souls buy nothing yet. All are kept per player by the host and last for the session.
 
-| Monster | Gold | Souls |
-|---|---|---|
-| Skeleton Minion | 2-4 | 1 |
-| Skeleton Archer | 3-6 | 1 |
-| Skeleton Warrior | 6-10 | 1 |
+| Monster | Gold | Souls | Magic orb |
+|---|---|---|---|
+| Skeleton Minion | 2-4 | 1 | 2% |
+| Skeleton Archer | 3-6 | 1 | 3% |
+| Skeleton Warrior | 6-10 | 1 | 6% |
 
 - **Gold** falls where a monster dies, as a stack of coins (small up to 3, medium up to 6, large above), any amount in its range as likely as another. Walking within 1.5 of a pile picks it up, with no button; a pile cannot be picked up for its first 0.4 s, so it is seen to fall even under a player's feet. "+N" floats over whoever picked it up.
 - **Souls:** one per monster, as it dies. Nothing drops.
-- **Shared:** every player in the game gets a pile's gold when anyone picks it up, and every player gets a monster's soul whoever killed it. Co-op among friends, so nobody races anybody for either. A player who joins later starts from nothing.
-- **Piles stay** until picked up.
-- HUD: both counts in the player frame ([ui.md](ui.md)).
+- **Magic orbs** are the rare one: a monster leaves one over its gold only a few times in a hundred (about one in four waves of seven). It is picked up as gold is, by walking within 1.5 of it after its first 0.4 s, and "+1 orb" floats over whoever did.
+- **How an orb looks** (`Main/MagicOrb`, shaders `orb_gem` and `orb_halo`): a cut gem floating chest high, turning and bobbing, every facet its own colour and the colours drifting round once in 6 s, the facets turned to the eye flashing white; a soft glow round it, a light in the colour of the moment thrown on the ground and on whoever stands near, and sparks rising. No texture or model file: a low-faced sphere and two shaders.
+- **Shared:** every player in the game gets a pile's gold or an orb when anyone picks it up, and every player gets a monster's soul whoever killed it. Co-op among friends, so nobody races anybody for any of it. A player who joins later starts from nothing.
+- **What lies on the ground stays** until picked up.
+- HUD: the three counts in the player frame, the orbs' in the colour the orbs are passing through ([ui.md](ui.md)).
 
 ## Players
 
 - 100 HP, owned by the host.
+- Armour, a tier from 0 to 5 made better by the blacksmith, stops a tenth of every blow per tier, after the guard has had its share ([trade.md](trade.md)).
 - Players start in the allied town, where skeletons neither come nor can hurt them ([level-layouts.md](level-layouts.md)).
 - At 0 HP the player goes down (`Death_A`) and gets back up after 4 s in the allied town with full HP. The body on the ground is not shoved by skeletons walking over it (they still bump into it); in the first long playtests they pushed a fallen player 0.25. Placeholder until death and revive are designed.
 - HUD: HP bar top left. Damage numbers float over whoever is hit. Skeletons and other players carry a thin HP bar overhead ([ui.md](ui.md)).
@@ -165,6 +168,7 @@ The same session run for 2.5 minutes with every net-test gate, and one player ta
 - Hit feedback: hit-stop, knockback, sound.
 - Tracing the actual blade path for hits instead of the arc, if arcs ever feel off against the visuals.
 - Guard: whether each weapon's trade-off (arc, block share, speed, parry window) reads in play; whether a parried arrow should do more than stop; whether a client's parry window should allow for its latency, since the host starts it when the raise arrives.
+- Magic orbs: whether they should stay shared; how rare; whether one should be heard or marked when it falls out of view.
 - Gold and souls: what they buy; whether gold should be shared or go to whoever picks it up once it buys something; whether piles should fade if nobody collects them; amounts.
 - Weapons on the ground: whether any should lie in the arena at the start or drop from skeletons (today the only ones are those players let go of), whether Q should go now that weapons can be picked up, and whether a dropped weapon should stay forever.
 - Scythe: bigger and with its blade in front it now out-reaches everything but the spear's thrust, on the widest arc; whether its damage, mana cost or guard should pay for that.

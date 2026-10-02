@@ -7,8 +7,8 @@ using WarriorsOfEverdawn.Util;
 
 namespace WarriorsOfEverdawn.Level;
 
-// Builds a level layout in the scene: every placement, with the texture its layout gives its kit, and a box on the
-// World layer for each solid. Adapted from Everdawn's LevelLayoutNode; format in Docs/Design/level-layouts.md.
+// Builds a level layout in the scene: every placement, with the texture its layout gives its kit, and a body on the
+// World layer for each solid (its box, or its mesh for a piece that is walked through, like a doorway). Adapted from Everdawn's LevelLayoutNode; format in Docs/Design/level-layouts.md.
 public partial class LevelLayoutNode : Node3D
 {
     // A solid at least this tall can stand between the camera and a character; lower ones never hide one.
@@ -80,7 +80,7 @@ public partial class LevelLayoutNode : Node3D
 
             if (placement.Solid)
             {
-                AddSolid(piece, meshes);
+                AddSolid(piece, meshes, placement.FollowsMesh);
             }
             else if (meshes.Count > 0)
             {
@@ -115,28 +115,45 @@ public partial class LevelLayoutNode : Node3D
         GD.Print($"[level] {resPath}: hung on walls: {string.Join(", ", hung.Select(h => $"{h.Value} {h.Key}"))}");
     }
 
-    // The body sits beside the piece, not under it: a piece may be scaled, and physics bodies must not be. Its box is
-    // the piece's own, turned with it.
-    private void AddSolid(Node3D piece, List<MeshInstance3D> meshes)
+    // The body sits beside the piece, not under it: a piece may be scaled, and physics bodies must not be. Its shape is
+    // the piece's own box, turned with it, or the piece's faces. Either way the box is what fades when it is tall.
+    private void AddSolid(Node3D piece, List<MeshInstance3D> meshes, bool followsMesh)
     {
         var bounds = BoundsOf(piece, meshes);
         var scale = piece.Scale;
         var size = bounds.Size * scale;
         var turned = new Transform3D(piece.Basis.Orthonormalized(), piece.Position);
+        var box = turned * new Transform3D(Basis.Identity, bounds.GetCenter() * scale);
         var body = new StaticBody3D
         {
             Name = $"{piece.Name}Solid",
-            Transform = turned * new Transform3D(Basis.Identity, bounds.GetCenter() * scale),
+            Transform = followsMesh ? turned : box,
             CollisionLayer = CollisionLayers.World,
             CollisionMask = 0,
         };
-        body.AddChild(new CollisionShape3D { Shape = new BoxShape3D { Size = size } });
+        body.AddChild(new CollisionShape3D { Shape = followsMesh ? FacesOf(piece, meshes) : new BoxShape3D { Size = size } });
         AddChild(body);
 
         if (size.Y >= OccludingHeight)
         {
-            _occluders.Add(new Occluder(body.Transform, size, meshes));
+            _occluders.Add(new Occluder(box, size, meshes));
         }
+    }
+
+    // The piece's triangles in its own space, at its scale.
+    private static ConcavePolygonShape3D FacesOf(Node3D piece, List<MeshInstance3D> meshes)
+    {
+        var scaled = new Transform3D(Basis.FromScale(piece.Scale), Vector3.Zero);
+        var faces = new List<Vector3>();
+        foreach (var mesh in meshes)
+        {
+            var toBody = scaled * RelativeTransform(mesh, piece);
+            faces.AddRange(mesh.Mesh.GetFaces().Select(vertex => toBody * vertex));
+        }
+
+        var shape = new ConcavePolygonShape3D();
+        shape.SetFaces(faces.ToArray());
+        return shape;
     }
 
     // The piece's meshes together, in the piece's own space (before its scale).

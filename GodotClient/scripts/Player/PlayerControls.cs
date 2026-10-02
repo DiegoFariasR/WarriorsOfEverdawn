@@ -38,6 +38,12 @@ public interface IPlayerControls
     // Pressed this frame: take the nearest weapon in reach off the ground, if a slot is free.
     bool PickUpPressed { get; }
 
+    // Pressed this frame: trade with the seller in reach.
+    bool InteractPressed { get; }
+
+    // While set (a window is open over the game) the controls ask for nothing: the character stands where it is.
+    bool Suspended { get; set; }
+
     void Update(PlayerCharacter player, double delta);
 }
 
@@ -78,13 +84,27 @@ public sealed class HumanControls : IPlayerControls
 
     public bool PickUpPressed { get; private set; }
 
+    public bool InteractPressed { get; private set; }
+
+    public bool Suspended { get; set; }
+
     // Input as Input.GetVector gives it: x right, y down (so W is -y).
     public static Vector3 MoveFor(CameraMode mode, Vector2 input, float facing) =>
         mode.FollowsFacing() ? Yaw.FromFacing(-input.Y, input.X, facing) : new Vector3(input.X, 0f, input.Y);
 
     public void Update(PlayerCharacter player, double delta)
     {
+        if (Suspended)
+        {
+            Move = Vector3.Zero;
+            AimYaw = null;
+            SkillHeld = null;
+            DashPressed = WeaponNextPressed = SwapSetsPressed = GuardHeld = DropPressed = PickUpPressed = InteractPressed = false;
+            return;
+        }
+
         var move = Input.GetVector("move_left", "move_right", "move_forward", "move_back");
+        InteractPressed = Input.IsActionJustPressed("interact");
         DashPressed = Input.IsActionJustPressed("dash");
         WeaponNextPressed = Input.IsActionJustPressed("weapon_next");
         SwapSetsPressed = Input.IsActionJustPressed("weapon_swap");
@@ -232,6 +252,7 @@ public sealed class BotControls : IPlayerControls
     private WeaponDefinition? _home;
     private float _nextDropAt = FirstDropAt;
     private float _nextLungeDrill = FirstLungeDrillAt;
+    private bool _interactDue;
     private float _unarmedSince = float.NaN;
 
     public BotControls(long peerId, float swapUntil)
@@ -260,8 +281,18 @@ public sealed class BotControls : IPlayerControls
 
     public bool PickUpPressed { get; private set; }
 
+    public bool InteractPressed { get; private set; }
+
+    public bool Suspended { get; set; }
+
     // What the bot is about, for the self-tests' [bot-check].
     public string Activity { get; private set; } = "starting";
+
+    // The self-tests' trade drill: presses the trade button on the bot's next step.
+    public void Interact() => _interactDue = true;
+
+    // The weapon the bot counts as its own from here on: the one it bought, in place of the one it started with.
+    public void Rehome(WeaponDefinition? weapon) => _home = weapon;
 
     public void Update(PlayerCharacter player, double delta)
     {
@@ -269,6 +300,19 @@ public sealed class BotControls : IPlayerControls
         _home ??= player.Weapon;
         DropPressed = false;
         PickUpPressed = false;
+        InteractPressed = _interactDue;
+        _interactDue = false;
+        // Standing still, the bot still presses the trade button when the drill asks: the drill holds it by the
+        // seller until the window opens.
+        if (Suspended)
+        {
+            Move = Vector3.Zero;
+            AimYaw = null;
+            SkillHeld = null;
+            DashPressed = SwapSetsPressed = GuardHeld = false;
+            return;
+        }
+
         if (player.Weapon is not { } weapon)
         {
             Retrieve(player);
@@ -402,12 +446,12 @@ public sealed class BotControls : IPlayerControls
         float distance = toEnemy.Length();
         if (enemy == null || distance > EngageRadius)
         {
-            // With nothing in range to fight the bot goes for the nearest gold, so little is left lying; else for the
+            // With nothing in range to fight the bot goes for the nearest gold or orb, so little is left lying; else for the
             // nearest hostile, by the way round the walls, into the enemy fortress if that is where it is.
-            var toGold = TowardGold(player);
-            var heading = toGold
+            var toLoot = TowardLoot(player);
+            var heading = toLoot
                 ?? (enemy == null ? Yaw.Forward(_phase + _time * MoveTurnRate) : ArenaMap.In(player.GetTree()).StepToward(player, enemy.GlobalPosition));
-            Activity = toGold != null ? "to-gold" : enemy == null ? "wandering" : $"to-{Kind(enemy)}";
+            Activity = toLoot != null ? "to-loot" : enemy == null ? "wandering" : $"to-{Kind(enemy)}";
             Move = standing ? Vector3.Zero : heading;
             AimYaw = _phase + _time * AimTurnRate;
             SkillHeld = SpinDrill(player) ? PlayerCharacter.Secondary : _time % AttackInterval < 0.1f ? PlayerCharacter.Primary : null;
@@ -484,9 +528,9 @@ public sealed class BotControls : IPlayerControls
         }
     }
 
-    private static Vector3? TowardGold(PlayerCharacter player)
+    private static Vector3? TowardLoot(PlayerCharacter player)
     {
-        var nearest = Loot.In(player.GetTree()).Piles
+        var nearest = Loot.In(player.GetTree()).OnGround
             .OrderBy(p => p.Position.DistanceSquaredTo(player.GlobalPosition))
             .FirstOrDefault();
         if (nearest == null)

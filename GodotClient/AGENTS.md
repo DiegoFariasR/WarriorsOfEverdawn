@@ -13,13 +13,13 @@ Key reminders:
 
 | Folder | Owns |
 |---|---|
-| `Main/` | Arena and session start, launch flags (`LaunchOptions`), camera and camera modes, HUD, overhead bars, weapons on the ground and their labels (`GroundWeapons`, `GroundWeaponLabels`), gold and souls (`Loot`), the two fortresses and the ways round them (`ArenaMap`), session rules (PvP) |
+| `Main/` | Arena and session start, launch flags (`LaunchOptions`), camera and camera modes, HUD, overhead bars, weapons on the ground and their labels (`GroundWeapons`, `GroundWeaponLabels`), gold, souls and magic orbs (`Loot`, with `MagicOrb` for how an orb looks), sellers and trade (`Market`, `SellerNpc`, and `ShopPanel`, the one window every seller uses), the two fortresses and the ways round them (`ArenaMap`), session rules (PvP) |
 | `Level/` | Builds a level layout in the scene (`LevelLayoutNode`): pieces, their textures, solids; format and tools in [Docs/Design/level-layouts.md](../Docs/Design/level-layouts.md) |
 | `Theme/` | Everdawn-style colours, fonts, panels and bars (`UiTheme`) |
 | `Player/` | Networked character (`PlayerCharacter`), host-owned vitals (`PlayerVitals`), human and bot controls (`PlayerControls`) |
 | `Enemy/` | Skeletons (`EnemyCharacter`, host-run AI), wave director, arrows in flight (`Arrows`) |
 | `Character/` | Rig clips (`RigAnimations`), animator layers, torso twist, rig pieces and head sizing (`CharacterRig`), clip-per-skill and enemy looks (`CombatVisuals`), weapon trails, hit flash, dash ghosts |
-| `Dev/` | Headless self-tests: `NetSelfTest` (net-test, pvp-test; one part per area, `NetSelfTest.<Area>.cs`), `CameraSelfTest` (camera-test); window captures (`ScreenshotCapture`) |
+| `Dev/` | Headless self-tests: `NetSelfTest` (net-test, pvp-test, trade-test; one part per area, `NetSelfTest.<Area>.cs`), `CameraSelfTest` (camera-test); window captures (`ScreenshotCapture`) |
 | `Util/` | Small shared helpers |
 
 ## Headless self-tests
@@ -28,10 +28,10 @@ Headless runs draw nothing, so the self-tests measure instead: each check prints
 
 - The game prints its own limits and expectations next to what it measured (`limit_deg_s`, `head_expected`, `spin_speed_limit`, ...), so a retune in `Core` never leaves a stale number in `dev.sh`.
 - A missing line fails its gate. A new check is not done until its gate exists; see [Docs/ops/registering-tools.md](../Docs/ops/registering-tools.md).
-- `NetSelfTest` is a partial class split by area: `NetSelfTest.cs` runs the frame loop, tracks players and prints `[net-check]`; `Combat`, `Body`, `Spin`, `Weapon`, `Hud`, `Dash`, `Lunge`, `Pickup`, `Loot`, `Map`, `Bot`, `Ranged`, `Guard`, `Session` (waves, removal of the dead and of damage numbers, node count per wave) and `Down` (going down and back up) each hold their checks' fields, measurements and printed lines. A new check goes into the part for its area (or a new part), wired through `Track`, the frame loop and `PrintSummary`.
+- `NetSelfTest` is a partial class split by area: `NetSelfTest.cs` runs the frame loop, tracks players and prints `[net-check]`; `Combat`, `Body`, `Spin`, `Weapon`, `Hud`, `Dash`, `Lunge`, `Pickup`, `Loot`, `Map`, `Trade`, `Bot`, `Ranged`, `Guard`, `Session` (waves, removal of the dead and of damage numbers, node count per wave) and `Down` (going down and back up) each hold their checks' fields, measurements and printed lines. A new check goes into the part for its area (or a new part), wired through `Track`, the frame loop and `PrintSummary`.
 - Bots (`--bot`) drive the characters: they seek the nearest hostile, spin while hostiles are in reach, swing (at the air too while closing in, so every skill's reach gets samples), find their way round the walls and into the enemy fortress, run at their target and circle it once close, dash in bursts with a lunge in every third, spin, swing and lunge at the air on a schedule when nothing is in reach, swap their sets, let go of their weapon and take it back, and defend in phases (parrying, then bracing), so every feature gets exercised without a person. Each behaviour takes session time from the others: when a gate comes up short of samples, look at how often the bots get to do that thing before touching the gate: `[bot-check]` prints where each bot spent the session and on what (which kind of skeleton it chased or fought, time in reach of one, time down or unarmed), and `[combat-check]` its hits by skill.
 - `./dev.sh playtest` runs the net-test session for 2.5 minutes and adds the `Session` and `Down` gates, which need several waves and a player going down. `--down-at` makes sure one does; the leak tolerances next to the gates in `dev.sh` record what was measured.
-- Logs land in `_staging/net-test/`, `_staging/pvp-test/`, `_staging/playtest/` and `_staging/camera-test.log`.
+- Logs land in `_staging/net-test/`, `_staging/pvp-test/`, `_staging/trade-test/`, `_staging/playtest/` and `_staging/camera-test.log`.
 - `KNOWN_DISCONNECT_ERROR` in `dev.sh` whitelists one engine error on disconnect (godot#86814); every other `ERROR` in a log fails the run.
 
 ## Launch flags
@@ -50,10 +50,16 @@ Parsed by `scripts/Main/LaunchOptions.cs`, after the `--` separator. An unknown 
 | `--ai-playtest` | Minimizes the window without taking focus, so an AI-launched window never covers the user's work |
 | `--screenshot`, `--shot-at S`, `--shots N`, `--shot-interval S` | Captures the window (`Dev/ScreenshotCapture`) at S seconds, N frames apart by the interval, then quits; any `--shot-*` implies `--screenshot`. Defaults: 6 s, 1 frame, 0.5 s |
 | `--no-ui` | Hides the HUD and overhead bars |
-| `--weapon <id>`, `--back-weapon <id>` | This machine's player starts with those weapons in hand and on the back (`greatsword`, `quarterstaff`, `spear`, `scythe`; they must differ); the self-tests give each bot a different pair |
+| `--weapon <id>`, `--back-weapon <id>` | This machine's player starts with those weapons in hand and on the back (`greatsword`, `quarterstaff`, `spear`, `scythe`, each also at a level, as `spear+4`; they must differ); the self-tests give each bot a different pair |
 | `--swing-survey` | Runs `Dev/SwingSurvey` and quits (`./dev.sh swing-survey`) |
+| `--armour-lineup`, `--outfits A,B,...` | Stands the player's figure in a row in the field between the fortresses, once per tier of armour or once per outfit named, with a camera of its own in front of them (`Dev/ArmourLineup`); `./dev.sh armour-lineup` captures it |
+| `--zoom F` | The camera starts that much nearer or further (below 1 is nearer; the camera keeps it within its limits), for captures |
 | `--down-at S` | Host only: S seconds in, takes one player (a client's when there is one) down through the normal damage path; the playtest uses it |
 | `--wave-scale N` | Host only: each wave brings N times its skeletons; net-test and playtest pass 3, since waves are not scaled by player count yet |
+| `--orb-chance P` | Host only: every monster leaves a magic orb P of the time (0 to 1) in place of its own few in a hundred; net-test and playtest pass 0.25 so every machine sees orbs fall and be picked up, and `./dev.sh screenshot --orb-chance 1` shows them |
+| `--start-gold N`, `--start-orbs N`, `--start-armour TIER` | Host only: every player starts with that much gold, that many orbs and that tier of armour (0 to 5), for trying the sellers and the armour; the trade test passes 150 gold at the weaponsmith and 280, 3 and tier 2 at the blacksmith |
+| `--trade-drill` | With `--bot`: the bot trades with the seller it starts beside, through the shop window (`NetSelfTest.Trade`); the trade test passes it, and `./dev.sh screenshot --trade-drill` shows the window |
+| `--start-at x,z` | Host only: players start on that spot of the ground instead of in the town's courtyard. `./dev.sh screenshot --start-at` uses it to look at a place; the playtest starts its players inside a town room, so each has to walk out through a doorway |
 
 The self-tests are these flags plus `--headless`; any new AI-facing mode gets `--headless` built in from day one, or `--ai-playtest` when it must draw.
 
@@ -77,6 +83,14 @@ The self-tests are these flags plus `--headless`; any new AI-facing mode gets `-
 - **Enemies** take their looks from `CombatVisuals.LookFor(EnemyDefinition)` (`EnemyLook`): model, weapon, and for a bow the left hand and a rotation (Everdawn's bow settings). An attack can be a clip and a follow-up (`CombatVisuals.FollowUpFor`: the archer's draw, then release); its hit time counts across both, and `./dev.sh swing-survey` measures the release.
 - **Projectiles:** an enemy attack with a `Projectile` (Core) looses one through `Arrows.In(tree).Loose` on the host at its hit time instead of testing an arc. `Arrows` flies any such attack, looked up by attack id, so a new ranged enemy is data plus a look.
 - Anything that holds a character's meshes (`HitFlash`, the ghosts) gathers them when it needs them or rebuilds on a weapon change: a swapped-out weapon is freed.
+
+## Armour
+
+- `Core` has the tiers (`Armours`); `Character/ArmourLook` has what each looks like: an outfit (the `<Outfit>_Body`, `_ArmLeft`, `_ArmRight`, `_LegLeft` and `_LegRight` models under `assets/character_parts/`) and any pieces worn over it (a breastplate). `Own` is the figure's own parts. One entry per tier, or `Wear` throws.
+- **Wearing it:** each part's skinned mesh is moved under the figure's `Skeleton3D` and the figure's own part hidden. The head, helmet and cape are never touched. Works for any `Rig_Medium` figure; parts made for another rig (Everdawn's Black Knight is on the large one) will not fit.
+- **Control bones:** Everdawn's part models were exported with their rig's IK and control bones, which the characters here do not have. No vertex is weighted to them, so `ArmourLook` points those binds at the root bone; without that Godot reports each as a missing bone.
+- **A new look:** copy the outfit's five parts from Everdawn's `character_parts` (flat here, whichever folder Everdawn keeps them in), run `./dev.sh import`, try it with `./dev.sh armour-lineup <Outfit>` and read the image, then name it in `ArmourLook`. Delete parts no tier uses.
+- **Checked by** the trade test: every player's figure wears the parts of the tier the host holds for it (`ArmourLook.IsDressedFor`), on every machine.
 
 ## Assets
 

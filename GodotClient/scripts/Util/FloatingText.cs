@@ -9,7 +9,8 @@ public static class FloatingText
     private const float Rise = 1f;
     public const float Duration = 0.8f;
 
-    public static void Spawn(Node3D anchor, string text, Color color)
+    // `above` lifts it clear of another text spawned over the same anchor at the same moment.
+    public static void Spawn(Node3D anchor, string text, Color color, float above = 0f)
     {
         var label = new Label3D
         {
@@ -24,7 +25,7 @@ public static class FloatingText
             NoDepthTest = true,
         };
         anchor.GetTree().CurrentScene.AddChild(label);
-        label.GlobalPosition = anchor.GlobalPosition + Vector3.Up * StartHeight;
+        label.GlobalPosition = anchor.GlobalPosition + Vector3.Up * (StartHeight + above);
 
         var tween = label.CreateTween().SetParallel();
         tween.TweenProperty(label, "global_position", label.GlobalPosition + Vector3.Up * Rise, Duration);

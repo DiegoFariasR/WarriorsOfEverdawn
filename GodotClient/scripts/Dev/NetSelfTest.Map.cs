@@ -11,8 +11,8 @@ namespace WarriorsOfEverdawn.Dev;
 // [map-check]: the local player starts inside the allied town and takes no hit while it stands there; no skeleton is
 // ever inside the town; every skeleton rises inside the enemy fortress and skeletons get out of it; the local player
 // gets out of the town and as far as the fortress; walls between the camera and the player fade, and what hangs on
-// them with them; and walkers find their way (after the first second, nobody had to be sent straight for want of a
-// path).
+// them with them; walkers find their way (after the first second, nobody had to be sent straight for want of a
+// path); and the ways lead from where players start into every room of both fortresses.
 public partial class NetSelfTest
 {
     // The navigation mesh joins its map at the end of the first physics frame; ways asked before that go straight.
@@ -36,7 +36,19 @@ public partial class NetSelfTest
     private void TrackSafety(PlayerCharacter player)
     {
         _startedSafe = _map!.IsSafe(player.GlobalPosition) ? 1 : 0;
-        player.Vitals.Hit += _ => _hitsWhileSafe += _map.IsSafe(player.GlobalPosition) ? 1 : 0;
+        player.Vitals.Hit += _ =>
+        {
+            if (!_map.IsSafe(player.GlobalPosition))
+            {
+                return;
+            }
+
+            // Seen once in a playtest and not explained: the host judges by the position last reported to it, so
+            // where the player stands and how fast it moves as the hit arrives is printed.
+            _hitsWhileSafe++;
+            GD.Print($"[safe-hit] me={Multiplayer.GetUniqueId()} t={_time:F2} at={player.GlobalPosition} velocity={player.Velocity} "
+                + $"dashing={player.IsDashing} hp={player.Vitals.Hp}");
+        };
     }
 
     private void MeasureMap()
@@ -51,16 +63,15 @@ public partial class NetSelfTest
             _straightStepsAtStart = _map.StraightSteps;
         }
 
-        var fortress = _map.Fortress;
         foreach (var enemy in GetTree().GetNodesInGroup(EnemyCharacter.Group).OfType<EnemyCharacter>())
         {
-            var at = Yaw.ToGround(enemy.GlobalPosition);
-            if (_seenRising.Add(enemy.GetInstanceId()) && !fortress.Contains(at))
+            bool inFortress = _map.InFortress(enemy.GlobalPosition);
+            if (_seenRising.Add(enemy.GetInstanceId()) && !inFortress)
             {
                 _roseOutsideFortress++;
             }
 
-            if (!enemy.IsDead && !fortress.Contains(at))
+            if (!enemy.IsDead && !inFortress)
             {
                 _leftFortress.Add(enemy.GetInstanceId());
             }
@@ -82,5 +93,6 @@ public partial class NetSelfTest
             + $"hits_while_safe={_hitsWhileSafe} enemies_in_town_frames={_enemiesInTownFrames} rose_outside_fortress={_roseOutsideFortress} "
             + $"enemies_seen={_seenRising.Count} enemies_left_fortress={_leftFortress.Count} walls_faded_max={_wallsFadedMax} "
             + $"hangings={_map?.Hangings ?? -1} hangings_faded_max={_hangingsFadedMax} "
+            + $"rooms={_map?.Rooms.Count ?? -1} rooms_with_a_way_in={_map?.Rooms.Count(r => _map.HasWay(_map.PlayerSpawnFor(0), r)) ?? -1} "
             + $"straight_steps_after_start={(_map == null || _straightStepsAtStart < 0 ? -1 : _map.StraightSteps - _straightStepsAtStart)}");
 }

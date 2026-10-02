@@ -2,14 +2,19 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using Godot;
+using WarriorsOfEverdawn.Character;
 using WarriorsOfEverdawn.Core.Level;
+using WarriorsOfEverdawn.Core.Trade;
 using WarriorsOfEverdawn.Level;
 using WarriorsOfEverdawn.Util;
 
 namespace WarriorsOfEverdawn.Main;
 
+// Where a seller stands in the town and which way they face.
+public sealed record SellerSpot(SellerDefinition Seller, Vector3 Position, float Yaw);
+
 // The arena's two fortresses and what they mean in play: the allied town, where players start, get back up and are
-// safe, and the enemy fortress, where the waves rise. Built on every machine from the same two layout files. Also
+// safe, and the enemy fortress, where the waves rise. Each is a courtyard with a room off either side. Built on every machine from the same two layout files. Also
 // the way round the walls: a navigation mesh baked from the solids, for skeletons and bots.
 // Design: Docs/Design/level-layouts.md.
 public partial class ArenaMap : Node3D
@@ -18,6 +23,12 @@ public partial class ArenaMap : Node3D
 
     private const string TownPath = "res://config/levels/allied-town.layout.json";
     private const string FortressPath = "res://config/levels/enemy-fortress.layout.json";
+
+    // A layout's marker named this and a seller's id is where that seller stands.
+    private const string SellerMarker = "seller-";
+
+    // The areas that make up the ground inside a fortress's walls.
+    private static readonly string[] InsideAreas = { "courtyard", "room", "door" };
 
     // A walker's path is worked out again this often, or when it reaches the corner it was heading for.
     private const float PathLifetime = 0.25f;
@@ -38,7 +49,9 @@ public partial class ArenaMap : Node3D
     private List<Vector3> _playerSpawns = new();
     private List<Vector3> _enemySpawns = new();
     private List<LayoutArea> _safe = new();
-    private List<LayoutArea> _courtyards = new();
+    private List<LayoutArea> _fortressGround = new();
+    private List<Vector3> _rooms = new();
+    private List<SellerSpot> _sellers = new();
     private float _clock;
 
     // The camera whose view walls are faded out of, and who it is looking at.
@@ -50,10 +63,15 @@ public partial class ArenaMap : Node3D
 
     public IReadOnlyList<LayoutArea> SafeAreas => _safe;
 
-    // The ground inside the enemy fortress's walls, and the middle of its gate.
-    public LayoutArea Fortress => _courtyards[^1];
+    // The enemy fortress's courtyard, and the middle of its gate.
+    public LayoutArea FortressCourtyard { get; private set; } = null!;
 
     public Vector3 FortressGate { get; private set; }
+
+    // A spot to stand on in each room of both fortresses.
+    public IReadOnlyList<Vector3> Rooms => _rooms;
+
+    public IReadOnlyList<SellerSpot> SellerSpots => _sellers;
 
     // Walkers that asked for a way and got none (the mesh not ready, or no way through): they went straight.
     public int StraightSteps { get; private set; }
@@ -81,17 +99,30 @@ public partial class ArenaMap : Node3D
         _enemySpawns = fortress.Layout.MarkersNamed("enemy-spawn").Select(ToGodot).ToList();
         _safe = town.Layout.AreasNamed("safe").ToList();
         FortressGate = ToGodot(fortress.Layout.MarkersNamed("gate").Single());
-        _courtyards = new[] { town, fortress }.SelectMany(l => l.Layout.AreasNamed("courtyard")).ToList();
-        if (_playerSpawns.Count == 0 || _enemySpawns.Count == 0 || _safe.Count == 0 || _courtyards.Count != 2)
+        FortressCourtyard = fortress.Layout.AreasNamed("courtyard").Single();
+        _fortressGround = InsideAreas.SelectMany(fortress.Layout.AreasNamed).ToList();
+        _rooms = new[] { town, fortress }.SelectMany(l => l.Layout.MarkersNamed("room")).Select(ToGodot).ToList();
+        if (_playerSpawns.Count == 0 || _enemySpawns.Count == 0 || _safe.Count == 0)
         {
             throw new InvalidOperationException(
                 $"The fortress layouts lack what the arena needs: {_playerSpawns.Count} player spawns, {_enemySpawns.Count} enemy spawns, "
-                + $"{_safe.Count} safe areas, {_courtyards.Count} courtyards");
+                + $"{_safe.Count} safe areas");
         }
 
         foreach (var gate in town.Layout.AreasNamed("gate"))
         {
             AddChild(BuildWard(gate));
+        }
+
+        // A seller is walked round like any solid, so each is stood here before the ways are worked out.
+        _sellers = town.Layout.MarkersStarting(SellerMarker)
+            .Select(m => new SellerSpot(SellerNamed(m.Who), ToGodot(m.Marker.Position), m.Marker.Yaw))
+            .ToList();
+        foreach (var spot in _sellers)
+        {
+            var body = new StaticBody3D { Name = $"{spot.Seller.Id}Body", Position = spot.Position, CollisionLayer = CollisionLayers.World, CollisionMask = 0 };
+            body.AddChild(CharacterRig.CreateCapsule());
+            AddChild(body);
         }
 
         BakeWays();
@@ -133,8 +164,19 @@ public partial class ArenaMap : Node3D
     // Where a player gets back up.
     public Vector3 RevivePointFor(long peerId) => PlayerSpawnFor((int)(peerId % _playerSpawns.Count));
 
-    // Inside the town's walls: skeletons neither come here nor aim at anyone here, and nothing of theirs hurts here.
+    // Inside the town's walls, its rooms included: skeletons neither come here nor aim at anyone here, and nothing of
+    // theirs hurts here.
     public bool IsSafe(Vector3 position) => _safe.Any(a => a.Contains(Yaw.ToGround(position)));
+
+    // Inside the enemy fortress's walls: its courtyard, its rooms and the doorways between.
+    public bool InFortress(Vector3 position) => _fortressGround.Any(a => a.Contains(Yaw.ToGround(position)));
+
+    // Whether the ways lead from one spot to the other, round the walls and through the gates and doorways.
+    public bool HasWay(Vector3 from, Vector3 to)
+    {
+        var path = NavigationServer3D.MapGetPath(GetWorld3D().NavigationMap, from, to, optimize: true);
+        return path.Length > 0 && Flat(path[^1] - to).Length() < CornerReached;
+    }
 
     // The direction to walk from where `walker` stands toward `to`, round the walls. Straight there when the way is
     // clear, when the navigation mesh has no path, or before it is ready (counted in StraightSteps).
@@ -197,6 +239,18 @@ public partial class ArenaMap : Node3D
 
         AddChild(new NavigationRegion3D { Name = "Ways", NavigationMesh = mesh });
         GD.Print($"[level] navigation: {mesh.GetPolygonCount()} polygons");
+    }
+
+    private static SellerDefinition SellerNamed(string id)
+    {
+        try
+        {
+            return Sellers.ById(id);
+        }
+        catch (KeyNotFoundException e)
+        {
+            throw new InvalidOperationException($"The town's layout stands a seller nobody knows: {e.Message}", e);
+        }
     }
 
     private static StaticBody3D BuildWard(LayoutArea gate)

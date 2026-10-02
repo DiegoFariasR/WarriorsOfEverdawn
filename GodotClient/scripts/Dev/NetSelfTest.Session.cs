@@ -13,7 +13,7 @@ namespace WarriorsOfEverdawn.Dev;
 public partial class NetSelfTest
 {
     // What comes and goes with the fight is checked on its own and left out here: skeletons and damage numbers (the two
-    // lifetimes above), gold on the ground ([loot-check]; gold nobody walks over lies there for good), the HP bars
+    // lifetimes above), gold and orbs on the ground ([loot-check]; what nobody walks over lies there for good), the HP bars
     // over the living ([ui-check]) and arrows in flight ([ranged-check]). What must stay flat is the rest, at its
     // fewest in each wave: a leak is there at every moment. A player with an empty hand or back is fewer nodes than
     // one carrying both weapons (each is on the model and on every dash ghost), so a sample is taken only while every

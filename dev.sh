@@ -18,8 +18,11 @@ Build and test:
 Godot self-tests (headless):
   net-test          Co-op host + 3 bot clients, one per weapon; asserts movement, combat, visuals and HUD reach every peer
   pvp-test          PvP host + 1 bot client, no skeletons; asserts players hit and damage each other
+  trade-test        For each seller, a host + 1 bot client beside it with gold and orbs; asserts each opens the
+                    shop window, gets what it can pay for, is refused after, and ends with the weapon in hand and
+                    the cost taken
   camera-test       In every camera mode, W must move up the screen and D right; HUD sits on screen
-  smoke             camera-test, net-test and pvp-test in turn; fails if any fails
+  smoke             camera-test, net-test, pvp-test and trade-test in turn; fails if any fails
   playtest          net-test made 2.5 minutes long with a player downed on cue: every net-test gate plus waves,
                     removal of the dead and of damage numbers, a flat node count, and going down and back up
                     --screenshots N   the host runs in an off-screen, minimized window and captures N frames
@@ -27,7 +30,14 @@ Godot self-tests (headless):
 Screenshots (real renderer; off-screen, minimized, unfocused window):
   screenshot        Bot plays solo; saves _staging/screenshot.png after --at seconds (default 6)
                     --frames N --interval S   a series: _staging/screenshot_1.png .. _N.png
-                    --camera 1-4   --no-ui   --no-enemies   --weapon <id>   --back-weapon <id>   (greatsword, quarterstaff, spear, scythe)
+                    --camera 1-4   --zoom 0.5-2 (below 1 is nearer)   --no-ui   --no-enemies   --weapon <id>   --back-weapon <id>   (greatsword, quarterstaff, spear, scythe)
+                    --start-at x,z   the bot starts on that spot of the ground instead of in the town
+                    --orb-chance P   every monster leaves a magic orb P of the time (0 to 1) instead of rarely
+                    --start-gold N   --start-orbs N   --start-armour TIER   the bot starts with that much
+                    --trade-drill   the bot trades with the seller it starts beside
+
+  armour-lineup     The knight in a row in each tier of armour, seen from the front; saves _staging/armour-lineup.png
+                    [Outfit,Outfit,...] shows those outfits instead (models under assets/character_parts)
 
 Measurements:
   swing-survey      Each weapon skill's clip: when the striking point moves fastest (hit time) and how far it reaches
@@ -81,6 +91,10 @@ COOP_CLIENTS=3
 # Waves are not scaled by player count yet, and one wave shared by four bots is gone before the slower weapons get
 # a turn (thrusts and lunges hit twice as hard as swings), so the test sessions triple each wave.
 COOP_WAVE_SCALE=3
+
+# Orbs are rare (a few monsters in a hundred leave one), so the test sessions raise every monster's chance to where
+# each machine is sure to see some fall and be picked up.
+COOP_ORB_CHANCE=0.25
 
 # Long enough for every bot to show each thing the gates read (spins, swings, a lunge, a braced guard, a parry, a
 # swap of sets) with samples to spare; at 32 and 26 one or another came up short about one run in three.
@@ -177,7 +191,7 @@ co_op_session() {
     local logs=$1 host_quit=$2 client_quit=$3
     shift 3
     local failed=0
-    run_session "$logs" "$COOP_CLIENTS" "$host_quit" "$client_quit" --wave-scale "$COOP_WAVE_SCALE" "$@" || failed=1
+    run_session "$logs" "$COOP_CLIENTS" "$host_quit" "$client_quit" --wave-scale "$COOP_WAVE_SCALE" --orb-chance "$COOP_ORB_CHANCE" "$@" || failed=1
 
     local damage_taken_total=0 lunge_hits_total=0 hangings_faded_total=0 spin_dashes_kept=0 spin_dash_tests=0 spin_dashes_seen=0 channelled="" log
     for log in $(session_logs); do
@@ -275,15 +289,17 @@ co_op_session() {
         # The fortresses: the player starts inside the allied town, gets out of it and as far as the enemy fortress, and
         # takes no hit while in the town; no skeleton is ever in the town; every skeleton rises inside the enemy fortress
         # and some get out of it; walls between the camera and the player fade, and banners and torches are found hanging
-        # on walls to fade with them; nobody had to walk straight for want of a way round the walls.
-        gate "$log" "$file" map-check 'v["started_safe"] + 0 == 1 && v["left_town"] + 0 == 1 && v["nearest_to_fortress_gate"] + 0 <= 20 && v["hits_while_safe"] + 0 == 0 && v["enemies_in_town_frames"] + 0 == 0 && v["rose_outside_fortress"] + 0 == 0 && v["enemies_seen"] + 0 >= 1 && v["enemies_left_fortress"] + 0 >= 1 && v["walls_faded_max"] + 0 >= 1 && v["hangings"] + 0 >= 1 && v["straight_steps_after_start"] + 0 == 0' \
-            "players not starting safe or never leaving town, skeletons in the town or rising outside their fortress or never leaving it, walls never fading, nothing hung on them, or no way found round the walls" || failed=1
+        # on walls to fade with them; the ways lead from where players start into each of the four rooms; nobody had to
+        # walk straight for want of a way round the walls.
+        gate "$log" "$file" map-check 'v["started_safe"] + 0 == 1 && v["left_town"] + 0 == 1 && v["nearest_to_fortress_gate"] + 0 <= 20 && v["hits_while_safe"] + 0 == 0 && v["enemies_in_town_frames"] + 0 == 0 && v["rose_outside_fortress"] + 0 == 0 && v["enemies_seen"] + 0 >= 1 && v["enemies_left_fortress"] + 0 >= 1 && v["walls_faded_max"] + 0 >= 1 && v["hangings"] + 0 >= 1 && v["rooms"] + 0 == 4 && v["rooms_with_a_way_in"] + 0 == v["rooms"] + 0 && v["straight_steps_after_start"] + 0 == 0' \
+            "players not starting safe or never leaving town, skeletons in the town or rising outside their fortress or never leaving it, walls never fading, nothing hung on them, a room with no way in, or no way found round the walls" || failed=1
 
-        # Monsters leave gold: every machine sees piles fall and be picked up, and what it shows on the ground matches what
-        # it was told, a coin stack for each pile lying and no other (the playtest's leak check leaves gold out for that);
-        # every player has earned gold and souls, and the HUD shows what it has.
-        gate "$log" "$file" loot-check 'v["piles_seen"] + 0 >= 1 && v["piles_taken_seen"] + 0 >= 1 && v["piles_on_ground"] + 0 == v["piles_seen"] - v["piles_taken_seen"] && v["gold_here"] + 0 >= 1 && v["souls_here"] + 0 >= 1 && v["purse_mismatch_frames"] + 0 == 0 && v["pile_model_mismatch_frames"] + 0 == 0' \
-            "no gold dropped or picked up, coin stacks not matching the piles on the ground, none earned, or the HUD showing other amounts" || failed=1
+        # Monsters leave gold and, at the sessions' raised chance, magic orbs: every machine sees both fall and be picked
+        # up, and what it shows on the ground matches what it was told, a model for each thing lying and no other (the
+        # playtest's leak check leaves them out for that); every player has earned gold, orbs and souls, and the HUD
+        # shows what it has.
+        gate "$log" "$file" loot-check 'v["piles_seen"] + 0 >= 1 && v["piles_taken_seen"] + 0 >= 1 && v["piles_on_ground"] + 0 == v["piles_seen"] - v["piles_taken_seen"] && v["orbs_seen"] + 0 >= 1 && v["orbs_taken_seen"] + 0 >= 1 && v["orbs_on_ground"] + 0 == v["orbs_seen"] - v["orbs_taken_seen"] && v["gold_here"] + 0 >= 1 && v["orbs_here"] + 0 >= 1 && v["souls_here"] + 0 >= 1 && v["purse_mismatch_frames"] + 0 == 0 && v["loot_model_mismatch_frames"] + 0 == 0' \
+            "no gold or no orb dropped or picked up, models not matching what lies on the ground, none earned, or the HUD showing other amounts" || failed=1
 
         # A dash thrown with the attack button carries a thrust: every bot lunges, every machine sees it, the thrust's hit
         # window closes within two physics frames of the dash ending, and the weapon then reaches as far as the lunge's range.
@@ -339,7 +355,7 @@ co_op_session() {
 
     # The host decides loot, and its player is there from the first monster: it has exactly the gold collected (never
     # more than fell) and one soul for every monster it saw die.
-    gate host "$logs/host.log" loot-check 'v["gold_here"] + 0 == v["gold_collected"] + 0 && v["gold_collected"] + 0 <= v["gold_dropped"] + 0 && v["souls_here"] + 0 == v["deaths_since_here"] + 0' \
+    gate host "$logs/host.log" loot-check 'v["gold_here"] + 0 == v["gold_collected"] + 0 && v["gold_collected"] + 0 <= v["gold_dropped"] + 0 && v["orbs_here"] + 0 == v["orbs_collected"] + 0 && v["souls_here"] + 0 == v["deaths_since_here"] + 0' \
         "the host's player has other gold than was collected, or other souls than monsters died" || failed=1
 
     # The host decides arrow hits; bots keep moving, but arrows still find them (8 of 11 in the first run).
@@ -389,6 +405,13 @@ net_test() {
 # net-test's session made long (several waves) with one player taken down on cue, plus the checks only a long
 # session can make: waves keep coming, the dead and the damage numbers are removed on time, the node count stays
 # flat from wave to wave, and a downed player stays put and gets back up at full HP.
+# A spot to stand on inside one of the town's rooms, as x,z, from its layout.
+town_room_spot() {
+    python -c 'import json, sys
+spot = next(m["position"] for m in json.load(open(sys.argv[1]))["markers"] if m["name"] == "room")
+print(f"{spot[0]},{spot[2]}")' "$PROJECT/config/levels/allied-town.layout.json"
+}
+
 playtest() {
     local shots=0
     while [ $# -gt 0 ]; do
@@ -399,7 +422,11 @@ playtest() {
     done
     build || return 1
     local logs="$ROOT/_staging/playtest" failed=0
-    SESSION_HOST_SHOTS=$shots co_op_session "$logs" "$PLAYTEST_HOST_SECONDS" "$PLAYTEST_CLIENT_SECONDS" --down-at "$PLAYTEST_DOWN_AT" || failed=1
+    # Players start inside a room of the town, so each of them has to walk out through its doorway for the map
+    # check's left_town; the net-test, starting them in the courtyard, only asks the ways for a path into each room.
+    local room
+    room=$(town_room_spot) || { echo "FAIL: no room marker in the town's layout"; return 1; }
+    SESSION_HOST_SHOTS=$shots co_op_session "$logs" "$PLAYTEST_HOST_SECONDS" "$PLAYTEST_CLIENT_SECONDS" --down-at "$PLAYTEST_DOWN_AT" --start-at "$room" || failed=1
 
     local downed_on="" log
     for log in $(session_logs); do
@@ -462,6 +489,107 @@ pvp_test() {
     return "$failed"
 }
 
+# The drill gets a seller's first three offers and is refused a fourth. At the weaponsmith, exactly the gold for
+# three plain weapons.
+TRADE_TEST_GOLD=150
+
+# At the blacksmith the players start in the last tier of armour had for gold alone, with exactly what the weapon in
+# hand made +1, the one on the back made +1 and the next tier of armour, the first paid in gold and orbs, come to.
+TRADE_TEST_SMITH_ARMOUR=2
+TRADE_TEST_SMITH_GOLD=280
+TRADE_TEST_SMITH_ORBS=3
+
+# The sellers the town's layout stands, by id, on one line: Windows Python ends each line it prints with a carriage
+# return, which would stay on every id but the last.
+town_sellers() {
+    python -c 'import json, sys
+markers = json.load(open(sys.argv[1]))["markers"]
+print(" ".join(m["name"][len("seller-"):] for m in markers if m["name"].startswith("seller-")))' "$PROJECT/config/levels/allied-town.layout.json"
+}
+
+# A spot a step and a half in front of that seller, where a customer stands, as x,z, from the town's layout: well
+# inside the seller's reach, so a bot's first step does not take it out.
+town_spot_beside_seller() {
+    python -c 'import json, math, sys
+seller = next(m for m in json.load(open(sys.argv[1]))["markers"] if m["name"] == "seller-" + sys.argv[2])
+(x, _, z), yaw = seller["position"], seller["yaw"]
+print(f"{x + 1.5 * math.sin(yaw):.2f},{z + 1.5 * math.cos(yaw):.2f}")' "$PROJECT/config/levels/allied-town.layout.json" "$1"
+}
+
+# One session of the trade test: a host and a client beside one seller.
+trade_session() {
+    local seller=$1 logs=$2 failed=0 spot
+    spot=$(town_spot_beside_seller "$seller") || { echo "FAIL $seller: no marker for it in the town's layout"; return 1; }
+    local means=(--start-gold "$TRADE_TEST_GOLD")
+    if [ "$seller" = blacksmith ]; then
+        means=(--start-gold "$TRADE_TEST_SMITH_GOLD" --start-orbs "$TRADE_TEST_SMITH_ORBS" --start-armour "$TRADE_TEST_SMITH_ARMOUR")
+    fi
+    run_session "$logs" 1 14 11 --no-enemies --start-at "$spot" "${means[@]}" --trade-drill || failed=1
+
+    local log
+    for log in host client1; do
+        local file="$logs/$log.log"
+        grep -E '^\[(trade-check|trade-host)\]' "$file" | sed "s/^/$seller $log: /"
+        # The window: the prompt shows beside the seller, the window opens once, for this seller, and closes, has its
+        # nine slots with the seller's offers in them and is no bigger than the game's window (a headless run has no
+        # screen to fit it on), and the player stands still while it is open.
+        gate "$seller $log" "$file" trade-check 'v["sellers"] + 0 >= 1 && v["prompt_frames"] + 0 >= 1 && v["opened"] + 0 == 1 && v["closed"] + 0 == 1 && v["seller"] == "'"$seller"'" && v["slots"] + 0 == v["slots_wanted"] + 0 && v["items"] + 0 >= 1 && v["window_fits"] + 0 == 1 && v["moved_while_trading"] + 0 <= 0.05 && v["drill_done"] + 0 == 1' \
+            "no seller or prompt, the shop window not opening for this seller or closing once, its slots or offers missing, it being bigger than the game's window, or the player moving while it is open" || failed=1
+        # The trade: it gets the seller's first three offers, the window then says it cannot pay for another, the host
+        # refuses it too, the gold and orbs left are what it started with less what it paid, the weapons in its hand and
+        # on its back are what those purchases leave, and the armour got is worn and shown on the HUD.
+        gate "$seller $log" "$file" trade-check 'v["bought"] + 0 >= 1 && v["gold_here"] + 0 == v["gold_start"] - v["spent"] && v["orbs_here"] + 0 == v["orbs_start"] - v["orbs_spent"] && v["bought"] + 0 == 3 && v["refused_by_window"] + 0 >= 1 && v["refused_by_host"] + 0 >= 1 && v["in_hand"] == v["expected_in_hand"] && v["on_back"] == v["expected_on_back"] && v["armour_here"] + 0 == v["expected_armour"] + 0 && v["armour_shown"] + 0 == v["armour_here"] + 0' \
+            "not three things got, the gold or orbs not matching what was paid, something it could not pay for not refused by the window or by the host, the weapons got not in hand and on the back, or the armour got not worn or not shown" || failed=1
+        # The look: both players' figures on this machine wear the parts of the armour each has, but for the frames in
+        # which it changes (two measured: the host arms a player as it joins, a frame before the figure's first of
+        # its own), and this one's is the look of its tier, which is another than it came to the seller in when the
+        # seller is the one who betters armour.
+        gate "$seller $log" "$file" trade-check 'v["figures"] + 0 == 2 && v["undressed_frames_on_end"] + 0 <= 5 && v["outfit_here"] == v["outfit_wanted"] && (v["outfit_here"] != v["outfit_start"]) == ("'"$seller"'" == "blacksmith")' \
+            "a player's figure not dressed in the look of the armour it wears, or the look changing without the armour (or not with it)" || failed=1
+        check_log_errors "$seller $log" "$file" || failed=1
+
+        # What the host holds for this player, and sees in its hand, is what the player's own machine has. Whole
+        # entries are compared as plain text: an improved weapon's id has a + in it.
+        local me hand gold orbs armour
+        me=$(grep -E '^\[trade-check\]' "$file" | grep -oE 'me=[0-9]+' | cut -d= -f2)
+        hand=$(grep -E '^\[trade-check\]' "$file" | grep -oE ' in_hand=[^ ]+' | cut -d= -f2)
+        gold=$(grep -E '^\[trade-check\]' "$file" | grep -oE 'gold_here=[0-9]+' | cut -d= -f2)
+        orbs=$(grep -E '^\[trade-check\]' "$file" | grep -oE 'orbs_here=[0-9]+' | cut -d= -f2)
+        armour=$(grep -E '^\[trade-check\]' "$file" | grep -oE 'armour_here=[0-9]+' | cut -d= -f2)
+        local field want
+        for field in "hands $hand" "gold $gold" "orbs $orbs" "armour $armour"; do
+            set -- $field
+            want="$me:$2"
+            if ! grep -E '^\[trade-host\]' "$logs/host.log" | grep -oE " $1=[^ ]*" | cut -d= -f2 | tr ',' '\n' | grep -Fxq "$want"; then
+                echo "FAIL $seller $log: the host's $1 do not have $want ($(grep -E '^\[trade-host\]' "$logs/host.log"))"
+                failed=1
+            fi
+        done
+    done
+
+    local buyers
+    buyers=$(count_positive_peers "$logs/host.log" trade-host sold)
+    if [ "$buyers" -ne 2 ]; then
+        echo "FAIL $seller host: expected sales to both players, got $buyers"
+        failed=1
+    fi
+
+    return "$failed"
+}
+
+trade_test() {
+    build || return 1
+    local logs="$ROOT/_staging/trade-test" failed=0 sellers seller
+    sellers=$(town_sellers) || { echo "FAIL: could not read the sellers from the town's layout"; return 1; }
+    [ -n "$sellers" ] || { echo "FAIL: the town's layout stands no seller"; return 1; }
+    for seller in $sellers; do
+        trade_session "$seller" "$logs/$seller" || failed=1
+    done
+
+    [ "$failed" -eq 0 ] && echo "trade-test passed ($(echo $sellers | tr ' ' ','))" || echo "trade-test FAILED (logs: $logs)"
+    return "$failed"
+}
+
 camera_test() {
     build || return 1
     local log="$ROOT/_staging/camera-test.log"
@@ -481,6 +609,15 @@ camera_test() {
 
 # Captures need a real renderer (headless draws nothing), so this is the one AI-run launch with a window: placed
 # off-screen, and the game minimizes it without taking focus (--ai-playtest). A bot plays solo so there is combat.
+# The armour tiers side by side, or the outfits named (comma-separated), for choosing and checking how armour looks.
+armour_lineup() {
+    local which=(--armour-lineup)
+    [ $# -gt 0 ] && which=(--outfits "$1")
+    screenshot --no-enemies --no-ui --at 1 "${which[@]}" || return 1
+    cp "$ROOT/_staging/screenshot.png" "$ROOT/_staging/armour-lineup.png"
+    echo "armour-lineup: $ROOT/_staging/armour-lineup.png"
+}
+
 screenshot() {
     local args=(--bot)
     while [ $# -gt 0 ]; do
@@ -489,6 +626,15 @@ screenshot() {
             --frames) args+=(--shots "$2"); shift 2 ;;
             --interval) args+=(--shot-interval "$2"); shift 2 ;;
             --camera) args+=(--camera "$2"); shift 2 ;;
+            --zoom) args+=(--zoom "$2"); shift 2 ;;
+            --armour-lineup) args+=(--armour-lineup); shift ;;
+            --outfits) args+=(--outfits "$2"); shift 2 ;;
+            --start-at) args+=(--start-at "$2"); shift 2 ;;
+            --orb-chance) args+=(--orb-chance "$2"); shift 2 ;;
+            --start-gold) args+=(--start-gold "$2"); shift 2 ;;
+            --start-orbs) args+=(--start-orbs "$2"); shift 2 ;;
+            --start-armour) args+=(--start-armour "$2"); shift 2 ;;
+            --trade-drill) args+=(--trade-drill); shift ;;
             --no-ui) args+=(--no-ui); shift ;;
             --no-enemies) args+=(--no-enemies); shift ;;
             --weapon) args+=(--weapon "$2"); shift 2 ;;
@@ -528,7 +674,7 @@ swing_survey() {
 # Runs every self-test even after a failure, so one report covers them all.
 smoke() {
     local failed=() name
-    for name in camera-test net-test pvp-test; do
+    for name in camera-test net-test pvp-test trade-test; do
         echo "== $name"
         "${name//-/_}" || failed+=("$name")
     done
@@ -536,7 +682,7 @@ smoke() {
         echo "smoke FAILED: ${failed[*]}"
         return 1
     fi
-    echo "smoke passed (camera-test, net-test, pvp-test)"
+    echo "smoke passed (camera-test, net-test, pvp-test, trade-test)"
 }
 
 case "${1:-help}" in
@@ -546,10 +692,12 @@ case "${1:-help}" in
     import) timeout 300 "$GODOT" --headless --path "$PROJECT" --import --quit ;;
     net-test) net_test ;;
     pvp-test) pvp_test ;;
+    trade-test) trade_test ;;
     camera-test) camera_test ;;
     smoke) smoke ;;
     playtest) shift; playtest "$@" ;;
     swing-survey) swing_survey ;;
+    armour-lineup) shift; armour_lineup "$@" ;;
     level-fortresses) shift; python "$ROOT/Tools/level_fortresses.py" "$@" ;;
     level-audit) shift; python "$ROOT/Tools/level_audit.py" "$@" ;;
     screenshot) shift; screenshot "$@" ;;

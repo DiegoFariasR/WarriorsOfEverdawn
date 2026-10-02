@@ -6,7 +6,7 @@ With no layout named, audits every *.layout.json under GodotClient/config/levels
   - an asset or texture file is missing, or a placement names an asset the layout does not list;
   - two solid pieces run into each other (walls and pillars may: they are built to join);
   - a marker stands inside a solid, or closer to one than a character's body;
-  - a solid stands in an area named "gate";
+  - a solid stands in an area named "gate", or one other than the doorway itself in an area named "door";
   - a piece lies off the ground.
 Adapted from Everdawn's Tools/level_audit.py, which checks its side-view battle stages.
 """
@@ -45,7 +45,8 @@ def audit(path, verbose):
     if errors:
         return errors
 
-    solids = []
+    # Every solid, and those among them that block as their whole box does (a doorway blocks as its mesh does).
+    solids, boxes = [], []
     for i, p in enumerate(layout["placements"]):
         if p["asset"] not in assets:
             errors.append(f"placement {i}: asset {p['asset']!r} is not in the layout's assets")
@@ -59,6 +60,12 @@ def audit(path, verbose):
                 continue
             rect = lc.footprint_rect(assets[p["asset"]], p["position"], lc.yaw_of(p["rotation"]), p["scale"][0])
             solids.append((p["asset"], rect))
+            if p.get("shape") not in (None, "mesh"):
+                errors.append(f"{p['asset']} at ({x}, {z}): shape {p['shape']!r}, expected \"mesh\" or none")
+            if p.get("shape") is None:
+                boxes.append((p["asset"], rect))
+        elif "shape" in p:
+            errors.append(f"{p['asset']} at ({x}, {z}): a shape on a piece that is not solid")
 
     for i, (name_a, rect_a) in enumerate(solids):
         for name_b, rect_b in solids[i + 1:]:
@@ -74,13 +81,13 @@ def audit(path, verbose):
                 errors.append(f"marker {marker['name']} at ({x}, {z}) has no room: {name} is in the way")
 
     for area in layout.get("areas", []):
-        if area["name"] != "gate":
+        if area["name"] not in ("gate", "door"):
             continue
         (x0, z0), (x1, z1) = area["min"], area["max"]
         opening = ((x0 + x1) / 2, (z0 + z1) / 2, (x1 - x0) / 2, (z1 - z0) / 2, 0.0)
-        for name, rect in solids:
+        for name, rect in solids if area["name"] == "gate" else boxes:
             if lc.rects_overlap(opening, rect, slack=TOUCH):
-                errors.append(f"{name} at ({rect[0]:.1f}, {rect[1]:.1f}) stands in the gate")
+                errors.append(f"{name} at ({rect[0]:.1f}, {rect[1]:.1f}) stands in the {'gate' if area['name'] == 'gate' else 'doorway'}")
 
     if verbose:
         print(f"  {len(layout['placements'])} placements, {len(solids)} solid, {len(layout.get('markers', []))} markers, "

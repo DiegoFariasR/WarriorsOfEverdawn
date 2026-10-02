@@ -4,13 +4,14 @@ using Godot;
 using WarriorsOfEverdawn.Core.Combat;
 using WarriorsOfEverdawn.Core.Loot;
 using WarriorsOfEverdawn.Core.Stats;
+using WarriorsOfEverdawn.Core.Trade;
 using WarriorsOfEverdawn.Main;
 using WarriorsOfEverdawn.Util;
 
 namespace WarriorsOfEverdawn.Player;
 
-// What the host keeps for a player, even though the player's movement is owned by its own peer: its HP, and the gold
-// and souls it has earned.
+// What the host keeps for a player, even though the player's movement is owned by its own peer: its HP, the armour it
+// wears, and the gold, souls and magic orbs it has earned and not yet spent.
 public partial class PlayerVitals : Node
 {
     private static readonly Color DamageColor = new(1f, 0.35f, 0.3f);
@@ -19,6 +20,7 @@ public partial class PlayerVitals : Node
 
     private readonly Health _health = new(PlayerRules.MaxHp);
     private readonly Purse _purse = new();
+    private readonly ArmourWear _wear = new();
 
     [Export]
     public int Hp { get; set; } = PlayerRules.MaxHp;
@@ -28,6 +30,13 @@ public partial class PlayerVitals : Node
 
     [Export]
     public int Souls { get; set; }
+
+    [Export]
+    public int Orbs { get; set; }
+
+    // The tier of armour worn (Armours.AtTier), from 0 for what everyone starts in.
+    [Export]
+    public int Armour { get; set; }
 
     public event Action<int>? Hit;
 
@@ -43,7 +52,7 @@ public partial class PlayerVitals : Node
     {
         var vitals = new PlayerVitals { Name = "Vitals" };
         var config = new SceneReplicationConfig();
-        foreach (var property in new[] { PropertyName.Hp, PropertyName.Gold, PropertyName.Souls })
+        foreach (var property in new[] { PropertyName.Hp, PropertyName.Gold, PropertyName.Souls, PropertyName.Orbs, PropertyName.Armour })
         {
             var path = new NodePath($".:{property}");
             config.AddProperty(path);
@@ -66,7 +75,9 @@ public partial class PlayerVitals : Node
             Rpc(MethodName.ShowGuarded, (int)outcome);
         }
 
-        int through = Player.Weapon is { } weapon ? Guard.DamageThrough(weapon.Guard, outcome, damage) : damage;
+        // The guard takes its share first, then the armour takes its own of what is left.
+        int past = Player.Weapon is { } weapon ? Guard.DamageThrough(weapon.Guard, outcome, damage) : damage;
+        int through = _wear.Through(Armours.AtTier(Armour), past);
         if (through > 0)
         {
             TakeHit(through);
@@ -88,6 +99,33 @@ public partial class PlayerVitals : Node
         _purse.EarnSouls(amount);
         Souls = _purse.Souls;
     }
+
+    // Host only.
+    public void EarnOrbs(int amount)
+    {
+        _purse.EarnOrbs(amount);
+        Orbs = _purse.Orbs;
+    }
+
+    // Host only: the player, `distance` from a seller, asks for this. Its cost is taken when it goes through.
+    public BuyOutcome Buy(TradeItem item, float distance)
+    {
+        var outcome = TradeRules.Buy(_purse, item, distance, Player.IsDowned);
+        Gold = _purse.Gold;
+        Souls = _purse.Souls;
+        Orbs = _purse.Orbs;
+
+        // Armour is the host's to hand over, like the purse it is paid from; a weapon goes to the buyer's own machine.
+        if (outcome == BuyOutcome.Bought && item.Armour is { } armour)
+        {
+            Armour = armour.Tier;
+        }
+
+        return outcome;
+    }
+
+    // Host only.
+    public void Wear(ArmourDefinition armour) => Armour = armour.Tier;
 
     // Damage no guard can stop.
     public void TakeHit(int damage)
@@ -125,21 +163,21 @@ public partial class PlayerVitals : Node
             return;
         }
 
-        SkillDefinition skill;
-        try
-        {
-            skill = Weapons.SkillById(skillId);
-        }
-        catch (KeyNotFoundException e)
-        {
-            GD.PushError($"[Vitals {Player.Name}] {e.Message} (from peer {attackerId})");
-            return;
-        }
-
         var attacker = PlayerCharacter.Find(GetTree(), attackerId);
         if (attacker == null || attacker == Player)
         {
             GD.PushWarning($"[Vitals {Player.Name}] hit from peer {attackerId}, who is gone or is this player; ignored");
+            return;
+        }
+
+        SkillDefinition skill;
+        try
+        {
+            skill = attacker.SkillById(skillId);
+        }
+        catch (KeyNotFoundException e)
+        {
+            GD.PushError($"[Vitals {Player.Name}] {e.Message} (from peer {attackerId})");
             return;
         }
 

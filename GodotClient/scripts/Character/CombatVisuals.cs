@@ -92,7 +92,7 @@ public static class CombatVisuals
     };
 
     public static WeaponLook LookFor(WeaponDefinition weapon) =>
-        LookByWeapon.TryGetValue(weapon.Id, out var look) ? look : throw new KeyNotFoundException($"No model for weapon '{weapon.Id}'");
+        LookByWeapon.TryGetValue(weapon.Kind, out var look) ? look : throw new KeyNotFoundException($"No model for weapon '{weapon.Kind}'");
 
     public static string ClipFor(SkillDefinition skill) =>
         ClipBySkill.TryGetValue(skill.Id, out var clip) ? clip : throw new KeyNotFoundException($"No clip for skill '{skill.Id}'");

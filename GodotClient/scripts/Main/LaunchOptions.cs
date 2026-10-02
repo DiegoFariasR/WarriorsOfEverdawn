@@ -49,6 +49,9 @@ public sealed record LaunchOptions
 
     public CameraMode? Camera { get; init; }
 
+    // For captures: the camera starts this much nearer or further (1 as it is; the camera keeps it within its limits).
+    public float? Zoom { get; init; }
+
     // Host only, for the playtest: seconds in, one player is taken down through the normal damage path.
     public float DownAt { get; init; }
 
@@ -65,6 +68,28 @@ public sealed record LaunchOptions
     public WeaponSets? Sets { get; init; }
 
     public bool SwingSurvey { get; init; }
+
+    // For looking at armour: the player's figure in a row in the field, once per tier of armour, or once per outfit
+    // named here (comma-separated). Null without the flag.
+    public IReadOnlyList<string>? ArmourLineup { get; init; }
+
+    // Host only, for test sessions and for looking at an orb: every monster's chance of leaving a magic orb, in place
+    // of its own, so a short session is sure to see some.
+    public float? OrbChance { get; init; }
+
+    // Host only, for trying the sellers: every player starts with this much gold, and this many orbs.
+    public int StartGold { get; init; }
+
+    public int StartOrbs { get; init; }
+
+    // Host only, for trying armour: every player starts wearing this tier.
+    public int StartArmour { get; init; }
+
+    // For the trade test: the bot trades with the seller it starts beside (NetSelfTest.Trade).
+    public bool TradeDrill { get; init; }
+
+    // Host only, for looking at a place: players start on this spot of the ground instead of in the town.
+    public Godot.Vector3? StartAt { get; init; }
 
     public static LaunchOptions Parse(string[] args)
     {
@@ -88,11 +113,20 @@ public sealed record LaunchOptions
                 "--shot-interval" => options with { Screenshot = ShotOf(options) with { Interval = FloatAfter(args, ref i) } },
                 "--no-ui" => options with { NoUi = true },
                 "--camera" => options with { Camera = CameraAfter(args, ref i) },
+                "--zoom" => options with { Zoom = FloatAfter(args, ref i) },
                 "--down-at" => options with { DownAt = FloatAfter(args, ref i) },
                 "--wave-scale" => options with { WaveScale = PositiveIntAfter(args, ref i) },
                 "--weapon" => options with { Weapon = WeaponAfter(args, ref i) },
                 "--back-weapon" => options with { BackWeapon = WeaponAfter(args, ref i) },
                 "--swing-survey" => options with { SwingSurvey = true },
+                "--armour-lineup" => options with { ArmourLineup = Array.Empty<string>() },
+                "--outfits" => options with { ArmourLineup = ValueAfter(args, ref i).Split(',', StringSplitOptions.RemoveEmptyEntries) },
+                "--start-at" => options with { StartAt = GroundSpotAfter(args, ref i) },
+                "--orb-chance" => options with { OrbChance = ChanceAfter(args, ref i) },
+                "--start-gold" => options with { StartGold = PositiveIntAfter(args, ref i) },
+                "--start-orbs" => options with { StartOrbs = PositiveIntAfter(args, ref i) },
+                "--start-armour" => options with { StartArmour = ArmourTierAfter(args, ref i) },
+                "--trade-drill" => options with { TradeDrill = true },
                 _ => throw new ArgumentException($"Unknown launch argument '{args[i]}'"),
             };
         }
@@ -129,6 +163,32 @@ public sealed record LaunchOptions
         return number is >= 1 and <= CameraModes.Count
             ? (CameraMode)(number - 1)
             : throw new ArgumentException($"--camera needs 1 to {CameraModes.Count}, got {number}");
+    }
+
+    private static int ArmourTierAfter(string[] args, ref int i)
+    {
+        string flag = args[i];
+        int tier = int.Parse(ValueAfter(args, ref i), CultureInfo.InvariantCulture);
+        return tier >= 0 && tier <= Armours.MaxTier ? tier : throw new ArgumentException($"{flag} needs a tier from 0 to {Armours.MaxTier}, got {tier}");
+    }
+
+    private static float ChanceAfter(string[] args, ref int i)
+    {
+        string flag = args[i];
+        float chance = FloatAfter(args, ref i);
+        return chance is >= 0f and <= 1f ? chance : throw new ArgumentException($"{flag} needs a chance from 0 to 1, got {chance}");
+    }
+
+    private static Godot.Vector3 GroundSpotAfter(string[] args, ref int i)
+    {
+        string flag = args[i];
+        string value = ValueAfter(args, ref i);
+        string[] parts = value.Split(',');
+        return parts.Length == 2
+            && float.TryParse(parts[0], NumberStyles.Float, CultureInfo.InvariantCulture, out float x)
+            && float.TryParse(parts[1], NumberStyles.Float, CultureInfo.InvariantCulture, out float z)
+            ? new Godot.Vector3(x, 0f, z)
+            : throw new ArgumentException($"{flag} needs a spot on the ground as x,z, got '{value}'");
     }
 
     private static WeaponDefinition WeaponAfter(string[] args, ref int i)

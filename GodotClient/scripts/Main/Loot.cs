@@ -10,12 +10,13 @@ using WarriorsOfEverdawn.Util;
 
 namespace WarriorsOfEverdawn.Main;
 
-// Gold lying on the ground.
-public sealed record GoldPile(int Id, int Amount, Vector3 Position);
+// Something on the ground to be walked over: a pile of gold of Amount coins, or a magic orb (Amount 1).
+public sealed record GroundLoot(int Id, LootKind Kind, int Amount, Vector3 Position);
 
-// What monsters leave behind. The host decides all of it: every player gets a monster's souls as it dies, and its gold
-// falls in a pile where it died and goes, when any player walks up to it, to every player. Co-op among friends, so
-// nobody races anybody for it. Present on every machine at the same path, for its RPCs. Design: Docs/Design/combat.md.
+// What monsters leave behind. The host decides all of it: every player gets a monster's souls as it dies; its gold
+// falls in a pile where it died, now and then with a magic orb over it, and each goes, when any player walks up to
+// it, to every player. Co-op among friends, so nobody races anybody for it. Present on every machine at the same
+// path, for its RPCs. Design: Docs/Design/combat.md.
 public partial class Loot : Node3D
 {
     public const string NodeName = "Loot";
@@ -26,6 +27,11 @@ public partial class Loot : Node3D
     // Godot's Randf can return exactly 1, which a roll never is.
     private const float BelowOne = 0.999999f;
 
+    private static readonly Color OrbText = new(0.85f, 0.95f, 1f);
+
+    // An orb falls with its monster's gold and is picked up in the same step: its text goes over the gold's.
+    private const float OrbTextAbove = 0.7f;
+
     private static readonly (int UpTo, string Model)[] PileModels =
     {
         (3, "res://assets/props/Money_Coins_Stack_Small.glb"),
@@ -33,17 +39,20 @@ public partial class Loot : Node3D
         (int.MaxValue, "res://assets/props/Money_Coins_Stack_Large.glb"),
     };
 
-    private readonly Dictionary<int, Lying> _piles = new();
+    private readonly Dictionary<int, Lying> _lying = new();
     private readonly RandomNumberGenerator _random = new();
     private int _nextId;
 
-    // On every machine, as a pile falls.
-    public event Action<GoldPile>? GoldDropped;
+    // On every machine, as something falls.
+    public event Action<GroundLoot>? Dropped;
 
-    // On every machine, as a pile is picked up, with the peer who walked up to it.
-    public event Action<GoldPile, long>? GoldTaken;
+    // On every machine, as it is picked up, with the peer who walked up to it.
+    public event Action<GroundLoot, long>? Taken;
 
-    public IEnumerable<GoldPile> Piles => _piles.Values.Select(l => l.Pile);
+    public IEnumerable<GroundLoot> OnGround => _lying.Values.Select(l => l.Loot);
+
+    // Host only, for test sessions: every monster's chance of an orb, in place of its own (--orb-chance).
+    public float? OrbChance { get; set; }
 
     public static Loot In(SceneTree tree) => tree.CurrentScene.GetNode<Loot>(NodeName);
 
@@ -54,9 +63,9 @@ public partial class Loot : Node3D
     // Host: a machine that has just joined learns what already lies on the ground.
     public void SendAllTo(long peer)
     {
-        foreach (var pile in Piles)
+        foreach (var loot in OnGround)
         {
-            RpcId(peer, MethodName.Place, pile.Id, pile.Amount, pile.Position);
+            RpcId(peer, MethodName.Place, loot.Id, (int)loot.Kind, loot.Amount, loot.Position);
         }
     }
 
@@ -68,16 +77,16 @@ public partial class Loot : Node3D
         }
 
         var players = GetTree().GetNodesInGroup(PlayerCharacter.Group).OfType<PlayerCharacter>().ToList();
-        foreach (var lying in _piles.Values.ToList())
+        foreach (var lying in _lying.Values.ToList())
         {
             lying.Age += (float)delta;
-            if (lying.Age < LootRules.GoldSettleTime)
+            if (lying.Age < LootRules.SettleTime)
             {
                 continue;
             }
 
             // The position each player last reported, as for hits on players (Docs/Design/multiplayer.md).
-            var taker = players.FirstOrDefault(p => !p.IsDowned && Flat(p.NetPosition - lying.Pile.Position) <= LootRules.GoldPickupRadius);
+            var taker = players.FirstOrDefault(p => !p.IsDowned && Flat(p.NetPosition - lying.Loot.Position) <= LootRules.PickupRadius);
             if (taker == null)
             {
                 continue;
@@ -85,10 +94,25 @@ public partial class Loot : Node3D
 
             foreach (var player in players)
             {
-                player.Vitals.EarnGold(lying.Pile.Amount);
+                Earn(player.Vitals, lying.Loot);
             }
 
-            Rpc(MethodName.Take, lying.Pile.Id, taker.PeerId);
+            Rpc(MethodName.Take, lying.Loot.Id, taker.PeerId);
+        }
+    }
+
+    private static void Earn(PlayerVitals vitals, GroundLoot loot)
+    {
+        switch (loot.Kind)
+        {
+            case LootKind.Gold:
+                vitals.EarnGold(loot.Amount);
+                break;
+            case LootKind.Orb:
+                vitals.EarnOrbs(loot.Amount);
+                break;
+            default:
+                throw new InvalidOperationException($"Nothing is earned from loot of kind {loot.Kind}");
         }
     }
 
@@ -104,48 +128,76 @@ public partial class Loot : Node3D
             player.Vitals.EarnSouls(enemy.Definition.Souls);
         }
 
-        int gold = enemy.Definition.Gold.Roll(Mathf.Min(_random.Randf(), BelowOne));
+        var at = new Vector3(enemy.GlobalPosition.X, 0f, enemy.GlobalPosition.Z);
+        int gold = enemy.Definition.Gold.Roll(Roll());
         if (gold > 0)
         {
-            var at = enemy.GlobalPosition;
-            Rpc(MethodName.Place, _nextId++, gold, new Vector3(at.X, 0f, at.Z));
+            Rpc(MethodName.Place, _nextId++, (int)LootKind.Gold, gold, at);
+        }
+
+        if (LootRules.DropsOrb(OrbChance ?? enemy.Definition.OrbChance, Roll()))
+        {
+            Rpc(MethodName.Place, _nextId++, (int)LootKind.Orb, 1, at);
         }
     }
 
+    private float Roll() => Mathf.Min(_random.Randf(), BelowOne);
+
     [Rpc(MultiplayerApi.RpcMode.Authority, CallLocal = true, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-    private void Place(int id, int amount, Vector3 at)
+    private void Place(int id, int kind, int amount, Vector3 at)
     {
-        // A machine joining as a pile falls can hear of it twice: once with everyone, once in the catch-up.
-        if (_piles.ContainsKey(id))
+        // A machine joining as something falls can hear of it twice: once with everyone, once in the catch-up.
+        if (_lying.ContainsKey(id))
         {
             return;
         }
 
-        var model = Assets.InstantiateAtOrigin(PileModels.First(m => amount <= m.UpTo).Model);
-        model.Name = $"Gold{id}";
-        model.Scale = Vector3.One * PileScale;
+        var loot = new GroundLoot(id, (LootKind)kind, amount, at);
+        var model = ModelFor(loot);
+        model.Name = $"{loot.Kind}{id}";
         model.Position = at;
         AddChild(model);
 
-        var pile = new GoldPile(id, amount, at);
-        _piles[id] = new Lying(pile, model);
-        GoldDropped?.Invoke(pile);
+        _lying[id] = new Lying(loot, model);
+        Dropped?.Invoke(loot);
+    }
+
+    private static Node3D ModelFor(GroundLoot loot)
+    {
+        switch (loot.Kind)
+        {
+            case LootKind.Gold:
+                var pile = Assets.InstantiateAtOrigin(PileModels.First(m => loot.Amount <= m.UpTo).Model);
+                pile.Scale = Vector3.One * PileScale;
+                return pile;
+            case LootKind.Orb:
+                return MagicOrb.Create();
+            default:
+                throw new InvalidOperationException($"No model for loot of kind {loot.Kind}");
+        }
     }
 
     [Rpc(MultiplayerApi.RpcMode.Authority, CallLocal = true, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
     private void Take(int id, long byPeer)
     {
-        if (!_piles.Remove(id, out var lying))
+        if (!_lying.Remove(id, out var lying))
         {
-            GD.PushError($"[Loot] gold pile {id}, picked up by peer {byPeer}, is not on the ground on this machine");
+            GD.PushError($"[Loot] loot {id}, picked up by peer {byPeer}, is not on the ground on this machine");
             return;
         }
 
         lying.Model.QueueFree();
-        GoldTaken?.Invoke(lying.Pile, byPeer);
+        Taken?.Invoke(lying.Loot, byPeer);
         if (PlayerCharacter.Find(GetTree(), byPeer) is { } taker)
         {
-            FloatingText.Spawn(taker, $"+{lying.Pile.Amount}", UiTheme.GoldHi);
+            if (lying.Loot.Kind == LootKind.Orb)
+            {
+                FloatingText.Spawn(taker, "+1 orb", OrbText, OrbTextAbove);
+            }
+            else
+            {
+                FloatingText.Spawn(taker, $"+{lying.Loot.Amount}", UiTheme.GoldHi);
+            }
         }
     }
 
@@ -153,13 +205,13 @@ public partial class Loot : Node3D
 
     private sealed class Lying
     {
-        public Lying(GoldPile pile, Node3D model)
+        public Lying(GroundLoot loot, Node3D model)
         {
-            Pile = pile;
+            Loot = loot;
             Model = model;
         }
 
-        public GoldPile Pile { get; }
+        public GroundLoot Loot { get; }
 
         public Node3D Model { get; }
 

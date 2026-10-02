@@ -69,7 +69,7 @@ public partial class EnemyDirector : Node
         // They rise inside the enemy fortress, on its spawn spots in a random order, facing its gate.
         var map = ArenaMap.In(GetTree());
         var spots = map.EnemySpawns.OrderBy(_ => _random.Randi()).ToList();
-        var toGate = map.FortressGate - new Vector3(map.Fortress.Centre.X, 0f, map.Fortress.Centre.Y);
+        var toGate = map.FortressGate - new Vector3(map.FortressCourtyard.Centre.X, 0f, map.FortressCourtyard.Centre.Y);
         int placed = 0;
         foreach (var enemy in Enumerable.Repeat(Wave, _waveScale).SelectMany(wave => wave))
         {

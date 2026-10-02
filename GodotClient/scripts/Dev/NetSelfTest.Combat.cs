@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Godot;
 using WarriorsOfEverdawn.Character;
+using WarriorsOfEverdawn.Core.Combat;
 using WarriorsOfEverdawn.Enemy;
 using WarriorsOfEverdawn.Main;
 using WarriorsOfEverdawn.Player;
@@ -16,8 +17,13 @@ public partial class NetSelfTest
     private readonly Dictionary<long, int> _enemyDamageByPeer = new();
     private readonly Dictionary<long, int> _playerDamageByAttacker = new();
     private int _hitsSent;
+
+    // Host: the hardest blow each skill landed. A blow is cut short by what its victim had left, so the hardest is
+    // what tells an improved weapon from a plain one.
+    private readonly SortedDictionary<string, int> _biggestHitBySkill = new();
     private int _enemyDeathsSeen;
     private int _damageTaken;
+    private int _hitsTaken;
     private int _playerHitsSent;
     private int _enemyFlashes;
     private int _playerFlashes;
@@ -31,16 +37,21 @@ public partial class NetSelfTest
             _hitsBySkill[skill.Id] = _hitsBySkill.GetValueOrDefault(skill.Id) + hits;
         };
         player.PlayerHit += _ => _playerHitsSent++;
-        player.Vitals.Hit += amount => _damageTaken += amount;
+        player.Vitals.Hit += amount =>
+        {
+            _damageTaken += amount;
+            _hitsTaken++;
+        };
     }
 
     private void PrintCombatChecks(long me)
     {
-        GD.Print($"[combat-check] me={me} hits_sent={_hitsSent} enemy_deaths_seen={_enemyDeathsSeen} damage_taken={_damageTaken} "
+        GD.Print($"[combat-check] me={me} hits_sent={_hitsSent} enemy_deaths_seen={_enemyDeathsSeen} damage_taken={_damageTaken} hits_taken={_hitsTaken} "
             + $"hits_by_skill={string.Join(",", _hitsBySkill.OrderBy(h => h.Key).Select(h => $"{h.Key}:{h.Value}"))}");
         if (Multiplayer.IsServer())
         {
-            GD.Print($"[combat-host] damage_by_peer={string.Join(",", _enemyDamageByPeer.OrderBy(p => p.Key).Select(p => $"{p.Key}:{p.Value}"))}");
+            GD.Print($"[combat-host] damage_by_peer={string.Join(",", _enemyDamageByPeer.OrderBy(p => p.Key).Select(p => $"{p.Key}:{p.Value}"))} "
+                + $"biggest_hit_by_skill={string.Join(",", _biggestHitBySkill.Select(h => $"{h.Key}:{h.Value}"))}");
         }
 
         GD.Print($"[pvp-check] me={me} pvp={SessionRules.Pvp} hits_on_players={_playerHitsSent}");
@@ -58,8 +69,11 @@ public partial class NetSelfTest
         NoteCorpse(enemy);
     }
 
-    private void OnEnemyDamaged(long attacker, int amount) =>
+    private void OnEnemyDamaged(long attacker, SkillDefinition skill, int amount)
+    {
         _enemyDamageByPeer[attacker] = _enemyDamageByPeer.GetValueOrDefault(attacker) + amount;
+        _biggestHitBySkill[skill.Id] = Mathf.Max(_biggestHitBySkill.GetValueOrDefault(skill.Id), amount);
+    }
 
     // Host only (the event fires where damage is applied).
     private void OnPlayerDamagedByPlayer(long attacker, long victim, int amount) =>

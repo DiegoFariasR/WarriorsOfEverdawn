@@ -15,6 +15,9 @@ public sealed record EnemyDefinition(string Id, int MaxHp, float MoveSpeed, floa
 
     // Given to every player as it dies.
     public int Souls { get; init; } = 1;
+
+    // How often it leaves a magic orb beside its gold, from 0 (never) to 1 (always).
+    public float OrbChance { get; init; }
 }
 
 public static class Enemies
@@ -25,11 +28,13 @@ public static class Enemies
     public static readonly EnemyDefinition SkeletonMinion = new("skeleton-minion", MaxHp: 40, MoveSpeed: 2.6f, AggroRange: MarchRange, AttackCooldown: 1.6f, Skills.MinionChop)
     {
         Gold = new GoldDrop(2, 4),
+        OrbChance = 0.02f,
     };
 
     public static readonly EnemyDefinition SkeletonWarrior = new("skeleton-warrior", MaxHp: 70, MoveSpeed: 2.2f, AggroRange: MarchRange, AttackCooldown: 2.2f, Skills.WarriorChop)
     {
         Gold = new GoldDrop(6, 10),
+        OrbChance = 0.06f,
     };
 
     // Fragile, so reaching it is the answer; it keeps its distance to make that take effort.
@@ -37,6 +42,7 @@ public static class Enemies
     {
         KeepAway = 5f,
         Gold = new GoldDrop(3, 6),
+        OrbChance = 0.03f,
     };
 
     public static IReadOnlyList<EnemyDefinition> All { get; } = new[] { SkeletonMinion, SkeletonWarrior, SkeletonArcher };

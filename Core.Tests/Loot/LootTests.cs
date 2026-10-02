@@ -59,18 +59,64 @@ public class LootTests
         purse.EarnGold(Drop.Max);
         purse.EarnSouls(1);
         purse.EarnSouls(1);
+        purse.EarnOrbs(1);
+        purse.EarnOrbs(1);
+        purse.EarnOrbs(1);
 
         Assert.Equal(Drop.Min + Drop.Max, purse.Gold);
         Assert.Equal(2, purse.Souls);
+        Assert.Equal(3, purse.Orbs);
         Assert.Throws<ArgumentOutOfRangeException>(() => purse.EarnGold(-1));
         Assert.Throws<ArgumentOutOfRangeException>(() => purse.EarnSouls(-1));
+        Assert.Throws<ArgumentOutOfRangeException>(() => purse.EarnOrbs(-1));
     }
 
     [Fact]
-    public void Gold_is_picked_up_from_closer_than_weapons_are_read()
+    public void What_lies_on_the_ground_is_picked_up_from_closer_than_weapons_are_read()
     {
-        Assert.True(LootRules.GoldPickupRadius > 0f);
-        Assert.True(LootRules.GoldPickupRadius < Pickups.LabelRange);
-        Assert.True(LootRules.GoldSettleTime > 0f);
+        Assert.True(LootRules.PickupRadius > 0f);
+        Assert.True(LootRules.PickupRadius < Pickups.LabelRange);
+        Assert.True(LootRules.SettleTime > 0f);
+    }
+
+    [Fact]
+    public void An_orb_drops_on_the_rolls_below_its_chance()
+    {
+        const float Chance = 0.25f;
+
+        Assert.True(LootRules.DropsOrb(Chance, 0f));
+        Assert.True(LootRules.DropsOrb(Chance, Chance - 0.01f));
+        Assert.False(LootRules.DropsOrb(Chance, Chance));
+        Assert.False(LootRules.DropsOrb(Chance, 0.99f));
+    }
+
+    [Fact]
+    public void A_chance_of_none_never_drops_an_orb_and_a_chance_of_one_always_does()
+    {
+        foreach (float roll in new[] { 0f, 0.5f, 0.9999f })
+        {
+            Assert.False(LootRules.DropsOrb(0f, roll));
+            Assert.True(LootRules.DropsOrb(1f, roll));
+        }
+    }
+
+    [Fact]
+    public void Chances_and_rolls_out_of_range_fail_loudly()
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() => LootRules.DropsOrb(1.1f, 0f));
+        Assert.Throws<ArgumentOutOfRangeException>(() => LootRules.DropsOrb(-0.1f, 0f));
+        Assert.Throws<ArgumentOutOfRangeException>(() => LootRules.DropsOrb(0.5f, 1f));
+    }
+
+    [Fact]
+    public void Every_monster_can_leave_an_orb_and_seldom_does()
+    {
+        foreach (var enemy in Enemies.All)
+        {
+            Assert.True(enemy.OrbChance > 0f, enemy.Id);
+
+            // Rare next to gold, which every monster always leaves.
+            Assert.True(enemy.OrbChance < 0.5f, enemy.Id);
+        }
     }
 }

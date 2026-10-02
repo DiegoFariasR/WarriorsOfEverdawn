@@ -3,6 +3,7 @@ using System.IO;
 using System.Linq;
 using System.Numerics;
 using WarriorsOfEverdawn.Core.Level;
+using WarriorsOfEverdawn.Core.Trade;
 using Xunit;
 
 namespace WarriorsOfEverdawn.Core.Tests.Level;
@@ -18,7 +19,8 @@ public class LevelLayoutTests
           {"asset": "wall", "position": [4, 0, -8], "rotation": [0, 0.707107, 0, 0.707107], "scale": [1, 1, 1], "solid": true},
           {"asset": "bone", "position": [1, 0, 2], "rotation": [0, 0, 0, 1], "scale": [1.5, 1.5, 1.5]}
          ],
-         "markers": [{"name": "gate", "position": [0, 0, 14]}, {"name": "spawn", "position": [1, 0, 19]}, {"name": "spawn", "position": [-1, 0, 19]}],
+         "markers": [{"name": "gate", "position": [0, 0, 14]}, {"name": "spawn", "position": [1, 0, 19]}, {"name": "spawn", "position": [-1, 0, 19]},
+                     {"name": "seller-smith", "position": [3, 0, 20], "yaw": 1.5}],
          "areas": [{"name": "safe", "min": [-9.5, 14.5], "max": [9.5, 29.5]}]
         }
         """;
@@ -41,6 +43,50 @@ public class LevelLayoutTests
         Assert.Single(layout.Textures);
         Assert.Empty(layout.Meshes);
         Assert.Empty(layout.Lights);
+    }
+
+    [Fact]
+    public void A_marker_someone_stands_on_says_who_and_which_way_they_face()
+    {
+        var layout = LevelLayout.Parse(Minimal, "minimal");
+
+        var (who, marker) = Assert.Single(layout.MarkersStarting("seller-"));
+        Assert.Equal("smith", who);
+        Assert.Equal(1.5f, marker.Yaw);
+        Assert.Equal(new Vector3(3f, 0f, 20f), marker.Position);
+        Assert.All(layout.Markers.Where(m => m != marker), m => Assert.Equal(0f, m.Yaw));
+        Assert.Empty(layout.MarkersStarting("gate"));
+    }
+
+    [Fact]
+    public void Every_seller_has_a_place_to_stand_inside_the_towns_safe_ground()
+    {
+        var town = Load("allied-town");
+        var safe = town.AreasNamed("safe").ToList();
+        var standing = town.MarkersStarting("seller-").ToList();
+
+        Assert.Equal(Sellers.All.Select(s => s.Id).OrderBy(id => id), standing.Select(s => s.Who).OrderBy(id => id));
+        Assert.All(standing, s => Assert.Contains(safe, a => a.Contains(new Vector2(s.Marker.Position.X, s.Marker.Position.Z))));
+        Assert.Empty(Load("enemy-fortress").MarkersStarting("seller-"));
+    }
+
+    [Fact]
+    public void A_solid_blocks_as_its_box_unless_it_follows_its_mesh()
+    {
+        string doorway = Minimal.Replace("\"solid\": true", "\"solid\": true, \"shape\": \"mesh\"");
+
+        Assert.False(LevelLayout.Parse(Minimal, "minimal").Placements[0].FollowsMesh);
+        Assert.True(LevelLayout.Parse(doorway, "doorway").Placements[0].FollowsMesh);
+    }
+
+    [Fact]
+    public void A_shape_on_a_piece_that_is_not_solid_and_an_unknown_shape_fail_loudly()
+    {
+        string notSolid = Minimal.Replace("\"scale\": [1.5, 1.5, 1.5]", "\"scale\": [1.5, 1.5, 1.5], \"shape\": \"mesh\"");
+        string unknown = Minimal.Replace("\"solid\": true", "\"solid\": true, \"shape\": \"sphere\"");
+
+        Assert.Throws<FormatException>(() => LevelLayout.Parse(notSolid, "not-solid"));
+        Assert.Throws<FormatException>(() => LevelLayout.Parse(unknown, "unknown-shape"));
     }
 
     [Fact]
@@ -88,21 +134,52 @@ public class LevelLayoutTests
     }
 
     [Fact]
-    public void Players_start_inside_the_towns_safe_area_and_waves_rise_outside_it()
+    public void Players_start_inside_the_towns_safe_ground_and_waves_rise_outside_it()
     {
         var town = Load("allied-town");
         var fortress = Load("enemy-fortress");
-        var safe = Assert.Single(town.AreasNamed("safe"));
+        var safe = town.AreasNamed("safe").ToList();
+        bool IsSafe(Vector3 p) => safe.Any(a => a.Contains(new Vector2(p.X, p.Z)));
 
         Assert.NotEmpty(town.MarkersNamed("player-spawn"));
-        Assert.All(town.MarkersNamed("player-spawn"), p => Assert.True(safe.Contains(new Vector2(p.X, p.Z))));
+        Assert.All(town.MarkersNamed("player-spawn"), p => Assert.True(IsSafe(p)));
         Assert.NotEmpty(fortress.MarkersNamed("enemy-spawn"));
-        Assert.All(fortress.MarkersNamed("enemy-spawn"), p => Assert.False(safe.Contains(new Vector2(p.X, p.Z))));
+        Assert.All(fortress.MarkersNamed("enemy-spawn"), p => Assert.False(IsSafe(p)));
         Assert.Empty(fortress.AreasNamed("safe"));
 
         // The gate is the way in, so it is not part of the safe ground itself.
-        var gate = town.MarkersNamed("gate").Single();
-        Assert.False(safe.Contains(new Vector2(gate.X, gate.Z)));
+        Assert.False(IsSafe(town.MarkersNamed("gate").Single()));
+    }
+
+    [Fact]
+    public void Each_fortress_has_a_room_off_either_side_with_a_doorway_to_walk_through()
+    {
+        foreach (string name in Fortresses)
+        {
+            var layout = Load(name);
+            var courtyard = Assert.Single(layout.AreasNamed("courtyard"));
+            var rooms = layout.AreasNamed("room").ToList();
+            var doors = layout.AreasNamed("door").ToList();
+
+            Assert.Equal(2, rooms.Count);
+            Assert.Contains(rooms, r => r.Max.X < courtyard.Min.X);
+            Assert.Contains(rooms, r => r.Min.X > courtyard.Max.X);
+            Assert.Equal(rooms.Count, doors.Count);
+            Assert.Equal(rooms.Count, layout.Placements.Count(p => p.FollowsMesh));
+
+            // A doorway's clear ground reaches from the courtyard into its room, and each room has a spot to stand on.
+            Assert.All(rooms, r => Assert.Contains(doors, d => d.Max.X > r.Min.X && d.Min.X < r.Max.X && d.Max.X > courtyard.Min.X && d.Min.X < courtyard.Max.X));
+            Assert.All(rooms, r => Assert.Single(layout.MarkersNamed("room"), m => r.Contains(new Vector2(m.X, m.Z))));
+        }
+    }
+
+    [Fact]
+    public void The_towns_rooms_and_doorways_are_safe_ground_too()
+    {
+        var town = Load("allied-town");
+        var safe = town.AreasNamed("safe").ToList();
+
+        Assert.All(town.AreasNamed("room").Concat(town.AreasNamed("door")), a => Assert.Contains(a with { Name = "safe" }, safe));
     }
 
     private static LevelLayout Load(string name)

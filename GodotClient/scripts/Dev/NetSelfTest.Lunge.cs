@@ -26,7 +26,8 @@ public partial class NetSelfTest
     private float _lungeReach;
     private bool _dashingForward;
 
-    private static bool IsLunge(SkillDefinition? skill) => skill != null && Weapons.All.Any(w => w.Lunge == skill);
+    // By id: an improved weapon's lunge is its plain one hitting harder.
+    private static bool IsLunge(SkillDefinition? skill) => skill != null && Weapons.All.Any(w => w.Lunge.Id == skill.Id);
 
     private void TrackLunges(PlayerCharacter player)
     {
