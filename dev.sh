@@ -11,7 +11,7 @@ Usage: ./dev.sh <command>
 
 Build and test:
   build             Build the solution (Core, Core.Tests, GodotClient)
-  test              Run Core.Tests
+  test              Run the Core tests, then the character kit's (GodotClient/kit)
   format            dotnet format the solution (Core, Core.Tests, GodotClient)
   import            Headless asset import (run after copying assets in)
 
@@ -25,7 +25,10 @@ Godot self-tests (headless):
                     shop window, gets what it can pay for (or sells what it carries), is refused after, and ends
                     with the right weapons in hand and the cost taken or the pay given
   camera-test       In every camera mode, W must move up the screen and D right; HUD sits on screen
-  smoke             camera-test, net-test, pvp-test, trade-test and magic-test in turn; fails if any fails
+  wall-test         Bolts, balls and arrows loosed at a wall, from afar and from against it, must end at it
+  parts-test        Every part of the catalogue put on a figure, and 200 figures drawn at random from each pool
+  smoke             camera-test, wall-test, parts-test, net-test, pvp-test, trade-test and magic-test in turn; fails
+                    if any fails
   playtest          net-test made 2.5 minutes long with a player downed on cue: every net-test gate plus waves,
                     removal of the dead and of damage numbers, a flat node count, and going down and back up
                     --screenshots N   the host runs in an off-screen, minimized window and captures N frames
@@ -51,6 +54,16 @@ Screenshots (real renderer; off-screen, minimized, unfocused window):
 Measurements:
   swing-survey      Each weapon skill's clip: when the striking point moves fastest (hit time) and how far it reaches
 
+Assets:
+  look-lineup       Figures in a row, seen from the front; saves _staging/look-lineup.png. [cast] is the player,
+                    the enemies and the sellers; [townsfolk] or [skeletons] eight figures drawn at random from that
+                    pool ([townsfolk@40] from seed 40 on); [Druid,Witch] those characters as they were made
+                    ([Druid:bare] with nothing on)
+  gold-lineup       Every pile gold falls in, one coin to ten, in a row on the ground; saves
+                    _staging/gold-lineup-low.png (seen as from behind a player) and -high.png (from above)
+  gold-piles        Rebuild the gold piles (two to ten coins) from the one coin, with Blender in
+                    the background; then ./dev.sh import
+
 Levels:
   level-fortresses  Generate the two fortress layouts (GodotClient/config/levels/*.layout.json); --seed N, --out-dir D
   level-audit       Audit level layouts without Godot: missing files, solids run together, markers or a gate blocked
@@ -70,7 +83,18 @@ User only (open a window; blocked for AI sessions):
 EOF
 }
 
+# The character kit shared with Everdawn, a git submodule: a clone made without it has an empty folder there.
+KIT="$ROOT/GodotClient/kit"
+
+need_kit() {
+    if [ ! -f "$KIT/core/EverdawnKit.Core.csproj" ]; then
+        echo "The character kit is missing at GodotClient/kit: run 'git submodule update --init'"
+        return 1
+    fi
+}
+
 build() {
+    need_kit || return 1
     dotnet build "$ROOT/WarriorsOfEverdawn.slnx" -nologo -v q
 }
 
@@ -259,7 +283,7 @@ co_op_session() {
         # The game prints its own limits and expectations, so these checks never go stale when Core is retuned.
         gate "$log" "$file" turn-check 'v["max_turn_deg_s"] + 0 <= v["limit_deg_s"] * 1.01 && v["frames_at_limit"] + 0 >= 1' \
             "character turned faster than its limit, or the limit never came into play" || failed=1
-        gate "$log" "$file" head-check '(v["player_head"] - v["head_expected"]) ^ 2 < 0.0001 && (v["player_headgear"] - v["headgear_expected"]) ^ 2 < 0.0001 && (v["enemy_head"] - v["head_expected"]) ^ 2 < 0.0001 && (v["enemy_headgear"] - v["headgear_expected"]) ^ 2 < 0.0001' \
+        gate "$log" "$file" head-check '(v["player_head"] - v["head_expected"]) ^ 2 < 0.0001 && (v["enemy_head"] - v["head_expected"]) ^ 2 < 0.0001 && (v["enemy_headgear"] - v["headgear_expected"]) ^ 2 < 0.0001' \
             "head or headgear meshes not at Everdawn's scales on players and skeletons" || failed=1
         # Clip seconds per real second while swings play, against the player's attack speed.
         gate "$log" "$file" speed-check 'v["samples"] + 0 >= 20 && (v["swing_playback_rate"] - v["expected"]) ^ 2 < 0.01' \
@@ -774,6 +798,53 @@ camera_test() {
     echo "camera-test passed"
 }
 
+wall_test() {
+    build || return 1
+    local log="$ROOT/_staging/wall-test.log"
+    mkdir -p "$ROOT/_staging"
+    timeout 60 "$GODOT" --headless --path "$PROJECT" -- --wall-check --no-enemies > "$log" 2>&1
+    local status=$?
+    grep -E '^\[wall-check\]' "$log"
+    if [ "$status" -ne 0 ] || ! grep -qE '^\[wall-check\] passed$' "$log"; then
+        echo "wall-test FAILED (exit $status, log: $log)"
+        return 1
+    fi
+    echo "wall-test passed"
+}
+
+parts_test() {
+    build || return 1
+    local log="$ROOT/_staging/parts-test.log"
+    mkdir -p "$ROOT/_staging"
+    timeout 120 "$GODOT" --headless --path "$PROJECT" -- --parts-check --no-enemies > "$log" 2>&1
+    local status=$?
+    grep -E '^\[parts-check\]' "$log"
+    if [ "$status" -ne 0 ] || ! grep -qE '^\[parts-check\] passed$' "$log"; then
+        echo "parts-test FAILED (exit $status, log: $log)"
+        return 1
+    fi
+    echo "parts-test passed"
+}
+
+# Every pile gold falls in, one coin to ten, in a row on the ground: once from low, as from behind a player, and
+# once from high, as the cameras that look down see them.
+gold_lineup() {
+    local view height
+    for view in low:1.6 high:5; do
+        height="${view#*:}"
+        screenshot --no-enemies --no-ui --at 1 --gold-lineup "$height" > /dev/null || return 1
+        cp "$ROOT/_staging/screenshot.png" "$ROOT/_staging/gold-lineup-${view%%:*}.png"
+        echo "gold-lineup: $ROOT/_staging/gold-lineup-${view%%:*}.png"
+    done
+}
+
+# Figures in a row, for looking at what the parts make: the game's cast, a pool's random figures, a character.
+look_lineup() {
+    screenshot --no-enemies --no-ui --at 1 --look-lineup "${1:-cast}" || return 1
+    cp "$ROOT/_staging/screenshot.png" "$ROOT/_staging/look-lineup.png"
+    echo "look-lineup: $ROOT/_staging/look-lineup.png"
+}
+
 # The armour tiers side by side, or the outfits named (comma-separated), for choosing and checking how armour looks.
 armour_lineup() {
     local which=(--armour-lineup)
@@ -829,6 +900,8 @@ screenshot() {
             --weapon-lineup) args+=(--weapon-lineup "$2"); shift 2 ;;
             --magic-lineup) args+=(--magic-lineup "$2"); shift 2 ;;
             --magic-barriers) args+=(--magic-barriers); shift ;;
+            --look-lineup) args+=(--look-lineup "$2"); shift 2 ;;
+            --gold-lineup) args+=(--gold-lineup "$2"); shift 2 ;;
             --start-at) args+=(--start-at "$2"); shift 2 ;;
             --orb-chance) args+=(--orb-chance "$2"); shift 2 ;;
             --start-gold) args+=(--start-gold "$2"); shift 2 ;;
@@ -858,6 +931,26 @@ screenshot() {
 }
 
 # Where each weapon skill's hit time and range come from (Dev/SwingSurvey.cs); read it before setting them in Core.
+# Blender, for the tools that build models. No window: it runs in the background.
+BLENDER="${BLENDER:-C:/Program Files/Blender Foundation/Blender 5.2/blender.exe}"
+
+gold_piles() {
+    if [ ! -f "$BLENDER" ]; then
+        echo "gold-piles: no Blender at '$BLENDER' (set BLENDER to its executable)"
+        return 1
+    fi
+    local log="$ROOT/_staging/gold-piles.log"
+    mkdir -p "$ROOT/_staging"
+    timeout 300 "$BLENDER" --background --factory-startup --python-exit-code 1 --python "$ROOT/Tools/gold_piles.py" < /dev/null > "$log" 2>&1
+    local status=$?
+    grep -E '^\[gold-piles\]' "$log"
+    if [ "$status" -ne 0 ]; then
+        echo "gold-piles FAILED (exit $status, log: $log)"
+        return 1
+    fi
+    echo "gold-piles: run ./dev.sh import for the game to see them"
+}
+
 swing_survey() {
     build || return 1
     local log="$ROOT/_staging/swing-survey.log"
@@ -875,7 +968,7 @@ swing_survey() {
 # Runs every self-test even after a failure, so one report covers them all.
 smoke() {
     local failed=() name
-    for name in camera-test net-test pvp-test trade-test magic-test; do
+    for name in camera-test wall-test parts-test net-test pvp-test trade-test magic-test; do
         echo "== $name"
         "${name//-/_}" || failed+=("$name")
     done
@@ -883,12 +976,12 @@ smoke() {
         echo "smoke FAILED: ${failed[*]}"
         return 1
     fi
-    echo "smoke passed (camera-test, net-test, pvp-test, trade-test, magic-test)"
+    echo "smoke passed (camera-test, wall-test, parts-test, net-test, pvp-test, trade-test, magic-test)"
 }
 
 case "${1:-help}" in
     build) build ;;
-    test) dotnet test "$ROOT/Core.Tests/Core.Tests.csproj" ;;
+    test) need_kit && dotnet test "$ROOT/Core.Tests/Core.Tests.csproj" && dotnet test "$KIT/tests/EverdawnKit.Core.Tests.csproj" ;;
     format) shift; dotnet format "$ROOT/WarriorsOfEverdawn.slnx" "$@" ;;
     import) timeout 300 "$GODOT" --headless --path "$PROJECT" --import --quit ;;
     net-test) net_test ;;
@@ -896,12 +989,17 @@ case "${1:-help}" in
     trade-test) trade_test ;;
     magic-test) magic_test ;;
     camera-test) camera_test ;;
+    wall-test) wall_test ;;
+    parts-test) parts_test ;;
     smoke) smoke ;;
     playtest) shift; playtest "$@" ;;
     swing-survey) swing_survey ;;
     armour-lineup) shift; armour_lineup "$@" ;;
     weapon-lineup) shift; weapon_lineup "$@" ;;
     magic-lineup) shift; magic_lineup "$@" ;;
+    look-lineup) shift; look_lineup "$@" ;;
+    gold-lineup) gold_lineup ;;
+    gold-piles) gold_piles ;;
     level-fortresses) shift; python "$ROOT/Tools/level_fortresses.py" "$@" ;;
     level-audit) shift; python "$ROOT/Tools/level_audit.py" "$@" ;;
     screenshot) shift; screenshot "$@" ;;

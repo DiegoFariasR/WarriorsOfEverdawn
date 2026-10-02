@@ -7,13 +7,17 @@ public static class FloatingText
 {
     private const float StartHeight = 2.8f;
     private const float Rise = 1f;
+
+    // Clear of the body and of the bar and statuses over it, as the camera sees them (Overhead).
+    private const float Girth = 1.1f;
     public const float Duration = 0.8f;
 
     private const int FontSize = 64;
     private const int OutlineSize = 12;
 
     // `above` lifts it clear of another text spawned over the same anchor at the same moment; `scale` writes it
-    // larger or smaller than the rest.
+    // larger or smaller than the rest. It starts over the anchor and rises up the screen, whichever way the camera
+    // looks: rising through the world, it would not move at all seen from straight above.
     public static void Spawn(Node3D anchor, string text, Color color, float above = 0f, float scale = 1f)
     {
         var label = new Label3D
@@ -29,10 +33,12 @@ public static class FloatingText
             NoDepthTest = true,
         };
         anchor.GetTree().CurrentScene.AddChild(label);
-        label.GlobalPosition = anchor.GlobalPosition + Vector3.Up * (StartHeight + above);
+        var camera = anchor.GetViewport().GetCamera3D();
+        var up = Overhead.Up(camera);
+        label.GlobalPosition = Overhead.Point(camera, anchor.GlobalPosition, StartHeight, Girth) + up * above;
 
         var tween = label.CreateTween().SetParallel();
-        tween.TweenProperty(label, "global_position", label.GlobalPosition + Vector3.Up * Rise, Duration);
+        tween.TweenProperty(label, "global_position", label.GlobalPosition + up * Rise, Duration);
         tween.TweenProperty(label, "modulate:a", 0f, Duration);
         tween.TweenProperty(label, "outline_modulate:a", 0f, Duration);
         tween.Chain().TweenCallback(Callable.From(label.QueueFree));

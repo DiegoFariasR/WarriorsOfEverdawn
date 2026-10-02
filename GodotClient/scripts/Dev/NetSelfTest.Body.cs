@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Linq;
+using EverdawnKit.Characters;
 using Godot;
 using WarriorsOfEverdawn.Character;
 using WarriorsOfEverdawn.Core;
@@ -34,7 +35,6 @@ public partial class NetSelfTest
     private float _maxTurnRate;
     private int _turnLimitedFrames;
     private float _playerHead = float.NaN;
-    private float _playerHeadgear = float.NaN;
     private float _enemyHead = float.NaN;
     private float _enemyHeadgear = float.NaN;
     private readonly List<float> _handsApartRunning = new();
@@ -47,7 +47,7 @@ public partial class NetSelfTest
         var twist = player.Animator.Twist;
         twist.ModificationProcessed += () => MeasureTorso(player, twist);
         twist.ModificationProcessed += () => MeasureCarry(player);
-        MeasureHeads(player.Skeleton, out _playerHead, out _playerHeadgear);
+        MeasureHeads(player.Skeleton, out _playerHead, out _);
     }
 
     private void PrintBodyChecks(long me)
@@ -60,8 +60,8 @@ public partial class NetSelfTest
             + $"twist_samples={_twistedSamples} with_twist_deg={Mathf.RadToDeg(withTwist):F1} without_twist_deg={Mathf.RadToDeg(withoutTwist):F1} signed_by_legs={byLegs}");
         float swingRate = _swingRates.Count > 0 ? _swingRates.OrderBy(r => r).ElementAt(_swingRates.Count / 2) : float.NaN;
         GD.Print($"[speed-check] me={me} ground_speed={_groundSpeeds} swing_playback_rate={swingRate:F2} expected={LocalPlayer()?.AttackSpeed:F2} samples={_swingRates.Count}");
-        GD.Print($"[head-check] me={me} head_expected={CharacterRig.HeadScale:F3} headgear_expected={CharacterRig.HeadgearScale:F3} "
-            + $"player_head={_playerHead:F3} player_headgear={_playerHeadgear:F3} enemy_head={_enemyHead:F3} enemy_headgear={_enemyHeadgear:F3}");
+        GD.Print($"[head-check] me={me} head_expected={CharacterBody.HeadScale:F3} headgear_expected={CharacterBody.HeadgearScale:F3} "
+            + $"player_head={_playerHead:F3} enemy_head={_enemyHead:F3} enemy_headgear={_enemyHeadgear:F3}");
         float handsApart = _handsApartRunning.Count > 0 ? _handsApartRunning.OrderBy(d => d).ElementAt(_handsApartRunning.Count / 2) : float.NaN;
         GD.Print($"[carry-check] me={me} hands_apart_running={handsApart:F2} samples={_handsApartRunning.Count} "
             + $"hands_apart_running_one_handed={Median(_handsApartRunningOneHanded):F2} one_handed_samples={_handsApartRunningOneHanded.Count} "
@@ -184,23 +184,20 @@ public partial class NetSelfTest
         _lastAim = local.AimYaw;
     }
 
-    // The scale actually on a live character's head and headgear meshes. Headgear is either skinned beside the head
-    // (the Knight's helmet) or hung on the head bone by the importer (the skeleton warrior's).
+    // The scale actually on a live character's head and headgear meshes: the part in its head slot, and an
+    // accessory the head carries, skinned beside the head or hung on the head bone (the skeleton warrior's helmet).
+    // Players are bare-headed, so headgear is read off the skeletons.
     private static void MeasureHeads(Skeleton3D skeleton, out float head, out float headgear)
     {
         head = float.NaN;
         headgear = float.NaN;
-        var meshes = skeleton.GetChildren().OfType<MeshInstance3D>()
-            .Concat(skeleton.GetChildren().OfType<BoneAttachment3D>().Where(a => a.BoneName == "head")
-                .SelectMany(a => a.GetChildren().OfType<MeshInstance3D>()));
-        foreach (var mesh in meshes)
+        foreach (var (mesh, part, slot) in CharacterBody.PartsOn(skeleton))
         {
-            float expected = CharacterRig.HeadScaleOf(mesh.Name);
-            if (expected == CharacterRig.HeadScale)
+            if (slot == CharacterSlot.Head)
             {
                 head = mesh.Transform.Basis.Scale.Y;
             }
-            else if (expected == CharacterRig.HeadgearScale)
+            else if (slot == CharacterSlot.Accessory && CharacterBody.Catalog.Get(part).OnHead)
             {
                 headgear = mesh.Transform.Basis.Scale.Y;
             }

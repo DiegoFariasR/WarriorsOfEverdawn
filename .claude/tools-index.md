@@ -7,16 +7,20 @@ Quick lookup for `./dev.sh` subcommands and `Tools/*.py` scripts. Subagents refe
 | Want to... | Use |
 |---|---|
 | Build everything | `./dev.sh build` |
-| Run the Core tests | `./dev.sh test` |
+| Run the Core tests and the character kit's | `./dev.sh test` |
 | Format the C# | `./dev.sh format` (`--verify-no-changes` to only check) |
 | Import copied-in assets | `./dev.sh import` |
 | Check a client change end to end (movement, combat, animation, VFX, HUD, dash, guard, across 3 peers) | `./dev.sh net-test` |
 | Check player-on-player hits and damage | `./dev.sh pvp-test` |
 | Check sellers, the shop window, purchases, weapon and armour improvements and selling (cost taken, pay given, weapon delivered or gone, refusals) | `./dev.sh trade-test` |
 | Check camera modes, controls mapping and HUD layout | `./dev.sh camera-test` |
+| Check that bolts, balls and arrows stop at walls | `./dev.sh wall-test` |
+| Check that every character part goes on a figure, and that random figures can be made | `./dev.sh parts-test` |
 | Check magic: bolts and volleys thrown, landed and seen by others, area spells, a wand's bursts, barriers taking blows and coming back, enchanted weapons showing their element | `./dev.sh magic-test` |
 | Run all the self-tests (the client regression gate) | `./dev.sh smoke` |
 | See every tier of armour on the Knight from the front, or try other outfits on it | `./dev.sh armour-lineup [Outfit,Outfit,...]` -> `_staging/armour-lineup.png` |
+| See figures from the front: the game's cast, random ones from a pool, or a character as it was made | `./dev.sh look-lineup [cast\|townsfolk\|skeletons@40\|Druid,Witch:bare]` -> `_staging/look-lineup.png` |
+| See every pile gold falls in, one coin to ten, from low and from above | `./dev.sh gold-lineup` -> `_staging/gold-lineup-low.png`, `-high.png` |
 | See every staff casting (area spell, bolt or dart), or each inside its barrier | `./dev.sh magic-lineup [fire,void,...|barriers]` -> `_staging/magic-lineup.png` (nothing named: all eight, as `magic-lineup-1.png` and `-2.png`) |
 | See a weapon in the hands from the front: stance, guard, each skill as it lands, on the back, on the ground | `./dev.sh weapon-lineup <weapon id>` -> `_staging/weapon-lineup.png` |
 | Measure a weapon skill's hit time and reach from its clip (standing and moving), or when a ranged enemy's shot leaves | `./dev.sh swing-survey` |
@@ -28,6 +32,7 @@ Quick lookup for `./dev.sh` subcommands and `Tools/*.py` scripts. Subagents refe
 | Check the refactor queue's references still resolve | `./dev.sh audit-refactors` (`--id N`, `--match <text>`, `--by-status`) |
 | Check agents, skills and this index reference real things | `./dev.sh lint-agents` |
 | Catch unwrapped headless Godot launches in `dev.sh` | `./dev.sh check-godot-timeouts` |
+| Change how the gold piles look (how many stacks, how they stand) | Edit `Tools/gold_piles.py`, then `./dev.sh gold-piles` and `./dev.sh import` |
 | Change the fortresses (walls, props, spawn points, the safe area) | Edit `Tools/level_fortresses.py`, then `./dev.sh level-fortresses` |
 | Check a level layout before launching Godot (solids run together, a blocked gate or spawn point, missing files) | `./dev.sh level-audit` |
 | Point this repo's user-level auto-memory at `.claude/memory/` | `python Tools/setup_memory_junction.py` (`--dry-run` first) |
@@ -42,6 +47,8 @@ Quick lookup for `./dev.sh` subcommands and `Tools/*.py` scripts. Subagents refe
 | `./dev.sh magic-test` | `_staging/magic-test/host.log`, `client1.log` .. `client4.log` | `[magic-check]`, `[magic-host]` |
 | `./dev.sh playtest` | `_staging/playtest/host.log`, `client1.log`, `client2.log` | everything net-test reads, plus `[wave-check]`, `[leak-check]`, `[down-check]` |
 | `./dev.sh camera-test` | `_staging/camera-test.log` | `[camera-check]`, `[layout-check]` |
+| `./dev.sh wall-test` | `_staging/wall-test.log` | `[wall-check]` |
+| `./dev.sh parts-test` | `_staging/parts-test.log` | `[parts-check]` |
 
 Each check prints its own expectation next to the measurement (`limit_deg_s`, `head_expected`, ...), so the log alone says why a gate failed.
 
@@ -58,6 +65,7 @@ Each check prints its own expectation next to the measurement (`limit_deg_s`, `h
 | `Tools/audit_refactors.py` | Backs `./dev.sh audit-refactors` |
 | `Tools/lint_agents.py` | Backs `./dev.sh lint-agents` |
 | `Tools/check_godot_timeouts.py` | Backs `./dev.sh check-godot-timeouts` |
+| `Tools/gold_piles.py` | Backs `./dev.sh gold-piles`: a Blender script (run in the background) that copies the one coin (`Money_Coins_Stack_Single.glb`) into the piles of two to ten coins and writes `GodotClient/assets/props/Money_Coins_Pile_<n>.glb` |
 | `Tools/level_fortresses.py` | Backs `./dev.sh level-fortresses`: writes `GodotClient/config/levels/allied-town.layout.json` and `enemy-fortress.layout.json` |
 | `Tools/level_audit.py` | Backs `./dev.sh level-audit`; also on the health dashboard |
 | `Tools/level_common.py`, `Tools/_glb_stdlib.py` | Shared by the level tools: GLB mesh loading, piece boxes, turned-rectangle tests |

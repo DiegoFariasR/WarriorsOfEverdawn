@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Linq;
+using EverdawnKit.Characters;
 using Godot;
 using WarriorsOfEverdawn.Core.Combat;
 
@@ -208,11 +209,11 @@ public static class CombatVisuals
 
     private static readonly Dictionary<string, EnemyLook> LookByEnemy = new()
     {
-        [Enemies.SkeletonMinion.Id] = new("res://assets/characters/Skeleton_Minion.glb", "res://assets/weapons/Skeleton_Blade.glb"),
-        [Enemies.SkeletonWarrior.Id] = new("res://assets/characters/Skeleton_Warrior.glb", "res://assets/weapons/Skeleton_Axe.glb"),
+        [Enemies.SkeletonMinion.Id] = new(Skeleton("SkeletonMinion", "Cloak"), "res://assets/weapons/Skeleton_Blade.glb"),
+        [Enemies.SkeletonWarrior.Id] = new(Skeleton("SkeletonWarrior", "Helmet", "Cloak"), "res://assets/weapons/Skeleton_Axe.glb"),
 
         // Everdawn's bow (item_visuals.json "basic-bow"): bow_withString, left hand, turned 180 deg about Z.
-        [Enemies.SkeletonArcher.Id] = new("res://assets/characters/Skeleton_Rogue.glb", "res://assets/weapons/bow_withString.glb")
+        [Enemies.SkeletonArcher.Id] = new(Skeleton("SkeletonRogue", "Hood", "Cape"), "res://assets/weapons/bow_withString.glb")
         {
             LeftHand = true,
             WeaponRotation = new Vector3(0f, 0f, Mathf.Pi),
@@ -241,10 +242,14 @@ public static class CombatVisuals
 
     public static EnemyLook LookFor(EnemyDefinition enemy) =>
         LookByEnemy.TryGetValue(enemy.Id, out var look) ? look : throw new KeyNotFoundException($"No model for enemy '{enemy.Id}'");
+
+    // A skeleton as KayKit made it: its skull with its eyes and jaw, which are models of their own.
+    private static CharacterLook Skeleton(string origin, params string[] accessories) =>
+        CharacterLook.Of(origin, accessories) with { Face = $"{origin}_Face" };
 }
 
-// An enemy's model and what it holds, in the right hand unless LeftHand; WeaponRotation turns it in the hand.
-public sealed record EnemyLook(string Model, string Weapon)
+// An enemy's figure and what it holds, in the right hand unless LeftHand; WeaponRotation turns it in the hand.
+public sealed record EnemyLook(CharacterLook Figure, string Weapon)
 {
     public bool LeftHand { get; init; }
 

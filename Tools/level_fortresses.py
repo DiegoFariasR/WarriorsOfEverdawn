@@ -324,9 +324,10 @@ def allied_town(seed):
 
     # The merchant keeps a stall at the back on the right: a trunk of what it has bought, its takings beside it.
     f.put(DUNGEON, "trunk_medium_A", 8.7, -4.0, yaw=-math.pi / 2, solid=True)
-    f.put(PROPS, "Money_Coins_Stack_Large", 7.7, -4.6)
-    f.put(PROPS, "Money_Coins_Stack_Medium", 7.6, -3.4)
-    f.put(PROPS, "Money_Coins_Stack_Small", 7.2, -4.9)
+    f.put(PROPS, "Money_Coins_Pile_10", 7.8, -4.8, scale=0.9)
+    f.put(PROPS, "Money_Coins_Pile_6", 7.7, -3.7, scale=0.9)
+    f.put(PROPS, "Money_Coins_Pile_3", 7.1, -5.1, yaw=math.radians(25), scale=0.9)
+    f.put(PROPS, "Money_Coins_Stack_Single", 7.1, -3.0, scale=0.9)
     f.marker("seller-merchant", 6.8, -4.0, yaw=-math.pi / 2)
 
     # The enchanter keeps to the front of the courtyard on the left, by a shrine of candles.

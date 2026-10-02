@@ -21,8 +21,10 @@ public partial class Loot : Node3D
 {
     public const string NodeName = "Loot";
 
-    // The coin stacks are a hand high as modelled; drawn bigger, they can be seen from the camera's height.
-    private const float PileScale = 1.8f;
+    // A coin is drawn a little smaller than it is modelled: at twice this it lay on the ground the size of a plate.
+    private const float PileScale = 0.9f;
+
+    private const string OneCoin = "res://assets/props/Money_Coins_Stack_Single.glb";
 
     // Godot's Randf can return exactly 1, which a roll never is.
     private const float BelowOne = 0.999999f;
@@ -32,12 +34,10 @@ public partial class Loot : Node3D
     // An orb falls with its monster's gold and is picked up in the same step: its text goes over the gold's.
     private const float OrbTextAbove = 0.7f;
 
-    private static readonly (int UpTo, string Model)[] PileModels =
-    {
-        (3, "res://assets/props/Money_Coins_Stack_Small.glb"),
-        (6, "res://assets/props/Money_Coins_Stack_Medium.glb"),
-        (int.MaxValue, "res://assets/props/Money_Coins_Stack_Large.glb"),
-    };
+    // A pile shows its gold coin for coin, up to LootRules.MostCoinsShown: one coin, two in a row, three in a
+    // triangle, then each further one on top of those three in turn, and the tenth on the middle of them
+    // (Tools/gold_piles.py makes them from the one coin).
+    private static string PileModel(int coins) => coins == 1 ? OneCoin : $"res://assets/props/Money_Coins_Pile_{coins}.glb";
 
     private readonly Dictionary<int, Lying> _lying = new();
     private readonly RandomNumberGenerator _random = new();
@@ -162,14 +162,20 @@ public partial class Loot : Node3D
         Dropped?.Invoke(loot);
     }
 
+    // The pile that much gold lies in, as it is drawn on the ground.
+    public static Node3D Pile(int gold)
+    {
+        var pile = Assets.InstantiateAtOrigin(PileModel(LootRules.CoinsShown(gold)));
+        pile.Scale = Vector3.One * PileScale;
+        return pile;
+    }
+
     private static Node3D ModelFor(GroundLoot loot)
     {
         switch (loot.Kind)
         {
             case LootKind.Gold:
-                var pile = Assets.InstantiateAtOrigin(PileModels.First(m => loot.Amount <= m.UpTo).Model);
-                pile.Scale = Vector3.One * PileScale;
-                return pile;
+                return Pile(loot.Amount);
             case LootKind.Orb:
                 return MagicOrb.Create();
             default:

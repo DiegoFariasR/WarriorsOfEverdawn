@@ -8,7 +8,9 @@ namespace WarriorsOfEverdawn.Main;
 
 // Follows the local player in one of four modes (CameraMode). In the facing modes the mouse is captured and turns
 // the view instantly; the character then turns toward the view at its limited rate (Core Turning.MaxRate). In Behind
-// vertical mouse motion tilts the camera. The mouse wheel scales the camera distance in every mode.
+// vertical mouse motion tilts the camera. The three modes that look down are orthographic (CameraModes.IsOrthographic);
+// the mouse wheel scales how much the view takes in: the camera's distance in Behind, the size of the view in the
+// others.
 public partial class ArenaCamera : Camera3D
 {
     private const float FollowRate = 12f;
@@ -27,6 +29,11 @@ public partial class ArenaCamera : Camera3D
 
     private static readonly Vector3 AngledOffset = new(0f, 16f, 10f);
 
+    // The angled camera stands this many times further off along its view than its offset says. Without
+    // perspective that makes nothing smaller; it keeps what is tall near the bottom of the view (the fortress's
+    // crypt is 8 high) from rising through the camera at the widest zoom.
+    private const float AngledStandOff = 1.2f;
+
     private PlayerCharacter? _target;
     private float _behindPitch = DefaultBehindPitch;
     private float _viewYaw;
@@ -37,7 +44,7 @@ public partial class ArenaCamera : Camera3D
 
     public CameraMode Mode { get; private set; } = CameraModes.Default;
 
-    // Multiplies every mode's distance; clamped to MinZoom..MaxZoom.
+    // Multiplies what the view takes in, in every mode; clamped to MinZoom..MaxZoom.
     public float Zoom
     {
         get => _zoom;
@@ -73,7 +80,10 @@ public partial class ArenaCamera : Camera3D
             ViewYaw = _target.AimYaw;
         }
 
+        // Between a view with perspective and one without there is nothing to glide through.
+        _snapNext |= mode.IsOrthographic() != Mode.IsOrthographic();
         Mode = mode;
+        Projection = mode.IsOrthographic() ? ProjectionType.Orthogonal : ProjectionType.Perspective;
         Input.MouseMode = mode.FollowsFacing() ? Input.MouseModeEnum.Captured : Input.MouseModeEnum.Visible;
         ModeChanged?.Invoke(mode);
     }
@@ -125,33 +135,60 @@ public partial class ArenaCamera : Camera3D
             return;
         }
 
-        var goal = GoalTransform(_target);
         if (_snapNext)
         {
-            GlobalTransform = goal;
+            Snap(_target);
             _snapNext = false;
             return;
         }
 
+        var goal = GoalTransform(_target);
         float blend = 1f - Mathf.Exp(-FollowRate * (float)delta);
         var rotation = GlobalBasis.GetRotationQuaternion().Slerp(goal.Basis.GetRotationQuaternion(), blend);
         GlobalTransform = new Transform3D(new Basis(rotation), GlobalPosition.Lerp(goal.Origin, blend));
+        Size = Mathf.Lerp(Size, ViewHeightAt(_target), blend);
+    }
+
+    // Puts the camera where its mode has it, with no easing.
+    public void Snap(PlayerCharacter target)
+    {
+        GlobalTransform = GoalTransform(target);
+        Size = ViewHeightAt(target);
+    }
+
+    // How much of the world the view takes in from top to bottom where the target stands, in metres: what the
+    // wheel changes. An orthographic mode shows what the same camera would with perspective, at its distance.
+    public float ViewHeightAt(PlayerCharacter target)
+    {
+        float distance = Mode switch
+        {
+            CameraMode.Angled => AngledOffset.Length() * _zoom,
+            CameraMode.TopDown or CameraMode.TopDownTurning => TopDownHeight * _zoom,
+            _ => GoalTransform(target).Origin.DistanceTo(target.GlobalPosition),
+        };
+        return 2f * Mathf.Tan(Mathf.DegToRad(Fov) / 2f) * distance;
     }
 
     public Transform3D GoalTransform(PlayerCharacter target)
     {
         var at = target.GlobalPosition;
         var facing = Yaw.Forward(_viewYaw);
+
+        // An orthographic view is no bigger from further off: its camera stays where it is and its size is zoomed
+        // (ViewHeightAt), which also keeps the haze and the far blur, measured from the camera, where they were.
         return Mode switch
         {
-            CameraMode.Angled => LookFrom(at + AngledOffset * _zoom, at + Vector3.Up * AngledLookHeight, Vector3.Up),
-            CameraMode.TopDown => LookFrom(at + Vector3.Up * (TopDownHeight * _zoom), at, Vector3.Forward),
+            CameraMode.Angled => LookFrom(
+                at + Vector3.Up * AngledLookHeight + (AngledOffset - Vector3.Up * AngledLookHeight) * AngledStandOff,
+                at + Vector3.Up * AngledLookHeight,
+                Vector3.Up),
+            CameraMode.TopDown => LookFrom(at + Vector3.Up * TopDownHeight, at, Vector3.Forward),
             CameraMode.Behind => LookFrom(
                 at - facing * (BehindDistance * _zoom * Mathf.Cos(_behindPitch))
                     + Vector3.Up * (BehindLookHeight + BehindDistance * _zoom * Mathf.Sin(_behindPitch)),
                 at + Vector3.Up * BehindLookHeight,
                 Vector3.Up),
-            CameraMode.TopDownTurning => LookFrom(at + Vector3.Up * (TopDownHeight * _zoom), at, facing),
+            CameraMode.TopDownTurning => LookFrom(at + Vector3.Up * TopDownHeight, at, facing),
             _ => throw new ArgumentOutOfRangeException(nameof(Mode), Mode, null),
         };
     }

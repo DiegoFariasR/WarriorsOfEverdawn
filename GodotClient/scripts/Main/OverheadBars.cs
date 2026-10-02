@@ -5,6 +5,7 @@ using WarriorsOfEverdawn.Core.Combat;
 using WarriorsOfEverdawn.Enemy;
 using WarriorsOfEverdawn.Player;
 using WarriorsOfEverdawn.Theme;
+using WarriorsOfEverdawn.Util;
 
 namespace WarriorsOfEverdawn.Main;
 
@@ -17,6 +18,10 @@ public partial class OverheadBars : Control
     private const float PlayerHeight = 2.1f;
     private static readonly Vector2 BarSize = new(48f, 5f);
     private const float StatusesAbove = 1f;
+
+    // Clear of a body this wide as the camera sees it (Overhead): from above, a bar by its height alone lies
+    // across the head.
+    private const float Girth = 0.6f;
 
     // Everdawn's TeamPlayer.
     private static readonly Color Ally = new(0.200f, 0.400f, 0.900f);
@@ -62,7 +67,7 @@ public partial class OverheadBars : Control
             entry.SetStatuses(target.Statuses);
             entry.Bar.Value = target.Hp;
 
-            var overhead = target.Node.GlobalPosition + Vector3.Up * target.Height;
+            var overhead = Overhead.Point(Camera, target.Node.GlobalPosition, target.Height, Girth);
             entry.Bar.Visible = !Camera.IsPositionBehind(overhead);
             entry.Bar.Position = Camera.UnprojectPosition(overhead) - BarSize / 2f;
         }

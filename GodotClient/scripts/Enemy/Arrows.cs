@@ -12,16 +12,23 @@ namespace WarriorsOfEverdawn.Enemy;
 
 // Every arrow in flight. The host looses them and decides what they hit; every machine flies its own copy of each
 // from the same start along the same straight line, so an arrow costs one message to loose and one more only if it
-// hits. Present on every machine at the same path, for its RPCs. Design: Docs/Design/combat.md.
+// hits, and a wall or anything else solid stops them, on every machine alike. Present on every machine at the same path, for its RPCs. Design: Docs/Design/combat.md.
 public partial class Arrows : Node
 {
     public const string NodeName = "Arrows";
+
+    // Where an arrow leaves the archer: about the bow's height, a little in front of the chest.
+    public const float Height = 1.2f;
+    public const float Leaves = 0.5f;
 
     private readonly Dictionary<int, Flight> _flights = new();
     private int _nextId;
 
     // On every machine, as an arrow starts flying.
     public static event Action? Loosed;
+
+    // On every machine, as one ends, whatever ended it: where.
+    public static event Action<Vector3>? Ended;
 
     // Host only: the player an arrow hit and the damage it took.
     public static event Action<PlayerCharacter, int>? HitPlayer;
@@ -34,8 +41,8 @@ public partial class Arrows : Node
     public static Arrows In(SceneTree tree) => tree.CurrentScene.GetNode<Arrows>(NodeName);
 
     // Host only. Direction is flattened onto the ground: arrows fly level. `damage` is what it deals where it
-    // hits, by the state its archer loosed it in.
-    public void Loose(SkillDefinition attack, int damage, Vector3 from, Vector3 direction)
+    // hits, by the state its archer loosed it in, and `chest` the archer's middle at the height arrows fly at.
+    public void Loose(SkillDefinition attack, int damage, Vector3 chest, Vector3 direction)
     {
         var level = new Vector3(direction.X, 0f, direction.Z);
         if (attack.Projectile == null || level.LengthSquared() < 1e-6f)
@@ -44,17 +51,31 @@ public partial class Arrows : Node
             return;
         }
 
-        Rpc(MethodName.Fly, _nextId++, attack.Id, damage, from, level.Normalized());
+        Rpc(MethodName.Fly, _nextId++, attack.Id, damage, chest, level.Normalized());
     }
 
     public override void _PhysicsProcess(double delta)
     {
+        var space = GetViewport().World3D.DirectSpaceState;
         foreach (var (id, flight) in _flights.ToList())
         {
             var projectile = flight.Attack.Projectile!;
             var before = flight.Position;
             flight.Age += (float)delta;
             flight.Travelled = Mathf.Min(flight.Travelled + projectile.Speed * (float)delta, projectile.MaxDistance);
+
+            // The world stops it, the same on every machine, before any body further along the step is looked at.
+            // Its first step is looked at from the archer's chest: an archer against a wall has its bow hand in
+            // the wall, and a line that starts inside a wall meets nothing.
+            var wall = Walls.Hit(space, flight.Leaving ?? before, flight.Position);
+            flight.Leaving = null;
+            if (wall is { } stopped)
+            {
+                flight.Travelled = Mathf.Max(0f, (stopped - flight.From).Dot(flight.Direction));
+                Remove(id);
+                continue;
+            }
+
             flight.Node.GlobalPosition = flight.Position;
 
             // The latest position each player reported, as for skeletons' swings (Docs/Design/multiplayer.md).
@@ -82,8 +103,9 @@ public partial class Arrows : Node
     }
 
     [Rpc(MultiplayerApi.RpcMode.Authority, CallLocal = true, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-    private void Fly(int id, string attackId, int damage, Vector3 from, Vector3 direction)
+    private void Fly(int id, string attackId, int damage, Vector3 chest, Vector3 direction)
     {
+        var from = chest + direction * Leaves;
         SkillDefinition attack;
         try
         {
@@ -101,7 +123,7 @@ public partial class Arrows : Node
         var along = -direction;
         node.Basis = new Basis(along.Cross(Vector3.Up), along, Vector3.Up);
         AddChild(node);
-        _flights[id] = new Flight(attack, damage, from, direction, node);
+        _flights[id] = new Flight(attack, damage, chest, from, direction, node);
         node.GlobalPosition = from;
         Loosed?.Invoke();
     }
@@ -115,15 +137,17 @@ public partial class Arrows : Node
         if (_flights.Remove(id, out var flight))
         {
             flight.Node.QueueFree();
+            Ended?.Invoke(flight.Position);
         }
     }
 
     private sealed class Flight
     {
-        public Flight(SkillDefinition attack, int damage, Vector3 from, Vector3 direction, Node3D node)
+        public Flight(SkillDefinition attack, int damage, Vector3 chest, Vector3 from, Vector3 direction, Node3D node)
         {
             Attack = attack;
             Damage = damage;
+            Leaving = chest;
             From = from;
             Direction = direction;
             Node = node;
@@ -138,6 +162,9 @@ public partial class Arrows : Node
         public Vector3 Direction { get; }
 
         public Node3D Node { get; }
+
+        // The archer's chest, until its first step has been looked at for walls.
+        public Vector3? Leaving { get; set; }
 
         public float Travelled { get; set; }
 

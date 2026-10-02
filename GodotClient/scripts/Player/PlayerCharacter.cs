@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using EverdawnKit.Characters;
 using Godot;
 using WarriorsOfEverdawn.Character;
 using WarriorsOfEverdawn.Core;
@@ -24,12 +25,13 @@ public partial class PlayerCharacter : CharacterBody3D
     public const int Primary = WeaponDefinition.PrimaryButton;
     public const int Secondary = WeaponDefinition.SecondaryButton;
 
-    public const string ModelPath = "res://assets/characters/Knight.glb";
+    // Every player's figure, before its armour: the Knight, bare-headed as Everdawn's heroes are. With its great
+    // helm on, the widest thing on the figure, the head read as far too big from the cameras here.
+    public static readonly CharacterLook Look = CharacterLook.Of("Knight", "Cape");
     private const float SyncInterval = 0.05f;
     private const float RemoteFollowRate = 15f;
     private const float BodyTurnRate = 12f;
     // A bolt starts this far in front of the caster, clear of its own body.
-    private const float BoltLeaves = 0.6f;
 
     private const float MovingThreshold = 0.2f;
 
@@ -231,22 +233,19 @@ public partial class PlayerCharacter : CharacterBody3D
 
         player._model = new Node3D { Name = "Model" };
         player.AddChild(player._model);
-        var body = Assets.Instantiate(ModelPath);
-        ToonLook.Apply(body);
+        var body = ArmourLook.Build(Look, player._armourShown);
         player._model.AddChild(body);
         var look = CombatVisuals.LookFor(WeaponSets.Default.Active!);
         var backLook = CombatVisuals.LookFor(WeaponSets.Default.Stowed!);
         player._hand = CharacterRig.AttachToHand(body, look);
         player._offHand = CharacterRig.AttachOffHand(body, look);
         player._back = CharacterRig.AttachToBack(body, backLook);
-        CharacterRig.ShrinkHead(body);
-        player.Skeleton = body.GetNode<Skeleton3D>(RigAnimations.SkeletonPath);
-        ArmourLook.Wear(player.Skeleton, player._armourShown);
+        player.Skeleton = CharacterBody.SkeletonOf(body);
         player.Trail = new WeaponTrail(player._hand, TrailTint) { Name = "Trail" };
         player.AddChild(player.Trail);
         player.Flash = new HitFlash(body) { Name = "HitFlash" };
         player.AddChild(player.Flash);
-        player.Ghosts = new GhostTrail(body, ModelPath, look, backLook) { Name = "Ghosts" };
+        player.Ghosts = new GhostTrail(body, ArmourLook.Dressed(Look, player._armourShown), look, backLook) { Name = "Ghosts" };
         player.AddChild(player.Ghosts);
         player._spellArea = new SpellArea { Name = "SpellArea" };
         player.AddChild(player._spellArea);
@@ -521,8 +520,8 @@ public partial class PlayerCharacter : CharacterBody3D
         }
 
         _armourShown = Vitals.Armour;
-        ArmourLook.Wear(Skeleton, _armourShown);
-        Ghosts.SetArmour(_armourShown);
+        ArmourLook.Wear(Skeleton, Look, _armourShown);
+        Ghosts.SetFigure(ArmourLook.Dressed(Look, _armourShown));
     }
 
     // Brings the weapons shown in hand and on the back in line with WeaponId and StowedWeaponId.
@@ -598,7 +597,7 @@ public partial class PlayerCharacter : CharacterBody3D
             && _swingElapsed >= (skill.HitTime + _swingLoosed * skill.VolleyInterval) / _swingSpeed)
         {
             _swingLoosed++;
-            Rpc(MethodName.LooseBolt, _boltsThrown++, skill.Id, GlobalPosition + Vector3.Up * Bolts.Height + Yaw.Forward(AimYaw) * BoltLeaves, AimYaw);
+            Rpc(MethodName.LooseBolt, _boltsThrown++, skill.Id, GlobalPosition + Vector3.Up * Bolts.Height, AimYaw);
         }
 
         var me = Yaw.ToGround(GlobalPosition);
@@ -607,10 +606,14 @@ public partial class PlayerCharacter : CharacterBody3D
             HitTested?.Invoke(skill, Trail.ReachFrom(GlobalPosition));
         }
 
+        // A spell held on an area lands on what its caster can see: not on what stands behind a wall.
+        var space = GetWorld3D().DirectSpaceState;
+        bool Reaches(Node3D body) => skill.Area == null || !Walls.Between(space, GlobalPosition, body.GlobalPosition);
+
         foreach (var node in GetTree().GetNodesInGroup(EnemyCharacter.Group))
         {
             if (node is EnemyCharacter enemy && !enemy.IsDead && !_hitThisSwing.Contains(enemy.GetInstanceId())
-                && SkillHits.Catches(me, AimYaw, skill, Yaw.ToGround(enemy.GlobalPosition), BodySize.Radius))
+                && SkillHits.Catches(me, AimYaw, skill, Yaw.ToGround(enemy.GlobalPosition), BodySize.Radius) && Reaches(enemy))
             {
                 enemy.RpcId(1, EnemyCharacter.MethodName.RequestDamage, skill.Id);
                 _hitThisSwing.Add(enemy.GetInstanceId());
@@ -623,7 +626,7 @@ public partial class PlayerCharacter : CharacterBody3D
             foreach (var other in GetTree().GetNodesInGroup(Group).OfType<PlayerCharacter>())
             {
                 if (other != this && !other.IsDowned && !_hitThisSwing.Contains(other.GetInstanceId())
-                    && SkillHits.Catches(me, AimYaw, skill, Yaw.ToGround(other.GlobalPosition), BodySize.Radius))
+                    && SkillHits.Catches(me, AimYaw, skill, Yaw.ToGround(other.GlobalPosition), BodySize.Radius) && Reaches(other))
                 {
                     other.Vitals.RpcId(1, PlayerVitals.MethodName.RequestDamage, skill.Id);
                     _hitThisSwing.Add(other.GetInstanceId());
@@ -698,13 +701,16 @@ public partial class PlayerCharacter : CharacterBody3D
     }
 
     // On the owner, for Bolts: a ball of the skill bursts at that spot, and every body the burst catches takes the
-    // skill's damage.
+    // skill's damage. A wall shelters what stands behind it.
     public void BlastAt(SkillDefinition skill, Vector3 at)
     {
         var spot = Yaw.ToGround(at);
+        var space = GetWorld3D().DirectSpaceState;
+        var feet = new Vector3(at.X, 0f, at.Z);
         int caught = 0;
         foreach (var enemy in GetTree().GetNodesInGroup(EnemyCharacter.Group).OfType<EnemyCharacter>()
-            .Where(e => !e.IsDead && Projectiles.Blasts(spot, skill.BlastRadius, Yaw.ToGround(e.GlobalPosition), BodySize.Radius)))
+            .Where(e => !e.IsDead && Projectiles.Blasts(spot, skill.BlastRadius, Yaw.ToGround(e.GlobalPosition), BodySize.Radius)
+                && !Walls.Between(space, feet, e.GlobalPosition)))
         {
             enemy.RpcId(1, EnemyCharacter.MethodName.RequestDamage, skill.Id);
             caught++;
@@ -713,7 +719,8 @@ public partial class PlayerCharacter : CharacterBody3D
         if (SessionRules.Pvp)
         {
             foreach (var other in GetTree().GetNodesInGroup(Group).OfType<PlayerCharacter>()
-                .Where(p => p != this && !p.IsDowned && Projectiles.Blasts(spot, skill.BlastRadius, Yaw.ToGround(p.GlobalPosition), BodySize.Radius)))
+                .Where(p => p != this && !p.IsDowned && Projectiles.Blasts(spot, skill.BlastRadius, Yaw.ToGround(p.GlobalPosition), BodySize.Radius)
+                    && !Walls.Between(space, feet, p.GlobalPosition)))
             {
                 other.Vitals.RpcId(1, PlayerVitals.MethodName.RequestDamage, skill.Id);
                 PlayerHit?.Invoke(other);
@@ -728,11 +735,11 @@ public partial class PlayerCharacter : CharacterBody3D
 
     // Every peer flies its own copy of the bolt, from where the caster's machine loosed it.
     [Rpc(MultiplayerApi.RpcMode.Authority, CallLocal = true, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-    private void LooseBolt(int id, string skillId, Vector3 from, float yaw)
+    private void LooseBolt(int id, string skillId, Vector3 chest, float yaw)
     {
         if (FindSkill(skillId) is { } skill)
         {
-            Bolts.In(GetTree()).Fly(this, id, skill, from, yaw);
+            Bolts.In(GetTree()).Fly(this, id, skill, chest, yaw);
         }
     }
 

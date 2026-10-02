@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using EverdawnKit.Characters;
 using Godot;
 using WarriorsOfEverdawn.Character;
 using WarriorsOfEverdawn.Core.Combat;
@@ -24,10 +25,6 @@ public partial class EnemyCharacter : CharacterBody3D
     public const float CorpseTime = 3f;
     private const float AnimationBlend = 0.2f;
     private const float MovingThreshold = 0.1f;
-
-    // Where an arrow leaves the archer: about the bow's height, a little in front of the chest.
-    private const float LooseHeight = 1.2f;
-    private const float LooseForward = 0.5f;
 
     // A hit on a weakness is written larger and one that is resisted smaller, so what a weapon does to this kind
     // of body shows without a word.
@@ -132,13 +129,11 @@ public partial class EnemyCharacter : CharacterBody3D
 
         enemy._model = new Node3D { Name = "Model" };
         enemy.AddChild(enemy._model);
-        var body = Assets.Instantiate(look.Model);
-        ToonLook.Apply(body);
+        var body = CharacterBody.Build(look.Figure);
         enemy._model.AddChild(body);
         var hand = look.LeftHand
             ? CharacterRig.AttachToLeftHand(body, look.Weapon, look.WeaponRotation)
             : CharacterRig.AttachToHand(body, look.Weapon);
-        CharacterRig.ShrinkHead(body);
         enemy.Skeleton = body.GetNode<Skeleton3D>(RigAnimations.SkeletonPath);
         enemy.Trail = new WeaponTrail(hand, TrailTint) { Name = "Trail" };
         enemy.AddChild(enemy.Trail);
@@ -318,9 +313,8 @@ public partial class EnemyCharacter : CharacterBody3D
             _attackResolved = true;
             if (Definition.Attack.Projectile != null)
             {
-                var from = GlobalPosition + Yaw.Forward(NetYaw) * LooseForward + Vector3.Up * LooseHeight;
                 var aim = target != null ? target.NetPosition - GlobalPosition : Yaw.Forward(NetYaw);
-                Arrows.In(GetTree()).Loose(Definition.Attack, AttackDamage(), from, aim);
+                Arrows.In(GetTree()).Loose(Definition.Attack, AttackDamage(), GlobalPosition + Vector3.Up * Arrows.Height, aim);
                 return;
             }
 

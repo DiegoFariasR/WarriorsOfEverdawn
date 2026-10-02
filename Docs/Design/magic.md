@@ -22,11 +22,13 @@ Which staff throws a bolt and which a volley are Everdawn's (`fire-bolt`, `earth
 - **A bolt** is one ball: 30 damage, flying 16 a second for up to 12, touching anything within 0.35 of its path. **A volley** is three darts of 10, loosed 0.12 s of clip time apart, flying 22 a second for up to 12 and touching within 0.2. Thrown together they deal what a bolt does; spread over a moving target, some miss.
 - Thrown with `Ranged_Magic_Shoot`; the first leaves the staff 0.3 s into the clip, where the staff is furthest forward (`swing-survey`). No mana. **One second between throws** (the skill's cooldown): without it a bolt out-dealt every blade from twelve times its reach.
 - It flies level at chest height, along the aim as it was when it left, and ends at the first body it touches, at a wall, or at the end of its distance. It does not go through one body to the next.
+- **Walls stop it**, and so does anything else of the level that is solid (`Util/Walls`): every machine looks along each step of the flight for the world and ends the bolt there. The first step is looked at from the caster's chest, not from the hand 0.6 in front of it: a caster standing against a wall has its hand inside the wall, and from there a bolt used to fly straight through.
 - A cast cut short by a dash throws what it had thrown.
 
 ## The held spell (secondary)
 
 - Held like a Spin: a cycle is one loop of the casting clip (`Ranged_Magic_Spellcasting`, 0.67 s; about 0.3 s at the Knight's attack speed), paid for in mana as it starts. Everything in the area takes the spell's damage once a cycle; what walks in mid-cycle takes it as it enters. The caster moves at half speed.
+- **It lands on what the caster can see.** A body in the area with a wall between it and the caster takes nothing (`Walls.Between`, read 1.6 over the feet: above the barrels and benches a spell is cast across, below the top of every wall). The ring and the strikes are still drawn over the whole area.
 - **The area** is a circle on the ground: for all but one, round the spot 4 ahead of where the caster faces, so it is steered by aiming and by walking; for the Divine Nova, round the caster. A body touching the circle is in it.
 - An area ahead does not cover the caster's own feet: what stands closer than the near edge (1.5 for Inferno, 1 for the 3-wide, 0.5 for Blizzard, none for the Cyclone, which reaches the caster's feet) is not hit. The Nova is the answer to a crowd at arm's length.
 - A ring on the ground shows the area for as long as the spell is held, and a round of strikes falls inside it each cycle.
@@ -51,6 +53,7 @@ One weapon, as the sword and shield are: the wand in the right hand, the open bo
 
 - **Primary and barrier are the staff's.** A wand throws the very bolt or volley the staff of its element does (the same skill, so the same numbers and the same second between throws), and raises the same barrier.
 - **The secondary is thrown, not held.** One press throws one ball: 25 damage, flying 13 a second for up to 12. Where it ends it bursts, and everything within 2.5 of that spot takes the damage, the body it struck once like the rest. It ends at the first body it touches, at a wall, or at the end of its flight, and bursts at all three. 12 mana a cast, and 2.5 s before the next.
+- **A wall shelters what stands behind it** from the burst: a ball that ends at a wall bursts on its own side of it, and catches only what the spot it burst at can see.
 - Fire's is the **Fireball**; the others are each element's **Burst** (Water Burst, Ice Burst and so on). They differ in look alone: what an element's burst does of its own waits on what the elements do.
 - **Lunge:** a jab with the wand, 16 damage, reach 1.65: the shortest of all.
 - **Against the staff:** the staff's spell deals more to what stays in its area and costs mana for as long as it is held; the wand's ball lands all at once, anywhere a bolt can reach, and then has to wait.

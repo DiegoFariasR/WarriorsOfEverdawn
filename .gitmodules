@@ -1,0 +1,3 @@
+[submodule "GodotClient/kit"]
+	path = GodotClient/kit
+	url = ../EverdawnKit.git

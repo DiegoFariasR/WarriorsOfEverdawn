@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 using System.Linq;
 using WarriorsOfEverdawn.Core.Combat;
 using WarriorsOfEverdawn.Core.Loot;
@@ -109,6 +110,31 @@ public class LootTests
     }
 
     [Fact]
+    public void A_pile_shows_its_gold_coin_for_coin_up_to_the_most_it_shows()
+    {
+        Assert.Equal(Enumerable.Range(1, LootRules.MostCoinsShown), Enumerable.Range(1, LootRules.MostCoinsShown).Select(LootRules.CoinsShown));
+        Assert.Equal(LootRules.MostCoinsShown, LootRules.CoinsShown(LootRules.MostCoinsShown + 1));
+        Assert.Equal(LootRules.MostCoinsShown, LootRules.CoinsShown(LootRules.MostCoinsShown * 50));
+    }
+
+    [Fact]
+    public void A_pile_of_no_gold_is_refused()
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() => LootRules.CoinsShown(0));
+        Assert.Throws<ArgumentOutOfRangeException>(() => LootRules.CoinsShown(-3));
+    }
+
+    [Fact]
+    public void There_is_a_model_for_every_number_of_coins_a_pile_shows()
+    {
+        string props = Path.Combine(RepoRoot(), "GodotClient", "assets", "props");
+
+        Assert.True(File.Exists(Path.Combine(props, "Money_Coins_Stack_Single.glb")));
+        Assert.All(Enumerable.Range(2, LootRules.MostCoinsShown - 1), coins =>
+            Assert.True(File.Exists(Path.Combine(props, $"Money_Coins_Pile_{coins}.glb")), $"no pile of {coins}"));
+    }
+
+    [Fact]
     public void Every_monster_can_leave_an_orb_and_seldom_does()
     {
         foreach (var enemy in Enemies.All)
@@ -118,5 +144,18 @@ public class LootTests
             // Rare next to gold, which every monster always leaves.
             Assert.True(enemy.OrbChance < 0.5f, enemy.Id);
         }
+    }
+
+    private static string RepoRoot()
+    {
+        for (var dir = new DirectoryInfo(AppContext.BaseDirectory); dir != null; dir = dir.Parent)
+        {
+            if (File.Exists(Path.Combine(dir.FullName, "WarriorsOfEverdawn.slnx")))
+            {
+                return dir.FullName;
+            }
+        }
+
+        throw new DirectoryNotFoundException($"No WarriorsOfEverdawn.slnx above {AppContext.BaseDirectory}");
     }
 }

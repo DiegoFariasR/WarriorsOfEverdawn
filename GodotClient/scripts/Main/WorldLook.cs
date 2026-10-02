@@ -1,3 +1,4 @@
+using EverdawnKit.Characters;
 using Godot;
 using WarriorsOfEverdawn.Character;
 

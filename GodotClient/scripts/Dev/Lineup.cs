@@ -1,9 +1,13 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using EverdawnKit.Characters;
 using Godot;
 using WarriorsOfEverdawn.Character;
+using WarriorsOfEverdawn.Core.Characters;
 using WarriorsOfEverdawn.Core.Combat;
+using WarriorsOfEverdawn.Core.Loot;
+using WarriorsOfEverdawn.Core.Trade;
 using WarriorsOfEverdawn.Main;
 using WarriorsOfEverdawn.Player;
 using WarriorsOfEverdawn.Theme;
@@ -11,12 +15,14 @@ using WarriorsOfEverdawn.Util;
 
 namespace WarriorsOfEverdawn.Dev;
 
-// --armour-lineup, --weapon-lineup, --magic-lineup: the player's figure stood in a row in the open field, each named
-// overhead, with a camera of its own in front of them. For looking at what a figure wears, holds and casts, which the
-// game's own cameras see from too far above: every tier of armour (or the outfits named, to try others); one weapon
-// in its stance, its guard, each skill at the moment it lands, on the back, and lying on the ground; or the staffs,
-// each holding its spell on an area with what it throws beside it, or each inside its barrier. Used with
-// --screenshot.
+// --armour-lineup, --weapon-lineup, --magic-lineup, --look-lineup: figures stood in a row in the open field, each
+// named overhead, with a camera of its own in front of them. For looking at what a figure is, wears, holds and
+// casts, which the game's own cameras see from too far above: the player's in every tier of armour (or the outfits
+// named, to try others); with one weapon in its stance, its guard, each skill at the moment it lands, on the back,
+// and lying on the ground; with the staffs, each holding its spell on an area with what it throws beside it, or
+// each inside its barrier; or other figures altogether: the game's cast, a character of the catalogue as it was
+// made, figures drawn at random from a pool. --gold-lineup stands no figure: it lays every pile gold falls in
+// in a row on the ground. Used with --screenshot.
 public partial class Lineup : Node3D
 {
     private const float EyeHeight = 1.25f;
@@ -27,6 +33,11 @@ public partial class Lineup : Node3D
     private const float ArmourApart = 1.7f;
     private const float WeaponApart = 2.2f;
 
+    // What --look-lineup shows for each thing it is given: the game's own figures, or this many drawn from a pool.
+    private const string Cast = "cast";
+    private const string Bare = ":bare";
+    private const int RolledPerPool = 8;
+
     // How far in front of the row the weapon lies.
     private const float GroundInFront = 3.5f;
 
@@ -34,6 +45,10 @@ public partial class Lineup : Node3D
     // a camera high enough to see the ground the spells land on.
     private const float SpellApart = 4.4f;
     private const float SpellEyeHeight = 5f;
+
+    // Piles of gold: near enough to each other for all ten to be seen at a size coins can be counted at.
+    private const float GoldApart = 0.7f;
+    private const float GoldLabelHeight = 0.45f;
     private const float SpellCycle = 0.3f;
     private static readonly AreaDefinition ShownArea = new(Distance: 2.6f, Radius: 1.7f);
 
@@ -44,10 +59,20 @@ public partial class Lineup : Node3D
     private readonly float _apart;
     private readonly WeaponDefinition? _onGround;
     private readonly float _eyeHeight;
+    private readonly float _labelHeight;
+    private readonly float _lookHeight;
     private Camera3D _camera = null!;
 
-    private Lineup(IReadOnlyList<Figure> figures, float apart, WeaponDefinition? onGround = null, float eyeHeight = EyeHeight)
+    private Lineup(
+        IReadOnlyList<Figure> figures,
+        float apart,
+        WeaponDefinition? onGround = null,
+        float eyeHeight = EyeHeight,
+        float labelHeight = LabelHeight,
+        float lookHeight = EyeHeight)
     {
+        _labelHeight = labelHeight;
+        _lookHeight = lookHeight;
         _figures = figures;
         _apart = apart;
         _onGround = onGround;
@@ -63,12 +88,79 @@ public partial class Lineup : Node3D
     // The tiers of armour, or with outfits named, those.
     public static Lineup OfArmour(IReadOnlyList<string> outfits) => new(
         outfits.Count > 0
-            ? outfits.Select(outfit => new Figure(outfit, body => ArmourLook.WearOutfit(SkeletonOf(body), outfit), RigAnimations.UnarmedIdle)).ToList()
-            : Armours.All.Select(a => new Figure($"{a.Tier}  {a.Name}", body => ArmourLook.Wear(SkeletonOf(body), a.Tier), RigAnimations.UnarmedIdle)).ToList(),
+            ? outfits.Select(outfit => new Figure(outfit, _ => { }, RigAnimations.UnarmedIdle) { Look = ArmourLook.DressedAs(PlayerCharacter.Look, outfit) }).ToList()
+            : Armours.All.Select(a => new Figure($"{a.Tier}  {a.Name}", _ => { }, RigAnimations.UnarmedIdle) { Look = ArmourLook.Dressed(PlayerCharacter.Look, a.Tier) }).ToList(),
         ArmourApart)
     {
         Name = "ArmourLineup",
     };
+
+    // The pile each amount of gold lies in, from one coin to the most a pile shows, each under its amount, seen
+    // from that high over the ground: low for how they look from behind a player, high for how they look from
+    // above.
+    public static Lineup OfGold(float eyeHeight) => new(
+        Enumerable.Range(1, LootRules.MostCoinsShown)
+            .Select(gold => new Figure(gold.ToString(System.Globalization.CultureInfo.InvariantCulture), _ => { }, "") { Thing = () => Loot.Pile(gold) })
+            .ToList(),
+        GoldApart,
+        eyeHeight: eyeHeight,
+        labelHeight: GoldLabelHeight,
+        lookHeight: 0f)
+    {
+        Name = "GoldLineup",
+    };
+
+    // Figures by what they are, each thing named giving one or more: "cast" the player, the enemies and the sellers
+    // as the game has them; a pool's name ("townsfolk", or "townsfolk@40" to start at that seed) eight figures
+    // drawn from it, each named by its seed; a character of the catalogue ("Druid") that character as it was made,
+    // with everything it can wear, or with nothing on ("Druid:bare").
+    public static Lineup OfLooks(IReadOnlyList<string> shown) => new(shown.SelectMany(Figures).ToList(), ArmourApart)
+    {
+        Name = "LookLineup",
+    };
+
+    private static IEnumerable<Figure> Figures(string shown)
+    {
+        static Figure Standing(string label, CharacterLook look) => new(label, _ => { }, RigAnimations.UnarmedIdle) { Look = look };
+
+        if (shown == Cast)
+        {
+            return new[] { Standing("player", ArmourLook.Dressed(PlayerCharacter.Look, 0)) }
+                .Concat(Enemies.All.Select(enemy => Standing(enemy.Id, CombatVisuals.LookFor(enemy).Figure)))
+                .Concat(Sellers.All.Select(seller => Standing(seller.Name, SellerNpc.LookOf(seller)
+                    ?? throw new KeyNotFoundException($"No figure for the seller '{seller.Id}'"))));
+        }
+
+        string[] pool = shown.Split('@');
+        if (LookPools.All.Any(p => p.Name == pool[0]))
+        {
+            int first = pool.Length > 1 ? int.Parse(pool[1], System.Globalization.CultureInfo.InvariantCulture) : 0;
+            return Enumerable.Range(first, RolledPerPool)
+                .Select(seed => Standing($"{pool[0]} {seed}", LookRandomizer.Roll(CharacterBody.Catalog, LookPools.ByName(pool[0]), seed)));
+        }
+
+        var catalog = CharacterBody.Catalog;
+        bool bare = shown.EndsWith(Bare, StringComparison.Ordinal);
+        string origin = bare ? shown[..^Bare.Length] : shown;
+        if (!catalog.Origins.Contains(origin))
+        {
+            throw new ArgumentException($"'{shown}' is not '{Cast}', a pool ({string.Join(", ", LookPools.All.Select(p => p.Name))}) or a character of the catalogue");
+        }
+
+        // As it was made: its faceless head with its face where it has one, and all it can wear.
+        var whole = CharacterLook.Of(origin);
+        var head = catalog.Parts.FirstOrDefault(p => p.Origin == origin && PartsCatalog.IsShell(p)) ?? catalog.Get(whole.Head);
+        var made = whole with
+        {
+            Head = head.Stem,
+            Face = catalog.FaceFor(head),
+            Accessories = catalog.In(CharacterSlot.Accessory).Where(p => !bare && p.Origin == origin && !IsFacePiece(p))
+                .Select(p => p.Stem).OrderBy(s => s, StringComparer.Ordinal).ToList(),
+        };
+        return new[] { Standing(shown, made) };
+    }
+
+    private static bool IsFacePiece(PartEntry part) => part.Stem.EndsWith("_Eyes", StringComparison.Ordinal) || part.Stem.EndsWith("_Jaw", StringComparison.Ordinal);
 
     // One weapon: how it is stood with and guarded with, each skill held at the moment it lands (a lunge at the end
     // of its thrust), how it is carried on the back, and how it lies on the ground, in front of the row.
@@ -153,7 +245,7 @@ public partial class Lineup : Node3D
         {
             var at = Middle + Vector3.Right * (i * _apart - width / 2f);
             Stand(_figures[i], at);
-            AddChild(Sign(_figures[i].Label, at));
+            AddChild(Sign(_figures[i].Label, at + Vector3.Up * _labelHeight));
         }
 
         if (_onGround != null)
@@ -165,25 +257,36 @@ public partial class Lineup : Node3D
         float halfAcross = width / 2f + _apart;
         float aspect = GetViewport().GetVisibleRect().Size.Aspect();
         float back = halfAcross / (Mathf.Tan(Mathf.DegToRad(FieldOfView) / 2f) * aspect);
+
+        // Looking down at the ground, the camera keeps that distance from the row however high it is, so what
+        // lies there is the same size on screen from low and from high.
+        if (_lookHeight == 0f)
+        {
+            back = Mathf.Sqrt(Mathf.Max(back * back - _eyeHeight * _eyeHeight, 0.01f));
+        }
+
         _camera = new Camera3D { Name = "LineupCamera", Fov = FieldOfView, Position = Middle + new Vector3(0f, _eyeHeight, back) };
         AddChild(_camera);
-        _camera.LookAt(Middle + Vector3.Up * EyeHeight);
+        _camera.LookAt(Middle + Vector3.Up * _lookHeight);
     }
 
     // The game's camera takes the view back as it follows the player, so this one takes it again each frame.
     public override void _Process(double delta) => _camera.MakeCurrent();
 
-    private static Skeleton3D SkeletonOf(Node3D body) => body.GetNode<Skeleton3D>(RigAnimations.SkeletonPath);
-
     private void Stand(Figure figure, Vector3 at)
     {
+        if (figure.Thing is { } made)
+        {
+            var thing = made();
+            thing.Position = at;
+            AddChild(thing);
+            return;
+        }
+
         // KayKit models face +Z, toward the camera.
-        var body = Assets.Instantiate(PlayerCharacter.ModelPath);
-        ToonLook.Apply(body);
+        var body = CharacterBody.Build(figure.Look ?? ArmourLook.Dressed(PlayerCharacter.Look, 0));
         body.Position = at;
         body.Rotation = new Vector3(0f, figure.Turned ? Mathf.Pi : 0f, 0f);
-        CharacterRig.ShrinkHead(body);
-        ArmourLook.Wear(SkeletonOf(body), 0);
         figure.Dress(body);
 
         // Libraries go in before the figure enters the tree; playing first would crash (Everdawn godot-pitfalls.md).
@@ -212,14 +315,19 @@ public partial class Lineup : Node3D
         PixelSize = 0.004f,
         Billboard = BaseMaterial3D.BillboardModeEnum.Enabled,
         NoDepthTest = true,
-        Position = at + Vector3.Up * LabelHeight,
+        Position = at,
     };
 
-    // One figure of the row: what it is called, how it is dressed and armed, the clip it plays, and for a pose the
-    // moment of the clip it is held at. Turned shows its back. Staged sets up what stands about it, once it is in
-    // the row.
+    // One figure of the row: what it is called, how it is armed, the clip it plays, and for a pose the moment of
+    // the clip it is held at. Turned shows its back. Look is what it is; without one it is the player's figure in
+    // what everyone starts in. Staged sets up what stands about it, once it is in the row.
     private sealed record Figure(string Label, Action<Node3D> Dress, string Clip, double? HeldAt = null, bool Turned = false)
     {
+        public CharacterLook? Look { get; init; }
+
+        // What lies or stands in the figure's place, when it is no figure at all.
+        public Func<Node3D>? Thing { get; init; }
+
         public Action<Node3D>? Staged { get; init; }
     }
 }

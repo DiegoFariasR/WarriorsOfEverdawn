@@ -36,6 +36,9 @@ public sealed record LaunchOptions
 
     public bool CameraCheck { get; init; }
 
+    // --wall-check: looses everything that flies at a wall and quits, saying whether each stopped there.
+    public bool WallCheck { get; init; }
+
     public bool Pvp { get; init; }
 
     public bool NoEnemies { get; init; }
@@ -84,6 +87,18 @@ public sealed record LaunchOptions
 
     public bool MagicBarriers { get; init; }
 
+    // For looking at figures: those named (comma-separated) in a row in the field. "cast" is the game's own, a
+    // pool's name figures drawn from it at random, a character of the parts catalogue that character. Null without
+    // the flag.
+    public IReadOnlyList<string>? LookLineup { get; init; }
+
+    // For looking at gold: every pile it falls in, in a row on the ground, seen from this high over it. Null
+    // without the flag.
+    public float? GoldLineup { get; init; }
+
+    // --parts-check: puts every part of the catalogue on a figure and quits, saying whether each came out right.
+    public bool PartsCheck { get; init; }
+
     // Host only, for test sessions and for looking at an orb: every monster's chance of leaving a magic orb, in place
     // of its own, so a short session is sure to see some.
     public float? OrbChance { get; init; }
@@ -122,6 +137,8 @@ public sealed record LaunchOptions
                 "--port" => options with { Port = int.Parse(ValueAfter(args, ref i), CultureInfo.InvariantCulture) },
                 "--bot" => options with { Bot = true },
                 "--camera-check" => options with { CameraCheck = true },
+                "--wall-check" => options with { WallCheck = true },
+                "--parts-check" => options with { PartsCheck = true },
                 "--pvp" => options with { Pvp = true },
                 "--no-enemies" => options with { NoEnemies = true },
                 "--quit-after" => options with { QuitAfter = FloatAfter(args, ref i) },
@@ -143,6 +160,8 @@ public sealed record LaunchOptions
                 "--weapon-lineup" => options with { WeaponLineup = WeaponAfter(args, ref i) },
                 "--magic-lineup" => options with { MagicLineup = ElementsAfter(args, ref i) },
                 "--magic-barriers" => options with { MagicLineup = Array.Empty<Element>(), MagicBarriers = true },
+                "--gold-lineup" => options with { GoldLineup = FloatAfter(args, ref i) },
+                "--look-lineup" => options with { LookLineup = ValueAfter(args, ref i).Split(',', StringSplitOptions.RemoveEmptyEntries) },
                 "--start-at" => options with { StartAt = GroundSpotAfter(args, ref i) },
                 "--orb-chance" => options with { OrbChance = ChanceAfter(args, ref i) },
                 "--start-gold" => options with { StartGold = PositiveIntAfter(args, ref i) },

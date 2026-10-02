@@ -15,9 +15,10 @@
   "anvil": "res://assets/props/anvil.glb",
   "Trainingdummy": "res://assets/props/Trainingdummy.glb",
   "trunk_medium_A": "res://assets/dungeon/trunk_medium_A.glb",
-  "Money_Coins_Stack_Large": "res://assets/props/Money_Coins_Stack_Large.glb",
-  "Money_Coins_Stack_Medium": "res://assets/props/Money_Coins_Stack_Medium.glb",
-  "Money_Coins_Stack_Small": "res://assets/props/Money_Coins_Stack_Small.glb",
+  "Money_Coins_Pile_10": "res://assets/props/Money_Coins_Pile_10.glb",
+  "Money_Coins_Pile_6": "res://assets/props/Money_Coins_Pile_6.glb",
+  "Money_Coins_Pile_3": "res://assets/props/Money_Coins_Pile_3.glb",
+  "Money_Coins_Stack_Single": "res://assets/props/Money_Coins_Stack_Single.glb",
   "shrine_candles": "res://assets/props/shrine_candles.glb",
   "rug_rectangle_stripes_A": "res://assets/props/rug_rectangle_stripes_A.glb",
   "barrel_large": "res://assets/dungeon/barrel_large.glb",
@@ -1111,11 +1112,11 @@
    "solid": true
   },
   {
-   "asset": "Money_Coins_Stack_Large",
+   "asset": "Money_Coins_Pile_10",
    "position": [
-    -7.7,
+    -7.797,
     0.0,
-    26.6
+    26.774
    ],
    "rotation": [
     0.0,
@@ -1124,17 +1125,17 @@
     0.0
    ],
    "scale": [
-    1.0,
-    1.0,
-    1.0
+    0.9,
+    0.9,
+    0.9
    ]
   },
   {
-   "asset": "Money_Coins_Stack_Medium",
+   "asset": "Money_Coins_Pile_6",
    "position": [
-    -7.6,
+    -7.692,
     0.0,
-    25.4
+    25.672
    ],
    "rotation": [
     0.0,
@@ -1143,17 +1144,36 @@
     0.0
    ],
    "scale": [
-    1.0,
-    1.0,
-    1.0
+    0.9,
+    0.9,
+    0.9
    ]
   },
   {
-   "asset": "Money_Coins_Stack_Small",
+   "asset": "Money_Coins_Pile_3",
    "position": [
-    -7.2,
+    -7.115,
     0.0,
-    26.9
+    27.071
+   ],
+   "rotation": [
+    0.0,
+    0.976296,
+    0.0,
+    -0.21644
+   ],
+   "scale": [
+    0.9,
+    0.9,
+    0.9
+   ]
+  },
+  {
+   "asset": "Money_Coins_Stack_Single",
+   "position": [
+    -7.1,
+    0.0,
+    25.0
    ],
    "rotation": [
     0.0,
@@ -1162,9 +1182,9 @@
     0.0
    ],
    "scale": [
-    1.0,
-    1.0,
-    1.0
+    0.9,
+    0.9,
+    0.9
    ]
   },
   {

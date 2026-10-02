@@ -21,6 +21,10 @@ public static class CameraModes
     // The facing modes turn the character with the mouse or right stick and read movement relative to it.
     public static bool FollowsFacing(this CameraMode mode) => mode is CameraMode.Behind or CameraMode.TopDownTurning;
 
+    // The modes that look down on the field draw it without perspective: a thing is the same size on screen
+    // wherever it stands, near the camera or far, as in an isometric game. Behind keeps its perspective.
+    public static bool IsOrthographic(this CameraMode mode) => mode != CameraMode.Behind;
+
     public static CameraMode Next(this CameraMode mode) => (CameraMode)(((int)mode + 1) % Count);
 
     public static string Label(this CameraMode mode) => mode switch

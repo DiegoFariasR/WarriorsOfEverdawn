@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Linq;
+using EverdawnKit.Characters;
 using Godot;
 using WarriorsOfEverdawn.Util;
 
@@ -23,26 +24,25 @@ public partial class GhostTrail : Node
     private static readonly Color Tint = new(0.55f, 0.95f, 1.0f, 1.0f);
 
     private readonly Node3D _source;
-    private readonly string _modelPath;
+    private CharacterLook _figure;
     private WeaponLook? _inHand;
     private WeaponLook? _onBack;
-    private int _armour;
     private readonly List<Ghost> _pool = new();
     private Skeleton3D _sourceSkeleton = null!;
     private float _emitLeft;
     private float _sinceEmit;
 
-    public GhostTrail(Node3D sourceBody, string modelPath, WeaponLook? inHand, WeaponLook? onBack)
+    public GhostTrail(Node3D sourceBody, CharacterLook figure, WeaponLook? inHand, WeaponLook? onBack)
     {
         _source = sourceBody;
-        _modelPath = modelPath;
+        _figure = figure;
         _inHand = inHand;
         _onBack = onBack;
     }
 
     // Godot needs a parameterless constructor to instantiate script classes itself.
     public GhostTrail()
-        : this(null!, "", null, null)
+        : this(null!, null!, null, null)
     {
     }
 
@@ -72,12 +72,12 @@ public partial class GhostTrail : Node
         Rebuild();
     }
 
-    // Ghosts wear the character's armour too.
-    public void SetArmour(int tier)
+    // Ghosts wear what the character wears.
+    public void SetFigure(CharacterLook figure)
     {
-        if (tier != _armour)
+        if (figure != _figure)
         {
-            _armour = tier;
+            _figure = figure;
             Rebuild();
         }
     }
@@ -166,7 +166,7 @@ public partial class GhostTrail : Node
     {
         // TopLevel: a ghost stays where it was left while the character moves on.
         var root = new Node3D { Name = "Ghost", TopLevel = true, Visible = false };
-        var body = Assets.Instantiate(_modelPath);
+        var body = CharacterBody.Build(_figure);
         if (_inHand != null)
         {
             CharacterRig.AttachToHand(body, _inHand);
@@ -178,8 +178,6 @@ public partial class GhostTrail : Node
             CharacterRig.AttachToBack(body, _onBack);
         }
 
-        CharacterRig.ShrinkHead(body);
-        ArmourLook.Wear(body.GetNode<Skeleton3D>(RigAnimations.SkeletonPath), _armour);
         root.AddChild(body);
         AddChild(root);
 

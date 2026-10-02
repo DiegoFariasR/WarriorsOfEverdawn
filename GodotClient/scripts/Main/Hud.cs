@@ -62,6 +62,8 @@ public partial class Hud : CanvasLayer
 
     public GroundWeaponLabels GroundLabels { get; } = new() { Name = "GroundWeaponLabels" };
 
+    public SellerLabels SellerLabels { get; } = new() { Name = "SellerLabels" };
+
     public ShopPanel Shop { get; } = new() { Name = "Shop" };
 
     public Control PlayerFrame { get; private set; } = null!;
@@ -84,6 +86,7 @@ public partial class Hud : CanvasLayer
     {
         AddChild(Bars);
         AddChild(GroundLabels);
+        AddChild(SellerLabels);
         PlayerFrame = BuildPlayerFrame();
         AddChild(PlayerFrame);
         SkillBar = BuildSkillBar();

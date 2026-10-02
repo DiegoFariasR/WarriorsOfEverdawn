@@ -5,6 +5,7 @@ using WarriorsOfEverdawn.Core.Combat;
 using WarriorsOfEverdawn.Core.Stats;
 using WarriorsOfEverdawn.Player;
 using WarriorsOfEverdawn.Theme;
+using WarriorsOfEverdawn.Util;
 
 namespace WarriorsOfEverdawn.Main;
 
@@ -13,6 +14,9 @@ namespace WarriorsOfEverdawn.Main;
 public partial class GroundWeaponLabels : Control
 {
     private const float LabelHeight = 0.7f;
+
+    // Clear of the weapon as the camera sees it (Overhead).
+    private const float Girth = 0.6f;
 
     private readonly Dictionary<int, Entry> _labels = new();
 
@@ -67,7 +71,7 @@ public partial class GroundWeaponLabels : Control
 
             // A panel outside a container keeps its size when its content shrinks.
             entry.Panel.ResetSize();
-            var above = item.Position + Vector3.Up * LabelHeight;
+            var above = Overhead.Point(Camera, item.Position, LabelHeight, Girth);
             entry.Panel.Visible = !Camera!.IsPositionBehind(above);
             var at = Camera.UnprojectPosition(above);
             entry.Panel.Position = new Vector2(at.X - entry.Panel.Size.X / 2f, at.Y - entry.Panel.Size.Y);

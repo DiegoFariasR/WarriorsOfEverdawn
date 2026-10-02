@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using EverdawnKit.Characters;
 using Godot;
 using WarriorsOfEverdawn.Character;
 using WarriorsOfEverdawn.Core.Combat;
@@ -22,7 +23,13 @@ public partial class Bolts : Node3D
     // Chest height: where a bolt leaves the staff hand and where it meets a body.
     public const float Height = 1f;
 
+    // It leaves the hand this far in front of the caster's chest.
+    public const float Leaves = 0.6f;
+
     private const float BurstTime = 0.25f;
+
+    // One that a wall stops ends this far short of it, so what it bursts into starts on its own side of the wall.
+    private const float ShortOfWall = 0.05f;
 
     private readonly Dictionary<(long Caster, int Id), Flight> _flights = new();
 
@@ -35,6 +42,9 @@ public partial class Bolts : Node3D
     // On every machine, as one that bursts ends: who threw it and with what.
     public static event Action<PlayerCharacter, SkillDefinition>? Burst;
 
+    // On every machine, as any ends, whatever ended it: what it was and where.
+    public static event Action<SkillDefinition, Vector3>? Ended;
+
     public int InFlight => _flights.Count;
 
     // How long the oldest in flight has been flying; 0 with none.
@@ -45,8 +55,9 @@ public partial class Bolts : Node3D
 
     public static Bolts In(SceneTree tree) => tree.CurrentScene.GetNode<Bolts>(NodeName);
 
-    // On every machine, from the caster's own (PlayerCharacter.LooseBolt): `id` tells the caster's bolts apart.
-    public void Fly(PlayerCharacter caster, int id, SkillDefinition skill, Vector3 from, float yaw)
+    // On every machine, from the caster's own (PlayerCharacter.LooseBolt): `id` tells the caster's bolts apart,
+    // and `chest` is the caster's middle at the height things fly at.
+    public void Fly(PlayerCharacter caster, int id, SkillDefinition skill, Vector3 chest, float yaw)
     {
         if (skill.Projectile == null)
         {
@@ -55,10 +66,11 @@ public partial class Bolts : Node3D
         }
 
         var direction = Yaw.Forward(yaw);
+        var from = chest + direction * Leaves;
         var node = Thrown(skill, direction);
         AddChild(node);
         node.GlobalPosition = from;
-        _flights[(caster.PeerId, id)] = new Flight(caster, skill, from, direction, node);
+        _flights[(caster.PeerId, id)] = new Flight(caster, skill, chest, from, direction, node);
         Loosed?.Invoke(caster, skill);
     }
 
@@ -126,12 +138,15 @@ public partial class Bolts : Node3D
             }
 
             // Walls and whatever else stands in the world stop it, the same on every machine. One that bursts does
-            // so there too, and the caster's machine decides what the burst catches.
+            // so there too, and the caster's machine decides what the burst catches. Its first step is looked at
+            // from the caster's chest, not from the hand: a caster against a wall has its hand in the wall, and a
+            // line that starts inside a wall meets nothing.
             bool mine = flight.Caster.IsMultiplayerAuthority();
-            var wall = space.IntersectRay(PhysicsRayQueryParameters3D.Create(before, after, CollisionLayers.World));
-            if (wall.Count > 0)
+            var wall = Walls.Hit(space, flight.Leaving ?? before, after);
+            flight.Leaving = null;
+            if (wall is { } stopped)
             {
-                EndHere(key, flight, wall["position"].AsVector3(), mine);
+                EndHere(key, flight, stopped - flight.Direction * ShortOfWall, mine);
                 continue;
             }
 
@@ -167,6 +182,7 @@ public partial class Bolts : Node3D
     private void Finish(Flight flight, Vector3 at)
     {
         flight.Node.QueueFree();
+        Ended?.Invoke(flight.Skill, at);
         if (flight.Skill.Element is not { } element)
         {
             return;
@@ -195,10 +211,11 @@ public partial class Bolts : Node3D
 
     private sealed class Flight
     {
-        public Flight(PlayerCharacter caster, SkillDefinition skill, Vector3 from, Vector3 direction, Node3D node)
+        public Flight(PlayerCharacter caster, SkillDefinition skill, Vector3 chest, Vector3 from, Vector3 direction, Node3D node)
         {
             Caster = caster;
             Skill = skill;
+            Leaving = chest;
             From = from;
             Direction = direction;
             Node = node;
@@ -213,6 +230,9 @@ public partial class Bolts : Node3D
         public Vector3 Direction { get; }
 
         public Node3D Node { get; }
+
+        // The caster's chest, until its first step has been looked at for walls.
+        public Vector3? Leaving { get; set; }
 
         public float Travelled { get; set; }
 

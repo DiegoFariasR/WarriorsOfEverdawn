@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using EverdawnKit.Characters;
 using Godot;
 using WarriorsOfEverdawn.Util;
 
@@ -8,7 +9,7 @@ namespace WarriorsOfEverdawn.Character;
 // Clips shared by every KayKit Rig_Medium character. The rig GLBs are imported as animation libraries.
 public static class RigAnimations
 {
-    public const string SkeletonPath = "Rig_Medium/Skeleton3D";
+    public const string SkeletonPath = CharacterBody.SkeletonPath;
 
     // KayKit clips feel slow at their authored speed. Idle, spawn, hit and death clips play this much faster;
     // swings play at the character's attack speed (Core CombatTiming / StatRules), and legs at whatever rate matches

@@ -107,7 +107,7 @@ public partial class NetSelfTest
         // end are.
         var figures = _players.GetChildren().OfType<PlayerCharacter>().ToList();
         _figuresMost = Mathf.Max(_figuresMost, figures.Count);
-        _undressedFrames = figures.Any(p => !ArmourLook.IsDressedFor(p.Skeleton, p.Vitals.Armour)) ? _undressedFrames + 1 : 0;
+        _undressedFrames = figures.Any(p => !ArmourLook.IsDressedFor(p.Skeleton, PlayerCharacter.Look, p.Vitals.Armour)) ? _undressedFrames + 1 : 0;
         _undressedFramesMost = Mathf.Max(_undressedFramesMost, _undressedFrames);
         if (Multiplayer.IsServer())
         {

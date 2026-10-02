@@ -1,5 +1,6 @@
 using System;
 using System.Linq;
+using EverdawnKit.Characters;
 using Godot;
 using WarriorsOfEverdawn.Character;
 using WarriorsOfEverdawn.Core.Combat;
@@ -59,7 +60,7 @@ public partial class SwingSurvey : Node
     {
         foreach (var weapon in Weapons.All)
         {
-            var body = Assets.Instantiate(PlayerCharacter.ModelPath);
+            var body = CharacterBody.Build(PlayerCharacter.Look);
             body.Visible = false;
             AddChild(body);
             var look = CombatVisuals.LookFor(weapon);
@@ -87,7 +88,7 @@ public partial class SwingSurvey : Node
                 continue;
             }
 
-            var body = Assets.Instantiate(CombatVisuals.LookFor(enemy).Model);
+            var body = CharacterBody.Build(CombatVisuals.LookFor(enemy).Figure);
             body.Visible = false;
             AddChild(body);
             var skeleton = body.GetNode<Skeleton3D>(RigAnimations.SkeletonPath);

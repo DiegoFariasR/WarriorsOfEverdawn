@@ -116,6 +116,16 @@ public partial class Arena : Node3D
             AddChild(Lineup.OfMagic(elements, _options.MagicBarriers));
         }
 
+        if (_options.LookLineup is { } looks)
+        {
+            AddChild(Lineup.OfLooks(looks));
+        }
+
+        if (_options.GoldLineup is { } eyeHeight)
+        {
+            AddChild(Lineup.OfGold(eyeHeight));
+        }
+
         if (_options.SwingSurvey)
         {
             AddChild(new SwingSurvey(Quit) { Name = "SwingSurvey" });
@@ -124,6 +134,16 @@ public partial class Arena : Node3D
         if (_options.CameraCheck)
         {
             AddChild(new CameraSelfTest(_camera, _players, _hud) { Name = "CameraSelfTest" });
+        }
+
+        if (_options.WallCheck)
+        {
+            AddChild(new WallSelfTest(_players) { Name = "WallSelfTest" });
+        }
+
+        if (_options.PartsCheck)
+        {
+            AddChild(new PartsSelfTest { Name = "PartsSelfTest" });
         }
 
         if (_options.QuitAfter > 0f)

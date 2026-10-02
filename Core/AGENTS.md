@@ -11,6 +11,7 @@ A rule belongs in Core when it can be decided from numbers alone: who is hit by 
 | `Combat/` | Skill and enemy definitions (`Skills`, `Enemies`, `PlayerRules`), hit arcs (`MeleeArc`), hit timing at attack speed (`CombatTiming`), cooldowns, stagger, health, enemy AI decisions (`EnemyBrain`) |
 | `Locomotion/` | Leg direction selection, move speeds, turn rate, dash rules and charges |
 | `Stats/` | STR / WIS / AGI and what they drive (`StatRules`), mana |
+| `Characters/` | The pools this game draws random figures from (`LookPools`). The catalogue, a look and the randomizer are the kit's (`GodotClient/kit/core`, namespace `EverdawnKit.Characters`), which Core references |
 | root | `Angles` and `Ground`: yaw and ground-plane conventions shared by both sides |
 
 ## Rules

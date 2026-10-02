@@ -58,6 +58,13 @@ public static class LootRules
     // It lies this long before it can be picked up, so it is seen to fall even under a player's feet.
     public const float SettleTime = 0.4f;
 
+    // A pile shows its gold coin for coin up to this many; more gold than that looks as this many do.
+    public const int MostCoinsShown = 10;
+
+    // How many coins a pile of that much gold shows.
+    public static int CoinsShown(int gold) =>
+        gold > 0 ? Math.Min(gold, MostCoinsShown) : throw new ArgumentOutOfRangeException(nameof(gold), gold, "A pile holds at least 1 gold");
+
     // Whether a monster that leaves a magic orb `chance` of the time leaves one now. roll is uniform in [0, 1).
     public static bool DropsOrb(float chance, float roll)
     {

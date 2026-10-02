@@ -13,4 +13,8 @@
     <InternalsVisibleTo Include="WarriorsOfEverdawn.Core.Tests" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\GodotClient\kit\core\EverdawnKit.Core.csproj" />
+  </ItemGroup>
+
 </Project>
