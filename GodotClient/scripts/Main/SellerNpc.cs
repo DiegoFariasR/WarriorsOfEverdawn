@@ -24,7 +24,7 @@ public partial class SellerNpc : Node3D
         [Sellers.Weaponsmith.Id] = "res://assets/characters/Barbarian.glb",
         [Sellers.Blacksmith.Id] = "res://assets/characters/Engineer.glb",
         [Sellers.Merchant.Id] = "res://assets/characters/Rogue_Hooded.glb",
-        [Sellers.Arcanist.Id] = "res://assets/characters/Mage.glb",
+        [Sellers.Enchanter.Id] = "res://assets/characters/Mage.glb",
     };
 
     private Label3D _prompt = null!;
@@ -42,6 +42,7 @@ public partial class SellerNpc : Node3D
 
         var npc = new SellerNpc { Name = spot.Seller.Id, Seller = spot.Seller, Position = spot.Position };
         var body = Assets.Instantiate(model);
+        ToonLook.Apply(body);
 
         // KayKit models face +Z, which is the way a layout's yaw points.
         body.Rotation = new Vector3(0f, spot.Yaw, 0f);

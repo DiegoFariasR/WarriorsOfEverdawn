@@ -18,6 +18,9 @@ public static class Projectiles
 
     public static readonly ProjectileDefinition Dart = new(Speed: 22f, MaxDistance: 12f, Radius: 0.2f);
 
+    // What a wand's burst is thrown as: bigger and slower than a bolt, since it is what bursts.
+    public static readonly ProjectileDefinition Ball = new(Speed: 13f, MaxDistance: 12f, Radius: 0.45f);
+
     // Whether the projectile touches a body while travelling from one point to the next this step. The whole
     // segment is tested, so a fast projectile cannot step over a body between frames.
     public static bool Hits(Vector2 from, Vector2 to, Vector2 target, float targetRadius, ProjectileDefinition projectile)
@@ -26,4 +29,8 @@ public static class Projectiles
         float along = step.LengthSquared() > 0f ? Math.Clamp(Vector2.Dot(target - from, step) / step.LengthSquared(), 0f, 1f) : 0f;
         return Vector2.Distance(from + step * along, target) <= targetRadius + projectile.Radius;
     }
+
+    // Whether a burst of this radius at a spot catches a body: one touching it is in it.
+    public static bool Blasts(Vector2 at, float radius, Vector2 target, float targetRadius) =>
+        Vector2.Distance(at, target) <= radius + targetRadius;
 }

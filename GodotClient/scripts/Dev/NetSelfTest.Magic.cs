@@ -8,11 +8,15 @@ using WarriorsOfEverdawn.Util;
 
 namespace WarriorsOfEverdawn.Dev;
 
-// [magic-check]: this machine's player throws its staff's bolts, as many to a cast as the skill has, and every
+// [magic-check]: this machine's player throws its staff's bolts, as many to a full cast as the skill has and never
+// more, and every
 // machine sees the others'; each bolt is gone by the time it could have flown its distance, and the burst it ends in
 // by a moment after; the spell held on an area is drawn, here and for the others, a round of strikes each cycle;
 // barriers show on every machine, and this machine's is seen to take blows (it falls below full) and to come back
-// while it is down. On the host, [magic-host]: the hits each player's bolts and area spells landed, what
+// while it is down; a wand's ball bursts where it ends, here and on the others' machines; every weapon of an
+// element shows it, a staff at its head and an enchanted weapon all over it,
+// and no plain weapon does. On the host, [magic-host]: the hits each player's bolts and area spells landed, the
+// blows of enchanted weapons that came as part magic, what
 // each player's barrier took, and with --barrier-drill the blows the host dealt each barrier as it went up (whether
 // a skeleton finds a barrier up is the fight's business, so the drill deals one through the same path, TakeAttack)
 // with the HP those blows cost, which is none while the barrier holds.
@@ -28,20 +32,28 @@ public partial class NetSelfTest
 
     private readonly Dictionary<long, int> _boltHitsByPeer = new();
     private readonly Dictionary<long, int> _areaHitsByPeer = new();
+    private readonly Dictionary<long, int> _enchantedHitsByPeer = new();
+    private readonly Dictionary<long, int> _blastHitsByPeer = new();
+    private int _blastsHere;
+    private int _blastsSeenRemote;
+    private int _blastCaughtMost;
     private readonly Dictionary<long, int> _barrierTookByPeer = new();
     private readonly Dictionary<long, int> _drillsByPeer = new();
     private readonly Dictionary<long, float> _barrierUpFor = new();
     private readonly HashSet<long> _drilledThisRaise = new();
     private int _drillHpLost;
     private int _barrierBefore = -1;
+    private int _alightFrames;
+    private int _darkFrames;
+    private int _plainAlightFrames;
     private int _barrierRises;
     private int _boltsHere;
     private int _boltsSeenRemote;
     private int _boltsLanded;
     private int _castsHere;
     private int _boltsThisCast;
-    private int _boltsPerCastMost;
-    private int _boltsPerCastWanted;
+    private readonly Dictionary<string, int> _boltsPerCastMost = new();
+    private int _castsOverThrown;
     private int _boltLingering;
     private int _burstsMost;
     private int _areaRoundsHereStart = -1;
@@ -58,6 +70,7 @@ public partial class NetSelfTest
     {
         Bolts.Loosed += OnBoltLoosed;
         Bolts.Landed += OnBoltLanded;
+        Bolts.Burst += OnBurst;
         PlayerVitals.BarrierTook += OnBarrierTook;
     }
 
@@ -65,19 +78,34 @@ public partial class NetSelfTest
     {
         Bolts.Loosed -= OnBoltLoosed;
         Bolts.Landed -= OnBoltLanded;
+        Bolts.Burst -= OnBurst;
         PlayerVitals.BarrierTook -= OnBarrierTook;
     }
 
-    private void TrackCasts(PlayerCharacter player) =>
+    private void TrackCasts(PlayerCharacter player)
+    {
         player.AttackStarted += skill =>
         {
             if (skill.Projectile != null)
             {
                 _castsHere++;
                 _boltsThisCast = 0;
-                _boltsPerCastWanted = Mathf.Max(_boltsPerCastWanted, skill.Projectiles);
             }
         };
+        player.BlastCaught += (_, caught) => _blastCaughtMost = Mathf.Max(_blastCaughtMost, caught);
+    }
+
+    private void OnBurst(PlayerCharacter caster, SkillDefinition skill)
+    {
+        if (GodotObject.IsInstanceValid(caster) && caster.IsMultiplayerAuthority())
+        {
+            _blastsHere++;
+        }
+        else
+        {
+            _blastsSeenRemote++;
+        }
+    }
 
     private void OnBoltLoosed(PlayerCharacter caster, SkillDefinition skill)
     {
@@ -87,9 +115,12 @@ public partial class NetSelfTest
             return;
         }
 
+        // By skill: the staff on the bot's back is cast for a moment at a time, and a volley cut short by the swap
+        // back says nothing about the staff it holds for the rest of the session.
         _boltsHere++;
         _boltsThisCast++;
-        _boltsPerCastMost = Mathf.Max(_boltsPerCastMost, _boltsThisCast);
+        _boltsPerCastMost[skill.Id] = Mathf.Max(_boltsPerCastMost.GetValueOrDefault(skill.Id), _boltsThisCast);
+        _castsOverThrown += _boltsThisCast == skill.Projectiles + 1 ? 1 : 0;
     }
 
     private void OnBoltLanded(SkillDefinition skill) => _boltsLanded++;
@@ -101,13 +132,21 @@ public partial class NetSelfTest
     // Host only (the event fires where damage is applied).
     private void CountMagicHit(long attacker, SkillDefinition skill)
     {
-        if (skill.Projectile != null)
+        if (skill.BlastRadius > 0f)
+        {
+            _blastHitsByPeer[attacker] = _blastHitsByPeer.GetValueOrDefault(attacker) + 1;
+        }
+        else if (skill.Projectile != null)
         {
             _boltHitsByPeer[attacker] = _boltHitsByPeer.GetValueOrDefault(attacker) + 1;
         }
         else if (skill.Area != null)
         {
             _areaHitsByPeer[attacker] = _areaHitsByPeer.GetValueOrDefault(attacker) + 1;
+        }
+        else if (skill is { Element: not null, MagicShare: > 0f and < 1f })
+        {
+            _enchantedHitsByPeer[attacker] = _enchantedHitsByPeer.GetValueOrDefault(attacker) + 1;
         }
     }
 
@@ -149,7 +188,7 @@ public partial class NetSelfTest
             DrillBarriers(delta);
         }
 
-        float longest = Weapons.Staffs.Max(s => s.Primary.Projectile!.MaxDistance / s.Primary.Projectile.Speed);
+        float longest = Weapons.All.SelectMany(w => w.Skills).Where(s => s.Projectile != null).Max(s => s.Projectile!.MaxDistance / s.Projectile.Speed);
         _boltLingering += bolts.OldestFlight > longest + BoltMargin ? 1 : 0;
         _burstsMost = Mathf.Max(_burstsMost, bolts.BurstsShowing);
 
@@ -166,6 +205,15 @@ public partial class NetSelfTest
             {
                 _areaFramesHere += mine ? 1 : 0;
                 _areaFramesRemote += mine ? 0 : 1;
+            }
+
+            // A flash plays over everything the player holds for its quarter second, the element included.
+            if (!player.Flash.Showing && !player.IsDowned)
+            {
+                bool ofAnElement = player.Weapon is { } held && (held.Element != null || held.Enchantment != null);
+                _alightFrames += ofAnElement && player.WeaponAlight ? 1 : 0;
+                _darkFrames += ofAnElement && !player.WeaponAlight ? 1 : 0;
+                _plainAlightFrames += !ofAnElement && player.Weapon != null && player.WeaponAlight ? 1 : 0;
             }
 
             if (player.BarrierShown)
@@ -186,15 +234,17 @@ public partial class NetSelfTest
     private void PrintMagicCheck(long me)
     {
         var local = LocalPlayer();
-        GD.Print($"[magic-check] me={me} weapon={local?.Weapon?.Id ?? NoWeapon} casts={_castsHere} bolts_here={_boltsHere} bolts_per_cast_most={_boltsPerCastMost} "
-            + $"bolts_per_cast_wanted={_boltsPerCastWanted} bolts_landed={_boltsLanded} bolts_seen_remote={_boltsSeenRemote} bolt_lingering_frames={_boltLingering} "
+        GD.Print($"[magic-check] me={me} weapon={local?.Weapon?.Id ?? NoWeapon} casts={_castsHere} bolts_here={_boltsHere} "
+            + $"bolts_per_cast_most={(local?.Weapon?.Primary is { } thrown ? _boltsPerCastMost.GetValueOrDefault(thrown.Id) : 0)} "
+            + $"bolts_per_cast_wanted={local?.Weapon?.Primary.Projectiles ?? 0} casts_over_thrown={_castsOverThrown} bolts_landed={_boltsLanded} bolts_seen_remote={_boltsSeenRemote} bolt_lingering_frames={_boltLingering} "
+            + $"blasts_here={_blastsHere} blasts_seen_remote={_blastsSeenRemote} blast_caught_most={_blastCaughtMost} "
             + $"bursts_most={_burstsMost} area_rounds_here={(local == null ? 0 : local.SpellArea.Rounds - Mathf.Max(_areaRoundsHereStart, 0))} "
             + $"area_frames_here={_areaFramesHere} area_frames_remote={_areaFramesRemote} strikes_most={_strikesMost} "
             + $"barrier_frames_here={_barrierFramesHere} barrier_frames_remote={_barrierFramesRemote} "
-            + $"barrier_least={(_barrierLeast == int.MaxValue ? -1 : _barrierLeast)} barrier_now={local?.Vitals.Barrier ?? -1} barrier_rises={_barrierRises} barrier_full={Weapons.Barrier.Barrier!.Strength}");
+            + $"barrier_least={(_barrierLeast == int.MaxValue ? -1 : _barrierLeast)} barrier_now={local?.Vitals.Barrier ?? -1} barrier_rises={_barrierRises} alight_frames={_alightFrames} dark_frames={_darkFrames} plain_alight_frames={_plainAlightFrames} barrier_full={Weapons.Barrier.Barrier!.Strength}");
         if (Multiplayer.IsServer())
         {
-            GD.Print($"[magic-host] bolt_hits={PerPeer(_boltHitsByPeer)} area_hits={PerPeer(_areaHitsByPeer)} barrier_took={PerPeer(_barrierTookByPeer)} "
+            GD.Print($"[magic-host] bolt_hits={PerPeer(_boltHitsByPeer)} area_hits={PerPeer(_areaHitsByPeer)} blast_hits={PerPeer(_blastHitsByPeer)} enchanted_hits={PerPeer(_enchantedHitsByPeer)} barrier_took={PerPeer(_barrierTookByPeer)} "
                 + $"barrier_drills={PerPeer(_drillsByPeer)} drill_blow={DrillBlow} drill_hp_lost={_drillHpLost}");
         }
     }

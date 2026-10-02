@@ -161,6 +161,11 @@ public partial class PlayerCharacter : CharacterBody3D
 
     public bool BarrierShown => _barrier.Visible;
 
+    // Whether an element shows on what this machine draws in the player's hand: an enchanted weapon's all over it,
+    // a staff's at its head.
+    public bool WeaponAlight =>
+        _hand.FindChildren("*", nameof(MeshInstance3D), recursive: true, owned: false).OfType<MeshInstance3D>().Any(m => m.MaterialOverlay != null);
+
     public bool IsChanneling => ActiveSkill?.Channeled == true;
 
     public LegDirection? Legs => NetVelocity.Length() > MovingThreshold ? _legs : null;
@@ -172,6 +177,9 @@ public partial class PlayerCharacter : CharacterBody3D
 
     // PvP: the other player this machine reported hitting.
     public event Action<PlayerCharacter>? PlayerHit;
+
+    // On the owner, as one of its balls bursts: the skill and how many bodies the burst caught.
+    public event Action<SkillDefinition, int>? BlastCaught;
 
     // On every peer, as a dash starts: its direction.
     public event Action<Vector3>? DashStarted;
@@ -221,6 +229,7 @@ public partial class PlayerCharacter : CharacterBody3D
         player._model = new Node3D { Name = "Model" };
         player.AddChild(player._model);
         var body = Assets.Instantiate(ModelPath);
+        ToonLook.Apply(body);
         player._model.AddChild(body);
         var look = CombatVisuals.LookFor(WeaponSets.Default.Active!);
         var backLook = CombatVisuals.LookFor(WeaponSets.Default.Stowed!);
@@ -628,30 +637,64 @@ public partial class PlayerCharacter : CharacterBody3D
     }
 
     // On the owner, for Bolts: the first body one of its bolts touches on its way from one point to the next takes the
-    // skill's damage, as a body caught by a swing does. False when it touches none.
+    // skill's damage, as a body caught by a swing does; one that bursts does so there instead, on that body and
+    // every other in the burst. False when it touches none.
     public bool StrikeWith(SkillDefinition skill, Vector3 from, Vector3 to)
     {
         var projectile = skill.Projectile!;
         var enemy = GetTree().GetNodesInGroup(EnemyCharacter.Group).OfType<EnemyCharacter>()
             .Where(e => !e.IsDead && Projectiles.Hits(Yaw.ToGround(from), Yaw.ToGround(to), Yaw.ToGround(e.GlobalPosition), BodySize.Radius, projectile))
             .MinBy(e => e.GlobalPosition.DistanceSquaredTo(from));
-        if (enemy != null)
-        {
-            enemy.RpcId(1, EnemyCharacter.MethodName.RequestDamage, skill.Id);
-            return true;
-        }
-
-        var other = !SessionRules.Pvp ? null : GetTree().GetNodesInGroup(Group).OfType<PlayerCharacter>()
+        var other = enemy != null || !SessionRules.Pvp ? null : GetTree().GetNodesInGroup(Group).OfType<PlayerCharacter>()
             .Where(p => p != this && !p.IsDowned && Projectiles.Hits(Yaw.ToGround(from), Yaw.ToGround(to), Yaw.ToGround(p.GlobalPosition), BodySize.Radius, projectile))
             .MinBy(p => p.GlobalPosition.DistanceSquaredTo(from));
-        if (other == null)
+        if (enemy == null && other == null)
         {
             return false;
         }
 
-        other.Vitals.RpcId(1, PlayerVitals.MethodName.RequestDamage, skill.Id);
-        PlayerHit?.Invoke(other);
+        if (skill.BlastRadius > 0f)
+        {
+            BlastAt(skill, to);
+        }
+        else if (enemy != null)
+        {
+            enemy.RpcId(1, EnemyCharacter.MethodName.RequestDamage, skill.Id);
+        }
+        else
+        {
+            other!.Vitals.RpcId(1, PlayerVitals.MethodName.RequestDamage, skill.Id);
+            PlayerHit?.Invoke(other);
+        }
+
         return true;
+    }
+
+    // On the owner, for Bolts: a ball of the skill bursts at that spot, and every body the burst catches takes the
+    // skill's damage.
+    public void BlastAt(SkillDefinition skill, Vector3 at)
+    {
+        var spot = Yaw.ToGround(at);
+        int caught = 0;
+        foreach (var enemy in GetTree().GetNodesInGroup(EnemyCharacter.Group).OfType<EnemyCharacter>()
+            .Where(e => !e.IsDead && Projectiles.Blasts(spot, skill.BlastRadius, Yaw.ToGround(e.GlobalPosition), BodySize.Radius)))
+        {
+            enemy.RpcId(1, EnemyCharacter.MethodName.RequestDamage, skill.Id);
+            caught++;
+        }
+
+        if (SessionRules.Pvp)
+        {
+            foreach (var other in GetTree().GetNodesInGroup(Group).OfType<PlayerCharacter>()
+                .Where(p => p != this && !p.IsDowned && Projectiles.Blasts(spot, skill.BlastRadius, Yaw.ToGround(p.GlobalPosition), BodySize.Radius)))
+            {
+                other.Vitals.RpcId(1, PlayerVitals.MethodName.RequestDamage, skill.Id);
+                PlayerHit?.Invoke(other);
+                caught++;
+            }
+        }
+
+        BlastCaught?.Invoke(skill, caught);
     }
 
     public void EndBoltEverywhere(int id, Vector3 at) => Rpc(MethodName.EndBolt, id, at);
@@ -754,7 +797,7 @@ public partial class PlayerCharacter : CharacterBody3D
         // Driven by the swing's start on this peer, so every player's trail shows on every machine.
         _swingShownTime += delta;
         // A spell is no swing of the weapon: it leaves no trail.
-        Trail.Recording = ActiveSkill is { Element: null } swing && (swing.Channeled || WeaponTrail.Shows(swing, _swingShownTime, _swingSpeed));
+        Trail.Recording = ActiveSkill is { Projectile: null, Area: null } swing && (swing.Channeled || WeaponTrail.Shows(swing, _swingShownTime, _swingSpeed));
         ShowMagic();
     }
 

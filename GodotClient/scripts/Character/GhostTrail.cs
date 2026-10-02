@@ -199,6 +199,9 @@ public partial class GhostTrail : Node
             // surface.
             var depthPass = new ShaderMaterial { Shader = depth, RenderPriority = -10, NextPass = color };
             mesh.MaterialOverride = depthPass;
+
+            // A ghost is one colour all through: an enchanted weapon's element does not play over it.
+            mesh.MaterialOverlay = null;
             mesh.CastShadow = GeometryInstance3D.ShadowCastingSetting.Off;
             materials.Add(color);
             materials.Add(depthPass);

@@ -50,6 +50,22 @@ public static class ElementLooks
 
     private static readonly Dictionary<Element, StandardMaterial3D> Glows = new();
     private static readonly Dictionary<Element, ShaderMaterial> Overlays = new();
+    private static readonly Dictionary<Element, ShaderMaterial> Enchantments = new();
+
+    // How much of its shader each element shows on an enchanted weapon, as a share of what a thing made of it shows:
+    // enough to tell the element, with the weapon still to be seen under it. Chosen by eye, element by element
+    // (./dev.sh weapon-lineup greatsword~fire): fire at full strength made a blade one flat colour, and water, void
+    // and divine at fire's share did not show at all. Divine is the least settled: its sparkle barely shows on a thin
+    // staff and runs to white over a broad blade, whatever the share.
+    private static readonly Dictionary<Element, float> EnchantmentStrength = new()
+    {
+        [Element.Fire] = 0.8f,
+        [Element.Water] = 3f,
+        [Element.Wind] = 0.9f,
+        [Element.Earth] = 0.8f,
+        [Element.Divine] = 1.2f,
+        [Element.Void] = 1.2f,
+    };
 
     public static ElementLook For(Element element) =>
         ByElement.TryGetValue(element, out var look) ? look : throw new KeyNotFoundException($"No look for the element {element}");
@@ -87,6 +103,24 @@ public static class ElementLooks
             overlay.SetShaderParameter("speed", look.Speed);
             overlay.SetShaderParameter("dissolve", look.Dissolve);
             Overlays[element] = overlay;
+        }
+
+        return overlay;
+    }
+
+    // The element's surface shader as it plays over an enchanted weapon: in the element's own colour, and thinner
+    // than over a thing made of it. Shared.
+    public static ShaderMaterial Enchantment(Element element)
+    {
+        if (!Enchantments.TryGetValue(element, out var overlay))
+        {
+            var look = For(element);
+            overlay = new ShaderMaterial { Shader = Assets.Load<Shader>($"{Shaders}{look.Shader}.gdshader") };
+            overlay.SetShaderParameter("tint", look.Primary);
+            overlay.SetShaderParameter("noise_scale", look.NoiseScale);
+            overlay.SetShaderParameter("speed", look.Speed);
+            overlay.SetShaderParameter("dissolve", Mathf.Min(1f, look.Dissolve * EnchantmentStrength[element]));
+            Enchantments[element] = overlay;
         }
 
         return overlay;

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace WarriorsOfEverdawn.Core.Combat;
 
@@ -33,15 +34,28 @@ public sealed record SkillDefinition(string Id, int Damage, float Range, float H
 
     public float VolleyInterval { get; init; }
 
+    // What a thrown skill bursts into where it ends, be that a body, a wall or the end of its flight: everything
+    // within this of the spot takes its damage, the body it struck like the rest and no more. 0 for one that hits
+    // only what it touches.
+    public float BlastRadius { get; init; }
+
     // A spell lands on this instead of in an arc from the caster; Range is then how far its far edge reaches.
     public AreaDefinition? Area { get; init; }
 
-    // The magic it is made of; none for a blow with a weapon. Magic grows with WIS where a blow grows with STR.
+    // The magic it is made of; none for a blow with a plain weapon. Magic grows with WIS where a blow grows with STR.
     public Element? Element { get; init; }
+
+    // Of a skill with an element, the share of its damage that is that magic: all of a spell's, part of a blow's
+    // with an enchanted weapon.
+    public float MagicShare { get; init; } = 1f;
 }
 
 // What a magic staff casts: its bolt or volley, the spell held on an area, and the thrust its dash carries.
 public sealed record StaffSkills(SkillDefinition Primary, SkillDefinition Channel, SkillDefinition Lunge);
+
+// What a wand and its book cast: the same bolt or volley as the staff of their element, a ball that bursts, and the
+// thrust a dash carries.
+public sealed record WandSkills(SkillDefinition Primary, SkillDefinition Burst, SkillDefinition Lunge);
 
 public static class Skills
 {
@@ -127,9 +141,10 @@ public static class Skills
 
     // The sword of a sword and shield: one-handed and short, so it hits least, in exchange for the shield's guard.
     // Measured as the others are: the slash lands when the blade moves fastest (Melee_1H_Attack_Slice_Diagonal,
-    // 0.417 s), reaching 2.04 standing and 1.78 in play; the lunge closes at the one-handed stab's full extension,
-    // where the blade reaches 2.3 in a dash.
-    public static readonly SkillDefinition SwordSlash = new("sword-slash", Damage: 14, Range: 1.8f, HalfArc: 60f * Angles.DegToRad, HitTime: 0.417f)
+    // 0.417 s), reaching 2.04 standing and about 1.7 in play (medians of 1.53 to 1.85 across runs, by how much of
+    // a session is fought on the move); the lunge closes at the one-handed stab's full extension, where the blade
+    // reaches 2.3 in a dash.
+    public static readonly SkillDefinition SwordSlash = new("sword-slash", Damage: 14, Range: 1.7f, HalfArc: 60f * Angles.DegToRad, HitTime: 0.417f)
     {
         Name = "Slash",
     };
@@ -191,6 +206,38 @@ public static class Skills
     };
 
     public static StaffSkills StaffOf(Element element) => Staffs[element];
+
+    // Wands, first pass. The secondary is not held: one cast throws one ball, which bursts where it ends and deals
+    // its damage to everything within the burst. It costs mana by the cast and cannot be thrown again at once.
+    // Thrown with the same clip as a bolt. The same numbers for every element: what an element's burst does of its
+    // own is not decided.
+    private const int BurstDamage = 25;
+    private const float BurstRadius = 2.5f;
+    private const int BurstManaCost = 12;
+    private const float BurstCooldown = 2.5f;
+
+    // A jab with the wand: it is short, so this reaches least of all.
+    private const int WandPokeDamage = 16;
+    private const float WandPokeRange = 1.65f;
+
+    private static readonly Dictionary<Element, WandSkills> Wands = Elements.All.ToDictionary(element => element, WandOf);
+
+    public static WandSkills WandFor(Element element) => Wands[element];
+
+    private static WandSkills WandOf(Element element)
+    {
+        string id = Elements.IdOf(element);
+        var burst = new SkillDefinition($"{id}-burst", BurstDamage, Projectiles.Ball.MaxDistance, ThrustHalfArc, CastReleased)
+        {
+            Name = element == Element.Fire ? "Fireball" : $"{element} Burst",
+            Projectile = Projectiles.Ball,
+            BlastRadius = BurstRadius,
+            ManaCost = BurstManaCost,
+            Cooldown = BurstCooldown,
+            Element = element,
+        };
+        return new WandSkills(Staffs[element].Primary, burst, LungeOf($"{id}-wand-lunge", WandPokeDamage, WandPokeRange, OneHandedStabExtended));
+    }
 
     private static StaffSkills StaffOf(Element element, bool volley, string channelId, string channelName, int damage, int manaCost, AreaDefinition area)
     {

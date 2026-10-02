@@ -9,6 +9,15 @@ namespace WarriorsOfEverdawn.Core.Trade;
 // What a seller needs to know of whoever is buying: what they carry and wear decides what they are offered.
 public sealed record Buyer(WeaponSets Weapons, int ArmourTier);
 
+public enum TradeKind
+{
+    Purchase,
+    Improvement,
+    Sale,
+    Enchantment,
+    Attunement,
+}
+
 // One thing a seller offers this buyer, for what it costs: a weapon or a tier of armour. A weapon with no Slot is one
 // for sale, which goes wherever a bought weapon goes; with a Slot it is the weapon that slot would hold in place of
 // the one there now (an improvement of it). Armour is worn at once in place of what was worn. Unavailable says why it
@@ -24,6 +33,16 @@ public sealed record TradeItem(string Id, string Name, Cost Cost, WeaponDefiniti
 
     public bool IsSale => !Pays.IsNothing;
 
+    // What sort of trade it is, for the window to word it. Told from what the offer holds, but for the enchanter's,
+    // which replace the weapon in a slot as an improvement does and say which they are (As).
+    public TradeKind? As { get; init; }
+
+    public TradeKind Kind => As ?? (IsSale ? TradeKind.Sale : Slot != null || Armour != null ? TradeKind.Improvement : TradeKind.Purchase);
+
+    // What a slot of the window calls it, where the name is too long for one or says more than the slot needs: the
+    // enchanter's six offers are told apart by their element alone.
+    public string? Label { get; init; }
+
     public bool GivesSomething => Weapon != null || Armour != null || IsSale;
 }
 
@@ -37,14 +56,17 @@ public sealed record SellerDefinition(string Id, string Name, string Line, Func<
 
 public static class Sellers
 {
-    private static readonly IReadOnlyList<TradeItem> PlainWeapons = ForSale(Weapons.Arms);
-
-    private static readonly IReadOnlyList<TradeItem> PlainStaffs = ForSale(Weapons.Staffs);
+    // Every weapon of steel and wood, and the fire staff and the fire wand: the enchanter makes either of any other
+    // element.
+    private static readonly IReadOnlyList<TradeItem> PlainWeapons =
+        ForSale(Weapons.Arms.Append(Weapons.Staff(Element.Fire)).Append(Weapons.Wand(Element.Fire)));
 
     public static readonly SellerDefinition Weaponsmith = new("weaponsmith", "Weaponsmith", "Plain weapons for gold", _ => PlainWeapons);
 
-    // The magic staffs, one for each element, plain.
-    public static readonly SellerDefinition Arcanist = new("arcanist", "Arcanist", "Magic staffs for gold", _ => PlainStaffs);
+    // Works on the weapon in the buyer's hand: one offer for each element, always in the same order. For a staff,
+    // the staff of that element in its place; for a weapon of steel or wood, that element laid on it.
+    public static readonly SellerDefinition Enchanter = new("enchanter", "Enchanter", "An element for the weapon in your hand",
+        buyer => Elements.All.Select(element => TradeRules.Enchantment(buyer.Weapons, element)).ToList());
 
     // Works on what the buyer has on: one offer each for the weapon in hand, the weapon on the back and the armour
     // worn, always in that order, each the next step up from what is there.
@@ -66,7 +88,7 @@ public static class Sellers
             TradeRules.OrbSale,
         });
 
-    public static IReadOnlyList<SellerDefinition> All { get; } = new[] { Weaponsmith, Blacksmith, Merchant, Arcanist };
+    public static IReadOnlyList<SellerDefinition> All { get; } = new[] { Weaponsmith, Blacksmith, Merchant, Enchanter };
 
     public static SellerDefinition ById(string id) =>
         All.FirstOrDefault(s => s.Id == id) ?? throw new KeyNotFoundException($"Unknown seller '{id}'");
@@ -105,6 +127,11 @@ public static class TradeRules
     // First pass: what the merchant pays for a magic orb.
     public const int OrbPrice = 100;
 
+    // First pass. What the enchanter takes to lay an element on a weapon, and to make a staff the staff of another
+    // element.
+    public static readonly Cost EnchantCost = new(Gold: 60, Orbs: 1);
+    public static readonly Cost AttuneCost = new(Gold: 30);
+
     // First pass. Each level costs more than the last: this much gold for every level reached, and an orb for every
     // two (one for +1 and +2, two for +3 and +4, up to five for +9 and +10).
     public const int GoldPerLevel = 40;
@@ -135,9 +162,38 @@ public static class TradeRules
             ? ArmourCosts[tier - 1]
             : throw new ArgumentOutOfRangeException(nameof(tier), tier, $"Armour is bought in tiers 1 to {ArmourCosts.Length}");
 
-    // The gold it took to have this weapon: its plain price and every level since.
+    // The gold it took to have this weapon: its plain price, every level since, and its enchantment if it has one.
     public static int GoldPutInto(WeaponDefinition weapon) =>
-        PlainWeaponPrice + Enumerable.Range(1, weapon.Level).Sum(level => ImprovementCost(level).Gold);
+        PlainWeaponPrice + Enumerable.Range(1, weapon.Level).Sum(level => ImprovementCost(level).Gold)
+        + (weapon.Enchantment != null ? EnchantCost.Gold : 0);
+
+    // The enchanter's offer of one element for the weapon in the buyer's hand, or why there is nothing to do. A
+    // staff becomes the staff of that element, and a wand the wand; any other weapon is enchanted with it, in place of whatever
+    // enchantment it had. Either way the weapon keeps its level.
+    public static TradeItem Enchantment(WeaponSets carried, Element element)
+    {
+        string id = Elements.IdOf(element);
+        TradeItem NoOffer(string name, string why) =>
+            new(id, name, Cost.Nothing, null, WeaponSlot.Hand, why) { As = TradeKind.Enchantment, Label = element.ToString() };
+
+        if (carried.Active is not { } weapon)
+        {
+            return NoOffer(element.ToString(), "Nothing in your hand to work on");
+        }
+
+        if (weapon.Element is { } own)
+        {
+            var attuned = Weapons.Attuned(weapon, element);
+            return own == element
+                ? NoOffer(weapon.Name, "It is of this element already")
+                : new TradeItem(id, attuned.Name, AttuneCost, attuned, WeaponSlot.Hand) { As = TradeKind.Attunement, Label = element.ToString() };
+        }
+
+        var enchanted = Weapons.Enchanted(weapon, element);
+        return weapon.Enchantment == element
+            ? NoOffer(weapon.Name, "Already enchanted with it")
+            : new TradeItem(id, enchanted.Name, EnchantCost, enchanted, WeaponSlot.Hand) { As = TradeKind.Enchantment, Label = element.ToString() };
+    }
 
     // What the merchant pays for it.
     public static Cost ResaleValue(WeaponDefinition weapon) => new(Gold: (int)(GoldPutInto(weapon) * ResaleShare));

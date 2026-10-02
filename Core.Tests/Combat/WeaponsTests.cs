@@ -11,14 +11,23 @@ public class WeaponsTests
     private static IEnumerable<SkillDefinition> AllSkills => Weapons.All.SelectMany(w => new[] { w.Primary, w.Secondary, w.Lunge });
 
     [Fact]
-    public void Every_weapon_pairs_a_swing_with_a_paid_channel()
+    public void Every_weapon_pairs_a_free_primary_with_a_secondary_paid_in_mana()
     {
         Assert.NotEmpty(Weapons.All);
         foreach (var weapon in Weapons.All)
         {
             Assert.False(weapon.Primary.Channeled, weapon.Id);
-            Assert.True(weapon.Secondary.Channeled, weapon.Id);
+            Assert.Equal(0, weapon.Primary.ManaCost);
             Assert.True(weapon.Secondary.ManaCost > 0, weapon.Id);
+        }
+    }
+
+    [Fact]
+    public void Every_secondary_but_a_wands_is_held_cycle_after_cycle_and_slows_its_caster()
+    {
+        foreach (var weapon in Weapons.All.Where(w => !Weapons.IsWand(w)))
+        {
+            Assert.True(weapon.Secondary.Channeled, weapon.Id);
             Assert.NotNull(weapon.Secondary.SweepEnd);
             Assert.True(weapon.Secondary.MoveSpeedFactor is > 0f and < 1f, weapon.Id);
         }
@@ -96,7 +105,9 @@ public class WeaponsTests
     public void Weapon_and_skill_ids_are_unique()
     {
         Assert.Equal(Weapons.All.Count, Weapons.All.Select(w => w.Id).Distinct().Count());
-        Assert.Equal(AllSkills.Count(), AllSkills.Select(s => s.Id).Distinct().Count());
+        // A wand throws the very shot the staff of its element does: one skill under one id, in two weapons.
+        Assert.Equal(AllSkills.Distinct().Count(), AllSkills.Select(s => s.Id).Distinct().Count());
+        Assert.All(AllSkills.GroupBy(s => s.Id), sameId => Assert.Single(sameId.Distinct()));
     }
 
     [Fact]

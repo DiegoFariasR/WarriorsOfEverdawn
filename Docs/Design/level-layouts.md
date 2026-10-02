@@ -73,7 +73,7 @@ The playtest starts its players inside a room of the town (`--start-at`, the spo
 
 ## Open questions
 
-- What else the town should do: the weaponsmith is in the armoury, the blacksmith at the courtyard's anvil and the merchant at a stall across the courtyard from it ([trade.md](trade.md)); and the arcanist on a rug by a shrine at the front of the courtyard.
+- What else the town should do: the weaponsmith is in the armoury, the blacksmith at the courtyard's anvil and the merchant at a stall across the courtyard from it ([trade.md](trade.md)); and the enchanter on a rug by a shrine at the front of the courtyard.
 - Camping the enemy gate: four players standing in the fortress kill each wave as it rises. Whether waves should rise somewhere players cannot stand, or the fortress should defend itself.
 - A player in the town can strike skeletons outside the gate without being struck back.
 - Whether skeletons should do something when every player is in the town, instead of standing still.

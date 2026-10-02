@@ -24,6 +24,10 @@ public sealed record WeaponDefinition(string Id, string Name, SkillDefinition Pr
     // The magic a staff is made for; none for a weapon of steel or wood.
     public Element? Element { get; init; }
 
+    // The element a weapon of steel or wood has been enchanted with, if any: part of every blow's damage is that
+    // magic (Weapons.EnchantedShare). It shows in the id and the name: "greatsword~fire", "Greatsword of Fire".
+    public Element? Enchantment { get; init; }
+
     public IEnumerable<SkillDefinition> Skills => new[] { Primary, Secondary, Lunge };
 
     public SkillDefinition Skill(int button) => button switch
@@ -40,8 +44,12 @@ public static class Weapons
     // the one before whatever the skill.
     public const float DamagePerLevel = 0.1f;
 
-    // Between a weapon's kind and its level, in ids and names.
+    // An enchanted weapon deals this share of its damage as its element's magic. First pass.
+    public const float EnchantedShare = 0.4f;
+
+    // Before a weapon's level in ids and names, and before its enchantment in ids: "greatsword~fire+3".
     private const char LevelMark = '+';
+    private const char EnchantMark = '~';
 
     // Guards, first pass: the greatsword stops everything in front and slows most; the staff covers the widest arc and
     // parries most easily; the spear guards a narrow front; the scythe lets the most through and parries hardest but
@@ -72,7 +80,7 @@ public static class Weapons
         Barrier = new BarrierDefinition(Strength: 40, RechargePerSecond: 8f, RechargeDelay: 2f),
     };
 
-    private static readonly Dictionary<(string Kind, int Level), WeaponDefinition> Improved = new();
+    private static readonly Dictionary<(string Kind, Element? Enchantment, int Level), WeaponDefinition> Made = new();
 
     // Weapons of steel and wood: what the weaponsmith sells.
     public static IReadOnlyList<WeaponDefinition> Arms { get; } = new[] { Greatsword, Quarterstaff, Spear, Scythe, SwordAndShield };
@@ -80,12 +88,29 @@ public static class Weapons
     // A magic staff for each element: a bolt or a volley, a spell held on an area, and the barrier.
     public static IReadOnlyList<WeaponDefinition> Staffs { get; } = Elements.All.Select(StaffFor).ToList();
 
+    // A wand and book for each element, one weapon as a sword and shield are: the staff's bolt or volley and its
+    // barrier, and in place of the spell held on an area a ball thrown to burst.
+    public static IReadOnlyList<WeaponDefinition> Wands { get; } = Elements.All.Select(WandFor).ToList();
+
     // The plain makes. Also the order the weapon key cycles through.
-    public static IReadOnlyList<WeaponDefinition> All { get; } = Arms.Concat(Staffs).ToList();
+    public static IReadOnlyList<WeaponDefinition> All { get; } = Arms.Concat(Staffs).Concat(Wands).ToList();
 
     public static WeaponDefinition Default => Greatsword;
 
     public static WeaponDefinition Staff(Element element) => Staffs[(int)element];
+
+    public static WeaponDefinition Wand(Element element) => Wands[(int)element];
+
+    public static bool IsWand(WeaponDefinition weapon) => Wands.Contains(Plain(weapon));
+
+    private static WeaponDefinition WandFor(Element element)
+    {
+        var skills = Skills.WandFor(element);
+        return new WeaponDefinition($"{Elements.IdOf(element)}-wand", $"{element} wand", skills.Primary, skills.Burst, skills.Lunge, Barrier)
+        {
+            Element = element,
+        };
+    }
 
     private static WeaponDefinition StaffFor(Element element)
     {
@@ -96,56 +121,86 @@ public static class Weapons
         };
     }
 
-    // A weapon by its id, improved ones included: "spear", "spear+4".
+    // A weapon by its id, enchanted and improved ones included: "spear", "spear+4", "spear~void", "spear~void+4".
     public static WeaponDefinition ById(string id)
     {
-        int mark = id.IndexOf(LevelMark);
-        string kind = mark < 0 ? id : id[..mark];
+        int levelAt = id.IndexOf(LevelMark);
+        string made = levelAt < 0 ? id : id[..levelAt];
+        int enchantAt = made.IndexOf(EnchantMark);
+        string kind = enchantAt < 0 ? made : made[..enchantAt];
         var plain = All.FirstOrDefault(w => w.Id == kind) ?? throw new KeyNotFoundException($"Unknown weapon '{id}'");
-        if (mark < 0)
+
+        Element? enchantment = null;
+        if (enchantAt >= 0)
         {
-            return plain;
+            string named = made[(enchantAt + 1)..];
+            enchantment = plain.Element == null && Elements.All.Where(e => Elements.IdOf(e) == named).Select(e => (Element?)e).FirstOrDefault() is { } element
+                ? element
+                : throw new KeyNotFoundException($"Unknown weapon '{id}': '{named}' is no element, or the {plain.Name} takes no enchantment");
         }
 
-        return int.TryParse(id[(mark + 1)..], out int level) && level is >= 1 and <= WeaponDefinition.MaxLevel
-            ? AtLevel(plain, level)
-            : throw new KeyNotFoundException($"Unknown weapon '{id}': a level is from 1 to {WeaponDefinition.MaxLevel}");
+        int level = 0;
+        if (levelAt >= 0 && !(int.TryParse(id[(levelAt + 1)..], out level) && level is >= 1 and <= WeaponDefinition.MaxLevel))
+        {
+            throw new KeyNotFoundException($"Unknown weapon '{id}': a level is from 1 to {WeaponDefinition.MaxLevel}");
+        }
+
+        return Make(plain, enchantment, level);
     }
 
-    // The plain weapon an improved one is a make of; a plain one is its own.
+    // The plain weapon an enchanted or improved one is a make of; a plain one is its own.
     public static WeaponDefinition Plain(WeaponDefinition weapon) => ById(weapon.Kind);
 
-    // The weapon's kind at this level, whatever level it is at now: the same weapon with every skill hitting harder.
-    public static WeaponDefinition AtLevel(WeaponDefinition weapon, int level)
+    // The weapon at this level, whatever level it is at now, its enchantment kept: every skill hits harder.
+    public static WeaponDefinition AtLevel(WeaponDefinition weapon, int level) => Make(Plain(weapon), weapon.Enchantment, level);
+
+    // The weapon enchanted with this element in place of any it had, its level kept. A staff is not enchanted: it
+    // is of its element already (Attuned).
+    public static WeaponDefinition Enchanted(WeaponDefinition weapon, Element element) => Make(Plain(weapon), element, weapon.Level);
+
+    // The staff of this element in place of the staff of another, or the wand in place of the wand, its level kept.
+    public static WeaponDefinition Attuned(WeaponDefinition magic, Element element) =>
+        magic.Element != null
+            ? AtLevel(IsWand(magic) ? Wand(element) : Staff(element), magic.Level)
+            : throw new ArgumentException($"The {magic.Name} is of no element: it is enchanted, not attuned", nameof(magic));
+
+    private static WeaponDefinition Make(WeaponDefinition plain, Element? enchantment, int level)
     {
         if (level is < 0 or > WeaponDefinition.MaxLevel)
         {
             throw new ArgumentOutOfRangeException(nameof(level), level, $"A weapon's level is from 0 to {WeaponDefinition.MaxLevel}");
         }
 
-        var plain = Plain(weapon);
-        if (level == 0)
+        if (enchantment != null && plain.Element != null)
+        {
+            throw new ArgumentException($"The {plain.Name} is of its own element and takes no enchantment", nameof(enchantment));
+        }
+
+        if (level == 0 && enchantment == null)
         {
             return plain;
         }
 
-        lock (Improved)
+        lock (Made)
         {
-            if (!Improved.TryGetValue((plain.Id, level), out var improved))
+            if (!Made.TryGetValue((plain.Id, enchantment, level), out var made))
             {
-                improved = plain with
+                string enchantedId = enchantment is { } id ? $"{EnchantMark}{Elements.IdOf(id)}" : "";
+                string enchantedName = enchantment is { } name ? $" of {name}" : "";
+                made = plain with
                 {
-                    Id = $"{plain.Id}{LevelMark}{level}",
-                    Name = $"{plain.Name} {LevelMark}{level}",
+                    Id = $"{plain.Id}{enchantedId}{(level > 0 ? $"{LevelMark}{level}" : "")}",
+                    Name = $"{plain.Name}{enchantedName}{(level > 0 ? $" {LevelMark}{level}" : "")}",
                     Level = level,
-                    Primary = Harder(plain.Primary, level),
-                    Secondary = Harder(plain.Secondary, level),
-                    Lunge = Harder(plain.Lunge, level),
+                    Enchantment = enchantment,
+                    Primary = Shaped(plain.Primary, enchantment, level),
+                    Secondary = Shaped(plain.Secondary, enchantment, level),
+                    Lunge = Shaped(plain.Lunge, enchantment, level),
                 };
-                Improved[(plain.Id, level)] = improved;
+                Made[(plain.Id, enchantment, level)] = made;
             }
 
-            return improved;
+            return made;
         }
     }
 
@@ -166,5 +221,10 @@ public static class Weapons
         return All[(index + 1) % All.Count];
     }
 
-    private static SkillDefinition Harder(SkillDefinition skill, int level) => skill with { Damage = DamageAtLevel(skill.Damage, level) };
+    // A plain skill as a weapon of this level and enchantment has it.
+    private static SkillDefinition Shaped(SkillDefinition skill, Element? enchantment, int level)
+    {
+        var harder = skill with { Damage = DamageAtLevel(skill.Damage, level) };
+        return enchantment is { } element ? harder with { Element = element, MagicShare = EnchantedShare } : harder;
+    }
 }

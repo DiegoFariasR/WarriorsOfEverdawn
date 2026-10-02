@@ -222,6 +222,7 @@ public sealed class BotControls : IPlayerControls
 
     private const float CrowdPenalty = 3f;
 
+    private const float RangedOrbit = 4f;
     private const float ThrowEvery = 5f;
     private const float ThrowFor = 2.5f;
 
@@ -489,8 +490,11 @@ public sealed class BotControls : IPlayerControls
             return;
         }
 
-        // A staff's spell lands on a spot ahead, so its bot keeps the hostile there and not at arm's length.
-        float orbit = weapon.Secondary.Area is { Distance: > 0f } ahead ? ahead.Distance : OrbitDistance;
+        // A staff's spell lands on a spot ahead, so its bot keeps the hostile there and not at arm's length; a wand's
+        // bot, with nothing to hold on a spot, keeps the same distance. One whose spell is centred on itself goes in.
+        float orbit = weapon.Secondary.Area is { } area ? (area.Distance > 0f ? area.Distance : OrbitDistance)
+            : weapon.Primary.Projectile != null ? RangedOrbit
+            : OrbitDistance;
         var inward = distance > 0.01f ? toEnemy / distance : Yaw.Forward(_phase);
         var around = new Vector3(-inward.Z, 0f, inward.X);
         var keepDistance = inward * Mathf.Clamp(distance - orbit, -1f, 1f);

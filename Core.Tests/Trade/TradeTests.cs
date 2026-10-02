@@ -131,32 +131,149 @@ public class TradeTests
     }
 
     [Fact]
-    public void The_weaponsmith_sells_every_weapon_of_steel_or_wood_plain_for_gold_alone()
+    public void The_weaponsmith_sells_every_weapon_of_steel_or_wood_and_the_fire_staff_and_wand_plain_for_gold_alone()
     {
         var items = Sellers.Weaponsmith.ItemsFor(Anyone);
 
-        Assert.Equal(Weapons.Arms.OrderBy(w => w.Id), items.Select(i => i.Weapon!).OrderBy(w => w.Id));
+        Assert.Equal(Weapons.Arms.Append(Weapons.Staff(Element.Fire)).Append(Weapons.Wand(Element.Fire)), items.Select(i => i.Weapon!));
         Assert.All(items, i => Assert.Equal(new[] { Currency.Gold }, i.Cost.Parts.Select(p => p.Currency)));
         Assert.All(items, i => Assert.Null(i.Slot));
+        Assert.All(items, i => Assert.Equal(TradeKind.Purchase, i.Kind));
+        Assert.All(items.Where(i => i.Weapon!.Element != null), i => Assert.Equal(Element.Fire, i.Weapon!.Element));
+        Assert.True(items.Count <= TradeRules.Slots);
     }
 
     [Fact]
-    public void The_arcanist_sells_a_staff_for_every_element_plain_for_gold_alone()
+    public void The_enchanter_offers_every_element_in_order_for_whatever_is_in_hand()
     {
-        var items = Sellers.Arcanist.ItemsFor(Anyone);
+        var hands = new WeaponDefinition?[] { null, Weapons.Scythe, Weapons.Staff(Element.Earth), Weapons.Enchanted(Weapons.Spear, Element.Void) };
 
-        Assert.Equal(Weapons.Staffs, items.Select(i => i.Weapon!));
-        Assert.Equal(Elements.All, items.Select(i => i.Weapon!.Element!.Value));
-        Assert.All(items, i => Assert.Equal(new Cost(Gold: TradeRules.PlainWeaponPrice), i.Cost));
-        Assert.All(items, i => Assert.Null(i.Slot));
+        foreach (var inHand in hands)
+        {
+            var offers = Sellers.Enchanter.ItemsFor(new Buyer(new WeaponSets(inHand, Weapons.Greatsword), ArmourTier: 0));
+
+            Assert.Equal(Elements.All.Select(Elements.IdOf), offers.Select(o => o.Id));
+            Assert.All(offers, o => Assert.Equal(WeaponSlot.Hand, o.Slot));
+        }
     }
 
     [Fact]
-    public void Between_them_the_weaponsmith_and_the_arcanist_sell_every_weapon_once()
+    public void The_enchanter_lays_any_element_on_a_weapon_of_steel_or_wood_for_gold_and_an_orb()
     {
-        var sold = Sellers.Weaponsmith.ItemsFor(Anyone).Concat(Sellers.Arcanist.ItemsFor(Anyone)).Select(i => i.Weapon!).ToList();
+        var inHand = Weapons.AtLevel(Weapons.Scythe, 2);
 
-        Assert.Equal(Weapons.All.OrderBy(w => w.Id), sold.OrderBy(w => w.Id));
+        var offers = Sellers.Enchanter.ItemsFor(new Buyer(new WeaponSets(inHand, Weapons.Staff(Element.Fire)), ArmourTier: 0));
+
+        Assert.Equal(Elements.All.Select(e => Weapons.Enchanted(inHand, e)), offers.Select(o => o.Weapon!));
+        Assert.All(offers, o => Assert.Equal(TradeRules.EnchantCost, o.Cost));
+        Assert.All(offers, o => Assert.Equal(TradeKind.Enchantment, o.Kind));
+        Assert.All(offers, o => Assert.Null(o.Unavailable));
+        Assert.All(offers, o => Assert.Equal(inHand.Level, o.Weapon!.Level));
+        Assert.True(TradeRules.EnchantCost.Gold > 0 && TradeRules.EnchantCost.Orbs > 0);
+    }
+
+    [Fact]
+    public void The_enchanter_changes_an_enchantment_for_another_and_offers_none_twice()
+    {
+        var inHand = Weapons.Enchanted(Weapons.Spear, Element.Void);
+
+        var offers = Sellers.Enchanter.ItemsFor(new Buyer(new WeaponSets(inHand, null), ArmourTier: 0));
+
+        var same = Assert.Single(offers, o => o.Unavailable != null);
+        Assert.Equal(Elements.IdOf(Element.Void), same.Id);
+        Assert.Null(same.Weapon);
+        Assert.All(offers.Where(o => o != same), o => Assert.Equal(TradeRules.EnchantCost, o.Cost));
+        Assert.Equal(Weapons.Enchanted(Weapons.Spear, Element.Fire), offers[0].Weapon);
+    }
+
+    [Fact]
+    public void The_enchanter_makes_a_staff_the_staff_of_any_other_element_for_gold_alone()
+    {
+        var inHand = Weapons.AtLevel(Weapons.Staff(Element.Earth), 5);
+
+        var offers = Sellers.Enchanter.ItemsFor(new Buyer(new WeaponSets(inHand, Weapons.Greatsword), ArmourTier: 0));
+
+        var own = Assert.Single(offers, o => o.Unavailable != null);
+        Assert.Equal(Elements.IdOf(Element.Earth), own.Id);
+        var others = offers.Where(o => o != own).ToList();
+        Assert.Equal(Elements.All.Where(e => e != Element.Earth).Select(e => Weapons.Attuned(inHand, e)), others.Select(o => o.Weapon!));
+        Assert.All(others, o => Assert.Equal(TradeRules.AttuneCost, o.Cost));
+        Assert.All(others, o => Assert.Equal(TradeKind.Attunement, o.Kind));
+        Assert.All(others, o => Assert.Equal(inHand.Level, o.Weapon!.Level));
+        Assert.Equal(0, TradeRules.AttuneCost.Orbs);
+    }
+
+    [Fact]
+    public void The_enchanter_has_nothing_to_do_for_an_empty_hand()
+    {
+        var purse = PurseWith(gold: 1000, orbs: 100);
+
+        var offers = Sellers.Enchanter.ItemsFor(new Buyer(new WeaponSets(null, Weapons.Greatsword), ArmourTier: 0));
+
+        Assert.All(offers, o => Assert.NotNull(o.Unavailable));
+        Assert.All(offers, o => Assert.Equal(BuyOutcome.Unavailable, TradeRules.Buy(purse, o, 0f, down: false)));
+        Assert.Equal(1000, purse.Gold);
+    }
+
+    [Fact]
+    public void An_enchantment_bought_takes_its_cost_and_puts_the_enchanted_weapon_in_the_hand()
+    {
+        var carried = new WeaponSets(Weapons.Greatsword, Weapons.Spear);
+        var purse = PurseWith(gold: TradeRules.EnchantCost.Gold, orbs: TradeRules.EnchantCost.Orbs);
+        var offer = TradeRules.Enchantment(carried, Element.Wind);
+
+        Assert.Equal(BuyOutcome.Bought, TradeRules.Buy(purse, offer, 0f, down: false));
+        var (after, putDown) = TradeRules.After(carried, offer);
+
+        Assert.Equal((0, 0), (purse.Gold, purse.Orbs));
+        Assert.Equal(new WeaponSets(Weapons.Enchanted(Weapons.Greatsword, Element.Wind), Weapons.Spear), after);
+        Assert.Null(putDown);
+        Assert.NotNull(TradeRules.Enchantment(after, Element.Wind).Unavailable);
+        Assert.Equal(BuyOutcome.CannotAfford, TradeRules.Buy(purse, TradeRules.Enchantment(after, Element.Fire), 0f, down: false));
+    }
+
+    [Fact]
+    public void Every_staff_and_wand_can_be_had_the_fire_one_bought_and_the_rest_attuned_from_it()
+    {
+        var sold = Sellers.Weaponsmith.ItemsFor(Anyone).Select(i => i.Weapon!).Where(w => w.Element != null).ToList();
+        var had = sold.ToList();
+        foreach (var fire in sold)
+        {
+            var carried = new WeaponSets(fire, null);
+            had.AddRange(Sellers.Enchanter.ItemsFor(new Buyer(carried, ArmourTier: 0))
+                .Where(o => o.Unavailable == null)
+                .Select(o => TradeRules.After(carried, o).Sets.Active!));
+        }
+
+        Assert.Equal(Weapons.Staffs.Concat(Weapons.Wands).OrderBy(s => s.Id), had.OrderBy(s => s.Id));
+    }
+
+    [Fact]
+    public void The_enchanter_makes_a_wand_the_wand_of_any_other_element_as_it_does_a_staff()
+    {
+        var inHand = Weapons.AtLevel(Weapons.Wand(Element.Wind), 3);
+
+        var offers = Sellers.Enchanter.ItemsFor(new Buyer(new WeaponSets(inHand, null), ArmourTier: 0));
+
+        var own = Assert.Single(offers, o => o.Unavailable != null);
+        Assert.Equal(Elements.IdOf(Element.Wind), own.Id);
+        var others = offers.Where(o => o != own).ToList();
+        Assert.All(others, o => Assert.True(Weapons.IsWand(o.Weapon!)));
+        Assert.All(others, o => Assert.Equal(TradeRules.AttuneCost, o.Cost));
+        Assert.All(others, o => Assert.Equal(TradeKind.Attunement, o.Kind));
+        Assert.All(others, o => Assert.Equal(inHand.Level, o.Weapon!.Level));
+    }
+
+    [Fact]
+    public void An_enchanted_weapon_sells_for_more_than_it_did_plain_and_for_less_gold_than_it_took()
+    {
+        var plain = Weapons.AtLevel(Weapons.Scythe, 3);
+        var enchanted = Weapons.Enchanted(plain, Element.Fire);
+
+        Assert.Equal(TradeRules.GoldPutInto(plain) + TradeRules.EnchantCost.Gold, TradeRules.GoldPutInto(enchanted));
+        Assert.True(TradeRules.ResaleValue(enchanted).Gold > TradeRules.ResaleValue(plain).Gold);
+        Assert.True(TradeRules.ResaleValue(enchanted).Gold < TradeRules.GoldPutInto(enchanted));
+        Assert.Equal(TradeRules.ResaleValue(Weapons.Staff(Element.Fire)), TradeRules.ResaleValue(Weapons.Staff(Element.Void)));
     }
 
     [Fact]

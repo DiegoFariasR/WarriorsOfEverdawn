@@ -45,6 +45,7 @@ public partial class Arena : Node3D
             GD.Print("[window] --ai-playtest: minimized, no focus");
         }
 
+        WorldLook.Apply(GetNode<WorldEnvironment>("WorldEnvironment"), GetNode<DirectionalLight3D>("Sun"));
         _players = GetNode<Node3D>("Players");
         _spawner = GetNode<MultiplayerSpawner>("PlayerSpawner");
         _camera = GetNode<ArenaCamera>("Camera");

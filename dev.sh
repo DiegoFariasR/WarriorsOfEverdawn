@@ -18,8 +18,9 @@ Build and test:
 Godot self-tests (headless):
   net-test          Co-op host + 4 bot clients, one per weapon; asserts movement, combat, visuals and HUD reach every peer
   pvp-test          PvP host + 1 bot client, no skeletons; asserts players hit and damage each other
-  magic-test        Host + 2 bot clients with magic staffs; asserts bolts and volleys are thrown, land and are seen
-                    by the others, area spells are drawn, and barriers take blows and come back
+  magic-test        Host + 4 bot clients, three with magic staffs, one with wands and one with enchanted weapons;
+                    asserts bolts and volleys are thrown, land and are seen by the others, area spells are drawn, a
+                    wand's ball bursts, barriers take blows and come back, and every weapon of an element shows it
   trade-test        For each seller, a host + 1 bot client beside it with gold and orbs; asserts each opens the
                     shop window, gets what it can pay for (or sells what it carries), is refused after, and ends
                     with the right weapons in hand and the cost taken or the pay given
@@ -32,7 +33,7 @@ Godot self-tests (headless):
 Screenshots (real renderer; off-screen, minimized, unfocused window):
   screenshot        Bot plays solo; saves _staging/screenshot.png after --at seconds (default 6)
                     --frames N --interval S   a series: _staging/screenshot_1.png .. _N.png
-                    --camera 1-4   --zoom 0.5-2 (below 1 is nearer)   --no-ui   --no-enemies   --weapon <id>   --back-weapon <id>   (greatsword, quarterstaff, spear, scythe, sword-and-shield, <element>-staff)
+                    --camera 1-4   --zoom 0.5-2 (below 1 is nearer)   --no-ui   --no-enemies   --weapon <id>   --back-weapon <id>   (greatsword, quarterstaff, spear, scythe, sword-and-shield, <element>-staff, <element>-wand; spear~fire enchanted, spear+3 improved)
                     --start-at x,z   the bot starts on that spot of the ground instead of in the town
                     --orb-chance P   every monster leaves a magic orb P of the time (0 to 1) instead of rarely
                     --start-gold N   --start-orbs N   --start-armour TIER   the bot starts with that much
@@ -522,6 +523,11 @@ TRADE_TEST_SMITH_ORBS=3
 TRADE_TEST_MERCHANT_GOLD=10
 TRADE_TEST_MERCHANT_ORBS=1
 
+# At the enchanter, exactly what three enchantments of the weapon in hand come to: it ends with the third element
+# on it.
+TRADE_TEST_ENCHANT_GOLD=180
+TRADE_TEST_ENCHANT_ORBS=3
+
 # The sellers the town's layout stands, by id, on one line: Windows Python ends each line it prints with a carriage
 # return, which would stay on every id but the last.
 town_sellers() {
@@ -548,6 +554,8 @@ trade_session() {
         means=(--start-gold "$TRADE_TEST_SMITH_GOLD" --start-orbs "$TRADE_TEST_SMITH_ORBS" --start-armour "$TRADE_TEST_SMITH_ARMOUR")
     elif [ "$seller" = merchant ]; then
         means=(--start-gold "$TRADE_TEST_MERCHANT_GOLD" --start-orbs "$TRADE_TEST_MERCHANT_ORBS")
+    elif [ "$seller" = enchanter ]; then
+        means=(--start-gold "$TRADE_TEST_ENCHANT_GOLD" --start-orbs "$TRADE_TEST_ENCHANT_ORBS")
     fi
     run_session "$logs" 1 14 11 --no-enemies --start-at "$spot" "${means[@]}" --trade-drill || failed=1
 
@@ -604,16 +612,19 @@ trade_session() {
 }
 
 # Three staffs in hand and the other three on the backs, so every element's bolt or volley, area spell and barrier is
-# cast in the session. Fewer and smaller waves than net-test: three casters, and bolts kill from afar.
-MAGIC_WEAPONS=(fire-staff water-staff earth-staff)
-MAGIC_BACK_WEAPONS=(wind-staff void-staff divine-staff)
-MAGIC_CLIENTS=2
+# cast in the session; a wand, whose ball bursts; and a fifth player with enchanted weapons of steel in hand and on
+# the back. Fewer and smaller waves than net-test: bolts kill from afar. In order: the staffs, the wand, the rest.
+MAGIC_WEAPONS=(fire-staff water-staff earth-staff fire-wand greatsword~wind)
+MAGIC_BACK_WEAPONS=(wind-staff void-staff divine-staff void-wand spear~void+2)
+MAGIC_STAFFS=3
+MAGIC_CASTERS=4
+MAGIC_CLIENTS=4
 MAGIC_HOST_SECONDS=44
 MAGIC_CLIENT_SECONDS=38
 
 magic_test() {
     build || return 1
-    local logs="$ROOT/_staging/magic-test" failed=0 log
+    local logs="$ROOT/_staging/magic-test" failed=0 log player=0
     local SESSION_WEAPONS=("${MAGIC_WEAPONS[@]}") SESSION_BACK_WEAPONS=("${MAGIC_BACK_WEAPONS[@]}") COOP_CLIENTS=$MAGIC_CLIENTS
     run_session "$logs" "$MAGIC_CLIENTS" "$MAGIC_HOST_SECONDS" "$MAGIC_CLIENT_SECONDS" --wave-scale 2 --barrier-drill || failed=1
 
@@ -621,42 +632,63 @@ magic_test() {
         local file="$logs/$log.log"
         grep -E '^\[(magic-check|magic-host|combat-check|lunge-check|guard-check|carry-check|bot-check)\]' "$file" | sed "s/^/$log: /"
 
-        # Bolts: this player throws them, as many to a cast as its skill has (one bolt, or a volley's three; a cast
-        # cut short by a dash throws fewer), some land, the others' are seen here, each ends in a burst, and none
-        # outlives its flight.
-        gate "$log" "$file" magic-check 'v["casts"] + 0 >= 1 && v["bolts_here"] + 0 >= 1 && v["bolts_per_cast_most"] + 0 == v["bolts_per_cast_wanted"] + 0 && v["bolts_landed"] + 0 >= 1 && v["bolts_seen_remote"] + 0 >= 1 && v["bolt_lingering_frames"] + 0 == 0 && v["bursts_most"] + 0 >= 1' \
-            "no bolts thrown or landed, a cast throwing more than its skill has or never all of them, the others' bolts unseen, or bolts outliving their flight" || failed=1
-        # The spell held on an area: drawn here in rounds of strikes, and the others' drawn here too.
-        gate "$log" "$file" magic-check 'v["area_rounds_here"] + 0 >= 2 && v["area_frames_here"] + 0 >= 1 && v["area_frames_remote"] + 0 >= 1 && v["strikes_most"] + 0 >= 1' \
-            "no spell held on an area here, no strikes drawn, or the others' spells unseen" || failed=1
-        # The barrier: shown here and on the others; this player's took the host's drill blows (it fell below full)
-        # and was seen coming back while it was down.
-        gate "$log" "$file" magic-check 'v["barrier_frames_here"] + 0 >= 1 && v["barrier_frames_remote"] + 0 >= 1 && v["barrier_least"] + 0 < v["barrier_full"] + 0 && v["barrier_rises"] + 0 >= 1' \
-            "no barrier shown here or on the others, this player's never taking a blow, or never coming back" || failed=1
-        # The staff's own thrust reaches as far as its lunge's range, like any weapon's.
+        if [ "$player" -lt "$MAGIC_CASTERS" ]; then
+            # Bolts: this player throws them, as many to a cast as its skill has (one bolt, or a volley's three; a
+            # cast cut short by a dash throws fewer), and some land.
+            gate "$log" "$file" magic-check 'v["casts"] + 0 >= 1 && v["bolts_here"] + 0 >= 1 && v["bolts_per_cast_most"] + 0 == v["bolts_per_cast_wanted"] + 0 && v["casts_over_thrown"] + 0 == 0 && v["bolts_landed"] + 0 >= 1' \
+                "no bolts thrown or landed, or a cast throwing more than its skill has or never all of them" || failed=1
+            # The barrier: shown here; this player's took the host's drill blows (it fell below full) and was seen
+            # coming back while it was down.
+            gate "$log" "$file" magic-check 'v["barrier_frames_here"] + 0 >= 1 && v["barrier_least"] + 0 < v["barrier_full"] + 0 && v["barrier_rises"] + 0 >= 1' \
+                "no barrier shown here, this player's never taking a blow, or never coming back" || failed=1
+        fi
+
+        if [ "$player" -lt "$MAGIC_STAFFS" ]; then
+            # The spell held on an area: drawn here in rounds of strikes.
+            gate "$log" "$file" magic-check 'v["area_rounds_here"] + 0 >= 2 && v["area_frames_here"] + 0 >= 1 && v["strikes_most"] + 0 >= 1' \
+                "no spell held on an area here, or no strikes drawn" || failed=1
+        elif [ "$player" -lt "$MAGIC_CASTERS" ]; then
+            # The wand's ball: thrown, burst, and some burst caught a body.
+            gate "$log" "$file" magic-check 'v["blasts_here"] + 0 >= 1 && v["blast_caught_most"] + 0 >= 1' \
+                "no ball burst here, or no burst caught a body" || failed=1
+        else
+            # No wand here: the wand's bursts are seen from afar.
+            gate "$log" "$file" magic-check 'v["blasts_seen_remote"] + 0 >= 1' "the wand's bursts unseen here" || failed=1
+        fi
+
+        # What the others cast is seen here: their bolts, each ending in a burst and none outliving its flight, their
+        # area spells and their barriers.
+        gate "$log" "$file" magic-check 'v["bolts_seen_remote"] + 0 >= 1 && v["bolt_lingering_frames"] + 0 == 0 && v["bursts_most"] + 0 >= 1 && v["area_frames_remote"] + 0 >= 1 && v["barrier_frames_remote"] + 0 >= 1' \
+            "the others' bolts, area spells or barriers unseen, or bolts outliving their flight" || failed=1
+        # Every weapon of an element shows it on every machine, a staff or wand at its head and an enchanted weapon
+        # all over, whatever has flashed over it since; and no plain weapon does.
+        gate "$log" "$file" magic-check 'v["alight_frames"] + 0 >= 1 && v["dark_frames"] + 0 == 0 && v["plain_alight_frames"] + 0 == 0' \
+            "a staff, a wand or an enchanted weapon not showing its element, or a plain weapon showing one" || failed=1
+        # The thrust reaches as far as the lunge's range, with a staff or a wand as with any weapon.
         gate "$log" "$file" lunge-check 'v["lunges_here"] + 0 >= 1 && v["reach_off_range"] ^ 2 < 0.0625' \
-            "no lunge with the staff, or its thrust reaching off its range" || failed=1
+            "no lunge, or its thrust reaching off its range" || failed=1
         check_log_errors "$log" "$file" || failed=1
+        player=$((player + 1))
     done
 
-    # On the host, where hits are decided: every player's bolts and area spells landed, and barriers took blows.
-    local host="$logs/host.log" field peers
-    for field in bolt_hits area_hits; do
+    # On the host, where hits are decided: every caster's bolts landed, every staff's area spell, the wand's bursts,
+    # and the enchanted weapons' blows as part magic.
+    local host="$logs/host.log" field peers wanted
+    for field in bolt_hits:$MAGIC_CASTERS area_hits:$MAGIC_STAFFS blast_hits:$((MAGIC_CASTERS - MAGIC_STAFFS)) barrier_drills:$MAGIC_CASTERS barrier_took:$MAGIC_CASTERS; do
+        wanted=${field#*:}
+        field=${field%:*}
         peers=$(count_positive_peers "$host" magic-host "$field")
-        if [ "$peers" -ne $((MAGIC_CLIENTS + 1)) ]; then
-            echo "FAIL host: expected $field from all $((MAGIC_CLIENTS + 1)) players, got $peers ($(grep -E '^\[magic-host\]' "$host"))"
+        if [ "$peers" -ne "$wanted" ]; then
+            echo "FAIL host: expected $field from $wanted players, got $peers ($(grep -E '^\[magic-host\]' "$host"))"
             failed=1
         fi
     done
-    # The host deals every barrier a blow as it goes up: each player's barrier was drilled and took blows, and while
-    # a barrier holds the blow costs no HP.
-    for field in barrier_drills barrier_took; do
-        peers=$(count_positive_peers "$host" magic-host "$field")
-        if [ "$peers" -ne $((MAGIC_CLIENTS + 1)) ]; then
-            echo "FAIL host: expected $field for all $((MAGIC_CLIENTS + 1)) players, got $peers ($(grep -E '^\[magic-host\]' "$host"))"
-            failed=1
-        fi
-    done
+    peers=$(count_positive_peers "$host" magic-host enchanted_hits)
+    if [ "$peers" -lt 1 ]; then
+        echo "FAIL host: no blow of an enchanted weapon reached the host as part magic ($(grep -E '^\[magic-host\]' "$host"))"
+        failed=1
+    fi
+    # The host deals every barrier a blow as it goes up (counted above): while a barrier holds the blow costs no HP.
     gate host "$host" magic-host 'v["drill_hp_lost"] + 0 == 0' "a blow on a barrier that held cost its player HP" || failed=1
 
     [ "$failed" -eq 0 ] && echo "magic-test passed" || echo "magic-test FAILED (logs: $logs)"

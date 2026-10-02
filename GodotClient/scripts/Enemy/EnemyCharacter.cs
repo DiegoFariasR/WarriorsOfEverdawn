@@ -110,6 +110,7 @@ public partial class EnemyCharacter : CharacterBody3D
         enemy._model = new Node3D { Name = "Model" };
         enemy.AddChild(enemy._model);
         var body = Assets.Instantiate(look.Model);
+        ToonLook.Apply(body);
         enemy._model.AddChild(body);
         var hand = look.LeftHand
             ? CharacterRig.AttachToLeftHand(body, look.Weapon, look.WeaponRotation)

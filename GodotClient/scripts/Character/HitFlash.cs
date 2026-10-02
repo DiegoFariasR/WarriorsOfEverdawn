@@ -24,7 +24,7 @@ public partial class HitFlash : Node
 
     private readonly ShaderMaterial _material;
     private readonly Node3D _body;
-    private readonly List<GeometryInstance3D> _overlaid = new();
+    private readonly List<(GeometryInstance3D Mesh, Material? Under)> _overlaid = new();
     private Tween? _tween;
     private float _age = float.PositiveInfinity;
 
@@ -58,10 +58,11 @@ public partial class HitFlash : Node
         _tween?.Kill();
         Clear();
 
-        // Gathered on each flash: the weapon a player holds can change between hits.
-        _overlaid.AddRange(_body.FindChildren("*", nameof(GeometryInstance3D), recursive: true, owned: false).OfType<GeometryInstance3D>());
-        foreach (var mesh in _overlaid)
+        // Gathered on each flash: the weapon a player holds can change between hits. What a mesh had over it (an
+        // enchanted weapon's element) goes back when the flash is done.
+        foreach (var mesh in _body.FindChildren("*", nameof(GeometryInstance3D), recursive: true, owned: false).OfType<GeometryInstance3D>())
         {
+            _overlaid.Add((mesh, mesh.MaterialOverlay));
             mesh.MaterialOverlay = _material;
         }
 
@@ -85,9 +86,9 @@ public partial class HitFlash : Node
     // A weapon swapped out mid-flash is already gone, so only meshes still alive are cleared.
     private void Clear()
     {
-        foreach (var mesh in _overlaid.Where(IsInstanceValid))
+        foreach (var (mesh, under) in _overlaid.Where(o => IsInstanceValid(o.Mesh)))
         {
-            mesh.MaterialOverlay = null;
+            mesh.MaterialOverlay = under;
         }
 
         _overlaid.Clear();

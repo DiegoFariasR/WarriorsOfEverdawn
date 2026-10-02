@@ -15,6 +15,9 @@ public partial class Hud : CanvasLayer
     private const float Margin = 16f;
     private const float BarWidth = 260f;
 
+    // The player frame's border and margins either side of its bars.
+    private const float FramePadding = 28f;
+
     private static readonly (int Skill, string Key)[] SkillSlots =
     {
         (PlayerCharacter.Primary, "LMB"),
@@ -86,6 +89,9 @@ public partial class Hud : CanvasLayer
         _notice.HorizontalAlignment = HorizontalAlignment.Center;
         _notice.AnchorRight = 1f;
         _notice.OffsetTop = 24f;
+
+        // Centred in what the player frame leaves of the top of the screen, not across it.
+        _notice.OffsetLeft = Margin + BarWidth + FramePadding;
         AddChild(_notice);
 
         // Last, so it opens over everything else.
@@ -170,7 +176,11 @@ public partial class Hud : CanvasLayer
         var column = new VBoxContainer();
         column.AddThemeConstantOverride("separation", 6);
         frame.AddChild(column);
+        // No wider than the bars under it: an enchanted weapon's name would stretch the frame across the notice.
         _name = UiTheme.MakeLabel("Knight", UiTheme.Words, 18, UiTheme.GoldHi, outline: 2);
+        _name.CustomMinimumSize = new Vector2(BarWidth, 0f);
+        _name.ClipText = true;
+        _name.TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis;
         column.AddChild(_name);
 
         var (healthRoot, health, healthText) = UiTheme.MakeValueBar(UiTheme.BarHp, new Vector2(BarWidth, 20f), 14);

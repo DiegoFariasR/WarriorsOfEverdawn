@@ -1,6 +1,6 @@
 # Combat
 
-Five weapons of steel and wood, each with two skills, a lunge and a guard, against waves of KayKit skeletons: a primary swing, a held Spin, a thrust thrown with a dash, and a held guard that blocks or parries. Six magic staffs are weapons too, with the same four things in another form (a bolt or volley, a spell held on an area, a poke, a barrier): [magic.md](magic.md). All numbers are first-pass and live in `Core/Combat/` (`Skills`, `Weapons`); tune them there.
+Five weapons of steel and wood, each with two skills, a lunge and a guard, against waves of KayKit skeletons: a primary swing, a held Spin, a thrust thrown with a dash, and a held guard that blocks or parries. Six magic staffs and six wands with their books are weapons too, with the same four things in another form (a bolt or volley; a spell held on an area, or a ball that bursts; a poke; a barrier): [magic.md](magic.md). All numbers are first-pass and live in `Core/Combat/` (`Skills`, `Weapons`); tune them there.
 
 ## Weapons
 
@@ -39,7 +39,7 @@ There is no collider on the weapon. A melee hit is an arc test at the skill's hi
 | Quarterstaff Hit | `Melee_2H_Attack_Chop` (1.63 s) | 0.82 s | 0.41 s | 1.55 (2.07) | 45 deg | 16 |
 | Spear Thrust | `Melee_2H_Attack_Stab` (1.60 s) | 0.80 s | 0.38 s | 2.7 (2.78) | 20 deg | 48 |
 | Scythe Swing | `Melee_2H_Attack_Slice` (1.10 s) | 0.55 s | 0.20 s | 2.7 (2.78) | 90 deg | 18 |
-| Sword Slash | `Melee_1H_Attack_Slice_Diagonal` (1.00 s) | 0.50 s | 0.21 s | 1.8 (2.04) | 60 deg | 14 |
+| Sword Slash | `Melee_1H_Attack_Slice_Diagonal` (1.00 s) | 0.50 s | 0.21 s | 1.7 (2.04; 1.53 to 1.85 in play, run to run) | 60 deg | 14 |
 | Minion chop | `Melee_1H_Attack_Chop` (1.07 s) | 0.54 s | 0.30 s | 1.65 | 45 deg | 6 |
 | Warrior chop | `Melee_1H_Attack_Chop` (1.07 s) | 0.54 s | 0.30 s | 1.5 | 45 deg | 12 |
 | Archer shot | `Ranged_Bow_Draw` (1.33 s), then `Ranged_Bow_Release` (1.33 s) | 1.33 s | 0.70 s (the arrow leaves) | shoots from up to 10 | the arrow decides | 8 |
@@ -158,7 +158,7 @@ Three things a player earns (`Core/Loot`, `Main/Loot`). Gold buys weapons from t
 - Players start in the allied town, where skeletons neither come nor can hurt them ([level-layouts.md](level-layouts.md)).
 - At 0 HP the player goes down (`Death_A`) and gets back up after 4 s in the allied town with full HP. The body on the ground is not shoved by skeletons walking over it (they still bump into it); in the first long playtests they pushed a fallen player 0.25. Placeholder until death and revive are designed.
 - HUD: HP bar top left. Damage numbers float over whoever is hit. Skeletons and other players carry a thin HP bar overhead ([ui.md](ui.md)).
-- Heads are smaller than Everdawn's (0.55 against 0.75, `CharacterRig.HeadScale`): this camera looks down on helmets, bigger meshes than a bare head, over a foreshortened body.
+- Heads are Everdawn's size (0.75 of the model's, `CharacterRig.HeadScale`), so figures have Everdawn's proportions. They were 0.55 for a while, which made bodies read as squat.
 
 ## Verified by `./dev.sh net-test`
 
@@ -183,5 +183,4 @@ The same session run for 2.5 minutes with every net-test gate, and one player ta
 - Scythe: bigger and with its blade in front it now out-reaches everything but the spear's thrust, on the widest arc; whether its damage, mana cost or guard should pay for that.
 - Spear: its Thrust keeps the `Melee_2H_Attack_Stab` clip; the commander's own attack clip in Everdawn is `Melee_2H_Attack_Slice`, which would make it a swing.
 - Lunge: whether 2x on a free dash is too strong (it one-shots minions and archers with every weapon), whether it should point along the dash instead of the aim, and whether the 0.1 s window to press attack after the dash is right.
-- Head size: 0.55 is by eye against Everdawn's battle view.
 - Archers: whether they should lead a moving target, whether 8 damage at this accuracy is right, and whether arrows should stop at obstacles once the arena has them.

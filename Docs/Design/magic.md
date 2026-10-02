@@ -1,6 +1,6 @@
-# Magic staffs
+# Magic: staffs, wands and enchantments
 
-Six staffs, one for each of Everdawn's four elements (fire, water, wind, earth) and two astral types (divine, void). A staff is a weapon like any other ([combat.md](combat.md)): it takes one slot, is bought, dropped, picked up, improved and sold as the others are, and has the same four things. What differs is what those four are: the primary throws a bolt or a volley, the secondary holds a spell on an area, the guard is a barrier, and the lunge is a poke with the staff. All numbers are first-pass and live in `Core/Combat` (`Skills.StaffOf`, `Projectiles`, `Weapons.Barrier`).
+Two magic weapons, each in six elements: Everdawn's four (fire, water, wind, earth) and its two astral types (divine, void). A **staff** throws a bolt or a volley, holds a spell on an area and raises a barrier. A **wand and book** throw the same bolt or volley and raise the same barrier, and in place of the held spell throw a ball that bursts. Either is a weapon like any other ([combat.md](combat.md)): it takes one slot, is bought, dropped, picked up, improved and sold as the others are, and has the same four things (primary, secondary, lunge, guard). All numbers are first-pass and live in `Core/Combat` (`Skills.StaffOf`, `Skills.WandFor`, `Projectiles`, `Weapons.Barrier`). The sections down to the lunge describe the staff; the wand's differences follow them.
 
 ## The six
 
@@ -43,6 +43,17 @@ Every staff has the same one. Holding Shift raises a shell all round the caster:
 
 A dash with the primary held throws a thrust with the staff, as with any weapon: 24 damage, reach 2.1, no spell. The least of the lunges.
 
+## Wand and book
+
+One weapon, as the sword and shield are: the wand in the right hand, the open book in the left, both on the back and both on the ground when it is put down. It is held in the one-handed stance, wand up and book before the chest.
+
+- **Primary and barrier are the staff's.** A wand throws the very bolt or volley the staff of its element does (the same skill, so the same numbers and the same second between throws), and raises the same barrier.
+- **The secondary is thrown, not held.** One press throws one ball: 25 damage, flying 13 a second for up to 12. Where it ends it bursts, and everything within 2.5 of that spot takes the damage, the body it struck once like the rest. It ends at the first body it touches, at a wall, or at the end of its flight, and bursts at all three. 12 mana a cast, and 2.5 s before the next.
+- Fire's is the **Fireball**; the others are the Water, Wind, Earth, Divine and Void **Burst**. They differ in look alone: what an element's burst does of its own waits on what the elements do.
+- **Lunge:** a jab with the wand, 16 damage, reach 1.65: the shortest of all.
+- **Against the staff:** the staff's spell deals more to what stays in its area and costs mana for as long as it is held; the wand's ball lands all at once, anywhere a bolt can reach, and then has to wait.
+- **It looks like** `wand` and `spellbook_open`, with a spark of the element at the wand's tip and the element's shader over both.
+
 ## What a spell grows with
 
 A spell's damage grows with WIS (5% a point) where a blow's grows with STR (2.5% a point), so a staff's lunge goes by STR and its spells by WIS (`StatRules.Damage`). The Knight's WIS of 5 makes a bolt of 30 hit for 38. The blacksmith improves a staff like any weapon: each level adds a tenth to the bolt (each dart of a volley), the spell and the poke.
@@ -56,25 +67,38 @@ A spell's damage grows with WIS (5% a point) where a blow's grows with STR (2.5%
 
 ## Where to get one
 
-The **Arcanist**, the fourth seller, stands on a rug by a shrine of candles at the front of the town's courtyard and sells the six staffs plain, 50 gold each, through the same window as the others ([trade.md](trade.md)). The weaponsmith keeps to steel and wood: eleven weapons would not fit its nine slots.
+The **weaponsmith** sells the fire staff and the fire wand, plain, for 50 gold each like any weapon. The **enchanter**, the fourth seller, on a rug by a shrine of candles at the front of the town's courtyard, makes a staff in the player's hand the staff of any other element, or a wand the wand, for 30 gold: other spells, the same level ([trade.md](trade.md)). So every staff and wand is had by buying the fire one and having it attuned, and a player can change its mind.
+
+## Enchanted weapons
+
+The enchanter lays an element on a weapon of steel or wood, for 60 gold and an orb:
+
+- **40% of every blow's damage becomes that element's magic** (`Weapons.EnchantedShare`): the swing, the Spin and the lunge alike. The magic part grows with WIS and the rest with STR, where a plain weapon's whole blow grows with STR. In the Knight's hands, with STR 12 and WIS 5, that changes almost nothing: a Slice of 26 is still 26.
+- **Nothing else yet.** What each element does to what it hits is not decided (below), so today an enchantment is the conversion and the look. It is the place those effects will hang: the host already knows, for every blow, its element and how much of it is magic.
+- The weapon keeps its level, and the blacksmith goes on improving it. A weapon has one enchantment: another element takes the place of the first, at the same price.
+- It is the same weapon in every other way: the same skills, reach, guard, clips and stance. Its id and name carry the element: `greatsword~fire+3`, "Greatsword of Fire +3".
+- **It shows:** the element's shader plays over the whole weapon (and the shield of a sword and shield), in the hand, on the back and on the ground, thinner than over a thing made of the element so the weapon is still seen under it (`ElementLooks.Enchantment`).
+- The merchant pays half the gold put into it, the enchantment's 60 included; the orb is not paid for.
+- A staff is not enchanted: it is of its element already.
 
 ## Who decides
 
+- **A ball that bursts** is a bolt until it ends. The caster's machine decides what the burst catches (`PlayerCharacter.BlastAt`), where its own copy ended; every machine draws the burst where its copy did.
 - **Bolts** (`Main/Bolts`): the caster's machine looses each one (`LooseBolt`, to every machine) and decides what it hits, as it does for its swings; every machine flies its own copy along the same line and ends it at a wall on its own. A hit is reported to the host by skill id like any other, and `EndBolt` ends the copies. The host works out the damage from the weapon it sees the caster hold.
 - **The held spell**: the caster's machine tests its area each cycle and reports the hits, as for a Spin; every machine draws the ring and the strikes from the skill it was told started and where it sees the caster aim.
 - **The barrier**: raising it is the player's machine's, like any guard. What is left of it is the host's (`PlayerVitals.Barrier`), which takes blows off it and brings it back, and reaches every machine with the player's HP.
 
 ## Verified by `./dev.sh magic-test`
 
-A host and two bot clients with the fire, water and earth staffs in hand and wind, void and divine on their backs, about 40 s against doubled waves. Staff bots keep a hostile at their spell's distance, throw at it from as far as a bolt flies (leading a moving one), hold their spell on it while they can pay, and throw for half of every five seconds whatever else is due. On each machine: its player throws bolts, as many to a cast as the skill has (one, or three), some land, the others' bolts are seen, each ends in a burst and none outlives its flight; its spell is drawn in rounds of strikes and the others' are seen; barriers show here and on the others, and its own takes blows and is seen coming back; the staff's thrust reaches as far as its lunge's range. On the host: every player's bolts and spells landed hits, and every player's barrier was dealt a blow as it went up (`--barrier-drill`: 6, through the same path as a skeleton's) and took it, at no cost in HP. Part of `./dev.sh smoke`.
+A host and four bot clients, about 40 s against doubled waves: three with the fire, water and earth staffs in hand and wind, void and divine on their backs, one with the fire wand and the void wand, and one with a greatsword enchanted with wind and a spear with void. Staff bots keep a hostile at their spell's distance, throw at it from as far as a bolt flies (leading a moving one), hold their spell on it while they can pay, and throw for half of every five seconds whatever else is due. On each machine: its player throws bolts, as many to a cast as the skill has (one, or three), some land, the others' bolts are seen, each ends in a burst and none outlives its flight; its spell is drawn in rounds of strikes and the others' are seen; barriers show here and on the others, and its own takes blows and is seen coming back; the wand's ball bursts, and a burst catches a body, and the others see it burst; the thrust of a staff or a wand reaches as far as its lunge's range; and every weapon of an element shows it on every machine, a staff at its head and an enchanted weapon all over, whatever has flashed over it since, while no plain weapon does. On the host: every staff's and the wand's bolts landed hits, every staff's spell and the wand's bursts, the enchanted weapons' blows arrived as part magic, and every caster's barrier was dealt a blow as it went up (`--barrier-drill`: 6, through the same path as a skeleton's) and took it, at no cost in HP. Part of `./dev.sh smoke`.
 
-The rules themselves are `Core.Tests/Combat/StaffsTests` (a staff per element, bolt or volley by element, a volley dealing what a bolt does, areas ahead and round the caster, the barrier's pool and its return, WIS and STR, improved staffs) and `Core.Tests/Trade`.
+The rules themselves are `Core.Tests/Combat/StaffsTests` (a staff per element, bolt or volley by element, a volley dealing what a bolt does, areas ahead and round the caster, the barrier's pool and its return, WIS and STR, improved staffs), `Core.Tests/Combat/WandsTests` (a wand per element, the staff's shot and barrier, a ball thrown for mana that bursts, what a burst catches, wands attuned to wands), `Core.Tests/Combat/EnchantmentsTests` (any element on any weapon of steel or wood, the magic part by WIS and the rest by STR, level and enchantment kept through each other, ids and names, staffs attuned) and `Core.Tests/Trade`.
 
 ## Not here yet
 
-- **What the elements do beyond damage.** In Everdawn fire burns, water chills, wind and earth stun, divine and void have their own bars, and each type has its resistance. Here an element is a look and a shape; skeletons resist nothing.
+- **What the elements do beyond damage.** In Everdawn fire burns, water chills, wind and earth stun, divine and void have their own bars, and each type has its resistance. Here an element is a look, a shape and, on an enchanted weapon, a share of the damage; skeletons resist nothing. Until this is decided an enchantment does almost nothing for what it costs.
 - Ice, lightning and arcane, Everdawn's variants.
 - PvP with staffs runs through the same code as swings (bolts and areas hit players, barriers take the blows) but no self-test covers it.
-- All six staffs are one model. Whether each should have its own.
+- All six staffs are one model, and all six wands one wand and one book. Whether each should have its own.
 - A cast or a casting stance of its own for the barrier.
 - Balance: bolt damage and its second between throws, the areas' sizes, the barrier's 40. Skeletons do not threaten a caster that keeps its distance.

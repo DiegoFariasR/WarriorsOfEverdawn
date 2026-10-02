@@ -31,6 +31,25 @@ public static class CombatVisuals
         BackRotation = new Vector3(Mathf.DegToRad(-10f), 0f, Mathf.DegToRad(30f)),
     };
 
+    // Every wand is the same wand and open book, a spark of its element at the wand's tip and the element playing
+    // over both. One weapon to the rules, as the sword and shield are: the wand in the right hand, the book in the
+    // left, and on the back the book flat between the shoulders with the wand across it.
+    private static readonly WeaponLook Wand = new("res://assets/weapons/wand.glb", Vector3.Zero)
+    {
+        OneHanded = true,
+        GlowAt = new Vector3(0f, 0.66f, 0f),
+        GlowRadius = 0.11f,
+        BackPosition = new Vector3(0.12f, 0.42f, -0.36f),
+        BackRotation = SheathRotation,
+        OffHand = new OffHandLook("res://assets/weapons/spellbook_open.glb")
+        {
+            HandPosition = new Vector3(0f, 0.05f, 0.12f),
+            HandRotation = new Vector3(Mathf.DegToRad(-60f), 0f, 0f),
+            BackPosition = new Vector3(0f, 0.3f, -0.3f),
+            BackRotation = new Vector3(0f, Mathf.Pi, 0f),
+        },
+    };
+
     private static readonly Dictionary<string, WeaponLook> LookByWeapon = new()
     {
         [Weapons.Greatsword.Id] = new("res://assets/weapons/sword_2handed.glb", Vector3.Zero)
@@ -125,8 +144,8 @@ public static class CombatVisuals
     };
 
     public static WeaponLook LookFor(WeaponDefinition weapon) =>
-        weapon.Element is { } element ? Staff with { Glow = element }
-        : LookByWeapon.TryGetValue(weapon.Kind, out var look) ? look
+        weapon.Element is { } element ? (Weapons.IsWand(weapon) ? Wand with { Glow = element, Enchant = element } : Staff with { Glow = element })
+        : LookByWeapon.TryGetValue(weapon.Kind, out var look) ? look with { Enchant = weapon.Enchantment }
         : throw new KeyNotFoundException($"No model for weapon '{weapon.Kind}'");
 
     // A spell is cast with its own clips whatever its element: one to throw, one looped to hold a spell on an area.
@@ -135,6 +154,7 @@ public static class CombatVisuals
         : skill.Area != null ? RigAnimations.MagicChannel
         : ClipBySkill.TryGetValue(skill.Id, out var clip) ? clip
         : Weapons.Staffs.Any(s => s.Lunge.Id == skill.Id) ? RigAnimations.Stab
+        : Weapons.Wands.Any(w => w.Lunge.Id == skill.Id) ? RigAnimations.OneHandedStab
         : throw new KeyNotFoundException($"No clip for skill '{skill.Id}'");
 
     // Clips that turn the root bone (the Spin loop turns the whole body) cannot be layered on the upper body.
@@ -158,17 +178,23 @@ public sealed record EnemyLook(string Model, string Weapon)
 // back (CharacterRig.HoldOnBack), BackGrip is the point on it that goes to BackPosition, turned by BackRotation, all in
 // the chest bone's space. Scale draws it bigger or smaller than modelled, wherever it is; HandTurn turns it about its
 // own length in the hand, for a head that sticks out to one side. OneHanded leaves the other hand off the weapon;
-// OffHand is what that hand holds instead, which goes wherever the weapon goes. Glow lights an element on it.
+// OffHand is what that hand holds instead, which goes wherever the weapon goes. Enchant and Glow light an element on
+// it.
 public sealed record WeaponLook(string Model, Vector3 Grip)
 {
     public bool OneHanded { get; init; }
 
     public OffHandLook? OffHand { get; init; }
 
+    // An enchanted weapon: this element plays over the whole of it, and of what its other hand holds.
+    public Element? Enchant { get; init; }
+
     // A magic staff: its element burns at this point on the model, in the model's own space.
     public Element? Glow { get; init; }
 
     public Vector3 GlowAt { get; init; }
+
+    public float GlowRadius { get; init; } = 0.3f;
 
     public float Scale { get; init; } = 1f;
 

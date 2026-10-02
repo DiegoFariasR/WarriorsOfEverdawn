@@ -22,9 +22,12 @@ public static class StatRules
     public static int Damage(int baseDamage, CharacterStats stats) =>
         (int)MathF.Round(baseDamage * (1f + stats.Str * DamagePerStr));
 
-    // What a skill deals in these hands: a spell by WIS, a blow by STR.
-    public static int Damage(SkillDefinition skill, CharacterStats stats) =>
-        skill.Element == null ? Damage(skill.Damage, stats) : (int)MathF.Round(skill.Damage * (1f + stats.Wis * DamagePerWis));
+    // What a skill deals in these hands: the part of it that is magic grows with WIS, the rest with STR.
+    public static int Damage(SkillDefinition skill, CharacterStats stats)
+    {
+        float magic = skill.Element == null ? 0f : skill.MagicShare;
+        return (int)MathF.Round(skill.Damage * ((1f - magic) * (1f + stats.Str * DamagePerStr) + magic * (1f + stats.Wis * DamagePerWis)));
+    }
 
     public static float AttackSpeed(CharacterStats stats) =>
         CombatTiming.BaseAttackSpeed * (1f + stats.Agi * AttackSpeedPerAgi);

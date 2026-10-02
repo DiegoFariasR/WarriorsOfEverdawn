@@ -63,7 +63,7 @@ public partial class Lineup : Node3D
     // The tiers of armour, or with outfits named, those.
     public static Lineup OfArmour(IReadOnlyList<string> outfits) => new(
         outfits.Count > 0
-            ? outfits.Select(outfit => new Figure(outfit, body => ArmourLook.WearOutfit(SkeletonOf(body), outfit, Array.Empty<string>()), RigAnimations.UnarmedIdle)).ToList()
+            ? outfits.Select(outfit => new Figure(outfit, body => ArmourLook.WearOutfit(SkeletonOf(body), outfit), RigAnimations.UnarmedIdle)).ToList()
             : Armours.All.Select(a => new Figure($"{a.Tier}  {a.Name}", body => ArmourLook.Wear(SkeletonOf(body), a.Tier), RigAnimations.UnarmedIdle)).ToList(),
         ArmourApart)
     {
@@ -179,6 +179,7 @@ public partial class Lineup : Node3D
     {
         // KayKit models face +Z, toward the camera.
         var body = Assets.Instantiate(PlayerCharacter.ModelPath);
+        ToonLook.Apply(body);
         body.Position = at;
         body.Rotation = new Vector3(0f, figure.Turned ? Mathf.Pi : 0f, 0f);
         CharacterRig.ShrinkHead(body);

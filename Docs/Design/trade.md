@@ -1,14 +1,14 @@
 # Sellers and trade
 
-Sellers stand in the allied town and trade what players have earned for goods. There are four: the weaponsmith, who sells weapons of steel and wood, the arcanist, who sells magic staffs, the blacksmith, who makes better what a player already has on (the weapon in its hand, the one on its back and the armour it wears), and the merchant, who buys what a player carries. Every seller uses the same window, so a player who has used one has used them all.
+Sellers stand in the allied town and trade what players have earned for goods. There are four: the weaponsmith, who sells weapons, the enchanter, who lays an element on the weapon in a player's hand, the blacksmith, who makes better what a player already has on (the weapon in its hand, the one on its back and the armour it wears), and the merchant, who buys what a player carries. Every seller uses the same window, so a player who has used one has used them all.
 
 ## Sellers
 
 | Seller | Stands | Trades | Offers |
 |---|---|---|---|
-| Weaponsmith | The town's armoury (the room on the right as one comes in by the gate) | Gold for weapons | Every weapon of steel or wood in its plain make (five), 50 gold each |
+| Weaponsmith | The town's armoury (the room on the right as one comes in by the gate) | Gold for weapons | Every weapon of steel or wood in its plain make (five), the fire staff and the fire wand, 50 gold each |
 | Blacksmith | At the anvil in the courtyard | Gold and orbs for better weapons and armour | Three, always in the same slots: the weapon in the buyer's hand one level better, the weapon on its back one level better, and its armour one tier better |
-| Arcanist | On a rug by a shrine of candles, at the front of the courtyard on the blacksmith's side | Gold for magic staffs | The six staffs in their plain make, 50 gold each ([magic.md](magic.md)) |
+| Enchanter | On a rug by a shrine of candles, at the front of the courtyard on the blacksmith's side | Gold and orbs for an element on the weapon in hand | Six, always in the same slots, one for each element: for a weapon of steel or wood that element laid on it, for a staff or a wand the staff or wand of that element |
 | Merchant | At its stall by the training dummy, across the courtyard from the anvil | Gold for what the player carries | Three, always in the same slots: gold for the weapon in the player's hand, for the weapon on its back, and for a magic orb |
 
 - A seller is a figure on its spot with its name over its head, seen through walls so it can be found from across the town. It is solid, and walked round like any prop.
@@ -29,9 +29,24 @@ A weapon has a level from 0 (plain) to 10, shown in its name: "Greatsword +3". T
 | Orbs | 1 | 1 | 2 | 2 | 3 | 3 | 4 | 4 | 5 | 5 | 30 |
 
 - The blacksmith's first two slots are the hand's weapon and the back's, in that order. An empty slot, or a weapon already at +10, shows greyed with the reason.
-- Under the hood an improved weapon is its plain definition with harder-hitting skills and an id that carries the level (`greatsword+3`), so everything that moves weapons about by id (the hand and back a player's machine reports, weapons on the ground, `--weapon`) carries the level with no more said. How it looks and is held goes by its kind.
+- Under the hood an improved weapon is its plain definition with harder-hitting skills and an id that carries the level (`greatsword+3`; with an enchantment, `greatsword~fire+3`), so everything that moves weapons about by id (the hand and back a player's machine reports, weapons on the ground, `--weapon`) carries the level with no more said. How it looks and is held goes by its kind.
 - Skills still travel between machines by their plain ids. Whoever needs what a skill does asks the weapons the player carries (`WeaponSets.SkillById`): the host works out a hit's damage from the weapon it sees in the attacker's hand, so a machine cannot claim a level it does not have.
 - Q, which changes the weapon in hand to the next kind, gives a plain weapon, and nothing to an empty hand.
+
+## The enchanter
+
+Like the blacksmith it works on what the player has, and offers only what fits it: its six slots are the six elements, always in the same order, and what they offer goes by the weapon in the player's hand ([magic.md](magic.md)).
+
+| In hand | Each slot offers | Cost (first-pass) |
+|---|---|---|
+| A weapon of steel or wood | That element laid on it: 40% of its damage becomes that magic | 60 gold + 1 orb |
+| A staff, or a wand and book | The staff or the wand of that element in its place | 30 gold |
+| Nothing | Greyed: nothing to work on | |
+
+- The weapon keeps its level either way. The slot of the element it already has shows greyed.
+- An enchanted weapon can be enchanted again with another element, which takes the place of the first.
+- A slot names its element; the detail pane names the weapon as it would be ("Greatsword of Water +2"), what each skill deals now and would, and what it takes the place of. The button reads "Enchant" or "Attune".
+- To work on the weapon on the back, swap first.
 
 ## Armour
 
@@ -42,7 +57,7 @@ Every player wears one tier of a single line of armour (`Core/Combat/Armour`), s
 | Stops of every blow | 10% | 20% | 30% | 40% | 50% | |
 | Gold | 60 | 120 | 200 | 300 | 420 | 1100 |
 | Orbs | - | - | 1 | 2 | 3 | 6 |
-| Looks like (KayKit character) | Rogue | Cleric | Engineer | the Knight's own | Paladin, with its breastplate | |
+| Looks like | Ranger's leathers with the Knight's greaves | and the Knight's bracers | the Knight's plate, whole | the Paladin's plate | the Paladin's, with its breastplate | |
 
 - **Gold alone for the first two tiers, gold and orbs after.** First-pass numbers.
 - **What it stops:** the guard takes its share of a blow first, then the armour takes its own of what is left. It works against skeletons' blows and arrows and, in PvP, other players'.
@@ -51,7 +66,7 @@ Every player wears one tier of a single line of armour (`Core/Combat/Armour`), s
 - The slot shows the next tier by name with its cost, and the detail pane how much of a blow it stops against how much is stopped now, and the tier out of 5. Once it is bought the same slot offers the tier after. In tempered plate it shows greyed: as good as it can be made.
 - Weapons and armour were first two sellers; they are one because both are the same thing to the player, the next step up for something it has on, and three offers read at a glance where a second window of five mostly greyed tiers did not.
 - The player frame shows the tier worn as ARM beside STR, WIS and AGI ([ui.md](ui.md)).
-- **It shows on the figure.** Each tier is the body, arms and legs of one KayKit character worn in place of the Knight's own, the head and helmet kept, so a player is still told by its helmet and cape (`Character/ArmourLook`). Worn clothes are the Hoarder's tunic; the Knight's own plate, which everyone used to start in, is now tier 4. This is Everdawn's way of showing armour (its armours' `appearance`) with Everdawn's part models: all of them are skinned to the same rig, so a part goes under the figure's skeleton as it is. Every machine dresses each player from the tier the host holds for it, and the ghosts a dash leaves wear it too. Which character stands for which tier is a first pick, made from `./dev.sh armour-lineup`, which shows the six side by side from the front (or any other outfits named, to try them).
+- **It shows on the figure, and grows a part at a time.** A tier's look is a body, arms and legs from KayKit characters worn in place of the Knight's own, the head and helmet kept, so a player is still told by its helmet and cape (`Character/ArmourLook`). Everyone starts in a medium armour, the Ranger's leathers; Leather puts the Knight's greaves on the legs, Mail its bracers on the arms, Scale is the Knight's plate whole, Plate the Paladin's, and Tempered plate the Paladin's with its breastplate. This is Everdawn's way of showing armour (its armours' `appearance`), part by part as it does it: there a plate armour gives the body and legs, bracers give the arms, and some units wear one set's body with another's arms. The part models are Everdawn's, all skinned to the same rig, so a part goes under the figure's skeleton as it is. Every machine dresses each player from the tier the host holds for it, and the ghosts a dash leaves wear it too. Two earlier lines were turned down: one started in the Hoarder's tunic, a round body; the other was plate from the first tier, with nothing to grow into. `./dev.sh armour-lineup` shows the six tiers side by side from the front (or any other outfits named, to try them).
 
 ## The window
 
@@ -98,16 +113,16 @@ The host holds every purse, so it decides every purchase ([multiplayer.md](multi
 
 ## Verified by `./dev.sh trade-test`
 
-For each seller the town's layout stands, a host and one bot client start a step and a half in front of it (`--start-at`, `--trade-drill`) with exactly what the seller's first three offers come to (`--start-gold`, `--start-orbs`): at the weaponsmith 150 gold for three plain weapons; at the blacksmith, starting in Mail, the last tier of armour had for gold alone (`--start-armour`), 280 gold and 3 orbs for the weapon in hand made +1, the one on the back made +1 and Scale, the first tier paid in gold and orbs; at the merchant 10 gold and the one orb it sells after the weapon in its hand and the one on its back. On each machine: the prompt shows; the window opens once, for that seller, has nine slots holding the seller's offers, and is no bigger than the game's window; the bot gets through the window the first three offers in slot order; is then told by the window that it cannot pay for another, asks the host anyway and is refused; its gold and orbs are what it started with less what it paid and plus what it was paid, and only the merchant pays (150 gold for two plain weapons and an orb); the weapons in its hand and on its back are what those trades leave (`greatsword+1` and `spear+1` on the host after the blacksmith, none after the merchant) and the armour got is worn and shown on the HUD (tier 3); both players' figures on that machine wear the parts of the armour each has, never out of step for more than the frames in which it changes, and at the blacksmith the bot leaves in another look than it came in (Cleric to Engineer) while at the weaponsmith it does not; it did not move while the window was open; and the window closes. On the host: sales went to both players, and the weapon in hand, the gold, the orbs and the armour it holds for each player are what that player's own machine has. Part of `./dev.sh smoke`.
+For each seller the town's layout stands, a host and one bot client start a step and a half in front of it (`--start-at`, `--trade-drill`) with exactly what the seller's first three offers come to (`--start-gold`, `--start-orbs`): at the weaponsmith 150 gold for three plain weapons; at the blacksmith, starting in Mail, the last tier of armour had for gold alone (`--start-armour`), 280 gold and 3 orbs for the weapon in hand made +1, the one on the back made +1 and Scale, the first tier paid in gold and orbs; at the merchant 10 gold and the one orb it sells after the weapon in its hand and the one on its back; at the enchanter 180 gold and 3 orbs for three enchantments of the weapon in its hand, fire, then water, then wind, which is the one it ends with. On each machine: the prompt shows; the window opens once, for that seller, has nine slots holding the seller's offers, and is no bigger than the game's window; the bot gets through the window the first three offers in slot order; is then told by the window that it cannot pay for another, asks the host anyway and is refused; its gold and orbs are what it started with less what it paid and plus what it was paid, and only the merchant pays (150 gold for two plain weapons and an orb); the weapons in its hand and on its back are what those trades leave (`greatsword+1` and `spear+1` on the host after the blacksmith, none after the merchant) and the armour got is worn and shown on the HUD (tier 3); both players' figures on that machine wear the parts of the armour each has, never out of step for more than the frames in which it changes, and at the blacksmith the bot leaves in another look than it came in (leathers with the Knight's arms and legs to the Knight's plate whole, from Mail to Scale) while at the weaponsmith it does not; it did not move while the window was open; and the window closes. On the host: sales went to both players, and the weapon in hand, the gold, the orbs and the armour it holds for each player are what that player's own machine has. Part of `./dev.sh smoke`.
 
 That an improved weapon hits harder where it counts was checked in a solo fight on the host: a greatsword's Spin lands 13 a hit plain and 26 at +10, with the plain spear on the same player's back unchanged (`[combat-host] biggest_hit_by_skill`). That armour stops what it says was checked the same way: the 100 damage that takes a player down came in 12 blows in worn clothes and in 25 in tempered plate (`[combat-check] damage_taken`, `hits_taken`, with `--start-armour`). The rules themselves (what a purse can pay, reach, being down, where a bought weapon goes, every level of every weapon hitting harder than the last, every level costing more, a weapon improved step by step to +10 and no further, every tier of armour stopping more and costing more, gold alone for the first two, armour made better tier by tier to the last and no further, the blacksmith's three offers in their order, the merchant's three in theirs, a weapon sold paying its gold and leaving its slot empty, a better weapon selling for more and always for less gold than it took, buying and selling back losing gold, an orb sold only from a purse that holds one, the exact share over many small blows, that every seller's offers fit the window) are `Core.Tests/Trade`, `Core.Tests/Combat/WeaponsTests`, `WeaponSetsTests` and `ArmourTests`.
 
 ## Open questions
 
 - Souls still buy nothing: all four sellers trade in gold, and the blacksmith in orbs as well.
-- Eleven weapons are split between two sellers because the window has nine slots. Whether it should have pages instead.
+- What an enchantment costs against what it gives: today it converts damage and adds nothing ([magic.md](magic.md)).
 - What the merchant pays: half the gold put into a weapon and 100 gold for an orb are first-pass. Whether it should buy souls, and whether more things should exist to sell (things monsters leave, kept in a bag): today a player carries only two weapons and its purse.
-- Which character's parts stand for which tier of armour: a first pick. Everdawn tints parts by palette, which would give more looks from the same models (a darker, bluer plate for the tempered one); nothing is tinted here yet.
+- What each tier of armour looks like: a first pick that reads as leathers growing into plate. The tiers' names (worn clothes, Leather, Mail, Scale) do not say what is seen. Everdawn tints parts by palette, which would give more looks from the same models (a darker, bluer plate for the tempered one); nothing is tinted here yet.
 - Whether tempered plate stopping half of every blow, on top of a guard, is too much: armour's numbers are first-pass.
 - Q still changes the weapon in hand to the next kind for nothing, which was how weapons were tried before there was a seller. It makes buying a second kind pointless, and swapping to a kind and back loses its level; whether it goes, or stays as a development key only. It no longer arms an empty hand.
 - Prices, the blacksmith's costs and how much a level adds: all first-pass. Thirty orbs for a full +10 is a long way at a few orbs in a hundred monsters.

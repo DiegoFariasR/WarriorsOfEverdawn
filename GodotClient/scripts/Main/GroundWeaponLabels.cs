@@ -77,9 +77,13 @@ public partial class GroundWeaponLabels : Control
     // What a weapon does in the hands of a player with these stats.
     public static string DetailsOf(WeaponDefinition weapon, CharacterStats stats) =>
         $"{weapon.Primary.Name} {DamageOf(weapon.Primary, stats)}  -  {(weapon.Primary.Projectile == null ? "reach" : "flies")} {weapon.Primary.Range:F1}\n"
-        + $"{weapon.Secondary.Name} {DamageOf(weapon.Secondary, stats)} a turn  -  {weapon.Secondary.ManaCost} MP\n"
+        + $"{weapon.Secondary.Name} {DamageOf(weapon.Secondary, stats)}{(weapon.Secondary.Channeled ? " a turn" : $" in {weapon.Secondary.BlastRadius:F1}")}  -  {weapon.Secondary.ManaCost} MP\n"
         + $"{weapon.Lunge.Name} {DamageOf(weapon.Lunge, stats)}  -  "
-        + (weapon.Guard.Barrier is { } barrier ? $"barrier takes {barrier.Strength}" : $"guard stops {(1f - weapon.Guard.DamageTaken) * 100f:F0}%");
+        + (weapon.Guard.Barrier is { } barrier ? $"barrier takes {barrier.Strength}" : $"guard stops {(1f - weapon.Guard.DamageTaken) * 100f:F0}%")
+        + (weapon.Enchantment is { } element ? $"\n{EnchantedOf(element)}" : "");
+
+    // What an enchantment does to a weapon's blows, in a line.
+    public static string EnchantedOf(Element element) => $"{Weapons.EnchantedShare * 100f:F0}% of every blow is {element.ToString().ToLowerInvariant()} magic";
 
     // What a skill deals in these hands; a volley as so many darts of so much: "3 x 12".
     public static string DamageOf(SkillDefinition skill, CharacterStats stats) =>

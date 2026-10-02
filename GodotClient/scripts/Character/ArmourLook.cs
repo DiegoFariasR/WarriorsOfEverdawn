@@ -7,57 +7,63 @@ using WarriorsOfEverdawn.Util;
 
 namespace WarriorsOfEverdawn.Character;
 
-// What each tier of armour looks like on a Rig_Medium figure: the body, arms and legs of one of the KayKit
-// characters, worn in place of the figure's own, the head left as it is. Everdawn's way of dressing a character (its
-// armours' appearances and CharacterAssembler): every part is skinned to the same rig, so a part's mesh goes under
-// the figure's skeleton as it is and moves with it.
+// What each tier of armour looks like on a Rig_Medium figure: a body, arms and legs taken from KayKit characters and
+// worn in place of the figure's own, the head left as it is. Everdawn's way of dressing a character (its armours'
+// appearances and CharacterAssembler): every part is skinned to the same rig, so a part's mesh goes under the
+// figure's skeleton as it is and moves with it. As in Everdawn the three need not come from one character: its plate
+// armours give the body and legs, its bracers the arms, and its units wear one set's body with another's arms.
 public static class ArmourLook
 {
-    // The figure's own body, arms and legs: what it wears when a tier names no other.
+    // The figure's own parts: what it wears where a look names no other. For the Knight, plate.
     public const string Own = "own";
 
     private const string PartsFolder = "res://assets/character_parts/";
     private const string WornPrefix = "Armour_";
     private const string OutfitMeta = "armour_outfit";
     private const string PartMeta = "armour_part";
+    private const string Body = "Body";
 
-    private static readonly string[] Slots = { "Body", "ArmLeft", "ArmRight", "LegLeft", "LegRight" };
+    private static readonly string[] Slots = { Body, "ArmLeft", "ArmRight", "LegLeft", "LegRight" };
 
     // A part's skin as it fits the figures of this game, by the skin it came with.
     private static readonly Dictionary<Skin, Skin> Fitted = new();
 
-    // By tier, from what everyone starts in. Pieces are worn over the outfit's body: a breastplate, pauldrons.
-    private static readonly (string Outfit, string[] Pieces)[] ByTier =
+    // By tier, from what everyone starts in: a medium armour, the Ranger's leathers, with the Knight's plate put on
+    // a part at a time (greaves, then bracers, then the cuirass), then the Paladin's plate, then its breastplate
+    // over that. An earlier line started in the Hoarder's tunic, which is a round body; another was plate from the
+    // first tier, with nothing to grow into.
+    private static readonly Look[] ByTier =
     {
-        ("Hoarder", Array.Empty<string>()),
-        ("Rogue", Array.Empty<string>()),
-        ("Cleric", Array.Empty<string>()),
-        ("Engineer", Array.Empty<string>()),
-        (Own, Array.Empty<string>()),
-        ("Paladin", new[] { "Paladin_ChestPlate" }),
+        new("Ranger", "Ranger", "Ranger"),
+        new("Ranger", "Ranger", Own),
+        new("Ranger", Own, Own),
+        new(Own, Own, Own),
+        new("Paladin", "Paladin", "Paladin"),
+        new("Paladin", "Paladin", "Paladin", "Paladin_ChestPlate"),
     };
 
+    // What the tier's look is called: the characters its body, arms and legs come from, and its pieces.
     public static string OutfitFor(int tier) =>
-        tier >= 0 && tier < ByTier.Length ? ByTier[tier].Outfit : throw new ArgumentOutOfRangeException(nameof(tier), tier, $"No look for armour of tier {tier}");
+        tier >= 0 && tier < ByTier.Length ? ByTier[tier].Name : throw new ArgumentOutOfRangeException(nameof(tier), tier, $"No look for armour of tier {tier}");
 
-    // The outfit the figure has on.
-    public static string Worn(Skeleton3D skeleton) => skeleton.GetMeta(OutfitMeta, Own).AsString();
+    // The look the figure has on, as OutfitFor names it.
+    public static string Worn(Skeleton3D skeleton) => skeleton.GetMeta(OutfitMeta, new Look(Own, Own, Own).Name).AsString();
 
-    // Whether what is on the figure is the tier's look and nothing else: its parts under the skeleton and the figure's
-    // own hidden, or the figure's own showing and no others. For the self-tests.
+    // Whether what is on the figure is the tier's look and nothing else: for each of its parts either the figure's
+    // own showing, or another's under the skeleton and the figure's own hidden. For the self-tests.
     public static bool IsDressedFor(Skeleton3D skeleton, int tier)
     {
-        string outfit = OutfitFor(tier);
-        var wanted = (outfit == Own ? Enumerable.Empty<string>() : Slots.Select(slot => $"{outfit}_{slot}")).Concat(ByTier[tier].Pieces);
+        var look = ByTier[tier];
+        var wanted = Slots.Where(slot => look.From(slot) != Own).Select(slot => $"{look.From(slot)}_{slot}").Concat(look.Pieces);
         var worn = skeleton.GetChildren().OfType<MeshInstance3D>()
             .Where(m => m.Visible && m.Name.ToString().StartsWith(WornPrefix, StringComparison.Ordinal))
             .Select(m => m.GetMeta(PartMeta, "").AsString());
-        return Worn(skeleton) == outfit
+        return Worn(skeleton) == look.Name
             && worn.OrderBy(p => p, StringComparer.Ordinal).SequenceEqual(wanted.OrderBy(p => p, StringComparer.Ordinal))
-            && Slots.All(slot => OwnPart(skeleton, slot).Visible == (outfit == Own));
+            && Slots.All(slot => OwnPart(skeleton, slot).Visible == (look.From(slot) == Own));
     }
 
-    // Puts the tier's outfit on the figure in place of whatever it wore.
+    // Puts the tier's look on the figure in place of whatever it wore.
     public static void Wear(Skeleton3D skeleton, int tier)
     {
         if (ByTier.Length != Armours.MaxTier + 1)
@@ -65,12 +71,13 @@ public static class ArmourLook
             throw new InvalidOperationException($"Armour has {Armours.MaxTier + 1} tiers and {ByTier.Length} looks");
         }
 
-        WearOutfit(skeleton, OutfitFor(tier), ByTier[tier].Pieces);
+        Wear(skeleton, ByTier[tier]);
     }
 
-    // Puts a named outfit on the figure, with pieces worn over it. Public for the dev lineup, which tries outfits no
-    // tier has.
-    public static void WearOutfit(Skeleton3D skeleton, string outfit, IReadOnlyList<string> pieces)
+    // Puts one character's body, arms and legs on the figure. For the dev lineup, which tries outfits no tier has.
+    public static void WearOutfit(Skeleton3D skeleton, string outfit) => Wear(skeleton, new Look(outfit, outfit, outfit));
+
+    private static void Wear(Skeleton3D skeleton, Look look)
     {
         foreach (var worn in skeleton.GetChildren().Where(c => c.Name.ToString().StartsWith(WornPrefix, StringComparison.Ordinal)).ToList())
         {
@@ -80,19 +87,20 @@ public static class ArmourLook
 
         foreach (string slot in Slots)
         {
-            OwnPart(skeleton, slot).Visible = outfit == Own;
-            if (outfit != Own)
+            string from = look.From(slot);
+            OwnPart(skeleton, slot).Visible = from == Own;
+            if (from != Own)
             {
-                PutOn(skeleton, $"{outfit}_{slot}", slot);
+                PutOn(skeleton, $"{from}_{slot}", slot);
             }
         }
 
-        foreach (string piece in pieces)
+        foreach (string piece in look.Pieces)
         {
             PutOn(skeleton, piece, piece);
         }
 
-        skeleton.SetMeta(OutfitMeta, outfit);
+        skeleton.SetMeta(OutfitMeta, look.Name);
     }
 
     private static MeshInstance3D OwnPart(Skeleton3D skeleton, string slot) =>
@@ -121,6 +129,7 @@ public static class ArmourLook
         mesh.Transform = placed;
         mesh.Skeleton = new NodePath("..");
         mesh.Skin = FittedTo(skeleton, mesh.Skin);
+        ToonLook.Apply(mesh);
         scene.Free();
     }
 
@@ -144,5 +153,14 @@ public static class ArmourLook
         }
 
         return fitted;
+    }
+
+    // A look: the character each part comes from (Own for the figure's), and the pieces worn over the body: a
+    // breastplate, pauldrons.
+    private sealed record Look(string Torso, string Arms, string Legs, params string[] Pieces)
+    {
+        public string Name => string.Join("+", new[] { Torso, Arms, Legs }.Concat(Pieces));
+
+        public string From(string slot) => slot == Body ? Torso : slot.StartsWith("Arm", StringComparison.Ordinal) ? Arms : Legs;
     }
 }

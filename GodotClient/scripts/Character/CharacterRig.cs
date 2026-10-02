@@ -16,10 +16,10 @@ public static class CharacterRig
     // KayKit models face +Z; Godot's forward is -Z.
     public const float ModelYawOffset = Mathf.Pi;
 
-    // Smaller than Everdawn's 0.75: its battle camera looks across at bare heads, while this one looks down on
-    // helmets, which are bigger meshes and hide the foreshortened body beneath them. At 0.55 the Knight's helmet is
-    // about as wide as its shoulders, as an Everdawn head is.
-    public const float HeadScale = 0.55f;
+    // Everdawn's (CharacterAssembler.HeadScale), so a figure here has a figure there's proportions. It was 0.55 for
+    // a while, on the reasoning that this camera looks down on helmets over a foreshortened body; that left a small
+    // head on a wide body, which read as squat beside Everdawn's.
+    public const float HeadScale = 0.75f;
     public const float HeadgearScale = HeadScale * 1.1f;
 
     public const string HandBone = "handslot.r";
@@ -27,8 +27,6 @@ public static class CharacterRig
     public const string LeftHandBone = "handslot.l";
 
     public const string BackBone = "chest";
-
-    private const float GlowRadius = 0.3f;
 
     // Two points within this distance of the grip count as equally far.
     private const float TipTie = 0.01f;
@@ -129,7 +127,7 @@ public static class CharacterRig
         Empty(offHand);
         if (look?.OffHand is { } piece)
         {
-            offHand.AddChild(Placed(piece.Model, piece.HandPosition, piece.HandRotation));
+            offHand.AddChild(Adorned(Placed(piece.Model, piece.HandPosition, piece.HandRotation), look with { Glow = null }));
         }
     }
 
@@ -162,13 +160,14 @@ public static class CharacterRig
         weapon.Transform = new Transform3D(Basis.FromEuler(look.BackRotation), look.BackPosition) * weapon.Transform;
         if (look.OffHand is { } piece)
         {
-            back.AddChild(Placed(piece.Model, piece.BackPosition, piece.BackRotation));
+            back.AddChild(Adorned(Placed(piece.Model, piece.BackPosition, piece.BackRotation), look with { Glow = null }));
         }
     }
 
     private static Node3D Placed(string modelPath, Vector3 position, Vector3 rotation)
     {
         var model = Assets.InstantiateAtOrigin(modelPath);
+        ToonLook.ApplyToWeapon(model);
         model.Transform = new Transform3D(Basis.FromEuler(rotation), position);
         return model;
     }
@@ -186,12 +185,26 @@ public static class CharacterRig
         }
     }
 
-    // The weapon with what its look adds to its model: a staff's element, alight at its head.
+    // The weapon with what its look adds to its model: an enchantment's element over all of it (Everdawn's elemental
+    // overlay), a staff's element alight at its head.
     public static Node3D Adorned(Node3D weapon, WeaponLook look)
     {
+        if (look.Enchant is { } enchantment)
+        {
+            foreach (var mesh in weapon.FindChildren("*", nameof(MeshInstance3D), recursive: true, owned: false).OfType<MeshInstance3D>())
+            {
+                mesh.MaterialOverlay = ElementLooks.Enchantment(enchantment);
+            }
+
+            if (weapon is MeshInstance3D whole)
+            {
+                whole.MaterialOverlay = ElementLooks.Enchantment(enchantment);
+            }
+        }
+
         if (look.Glow is { } element)
         {
-            var orb = ElementLooks.Made(element, new SphereMesh { Radius = GlowRadius, Height = GlowRadius * 2f, RadialSegments = 12, Rings = 6 });
+            var orb = ElementLooks.Made(element, new SphereMesh { Radius = look.GlowRadius, Height = look.GlowRadius * 2f, RadialSegments = 12, Rings = 6 });
             orb.Name = "Glow";
             orb.Position = look.GlowAt;
             weapon.AddChild(orb);
@@ -209,6 +222,7 @@ public static class CharacterRig
 
         // The hand slot bone is already the grip point.
         var weapon = Assets.InstantiateAtOrigin(weaponPath);
+        ToonLook.ApplyToWeapon(weapon);
         weapon.Basis = Basis.FromEuler(new Vector3(0f, turn, 0f)).Scaled(Vector3.One * scale);
         weapon.Position = -(weapon.Basis * grip);
         hand.AddChild(weapon);

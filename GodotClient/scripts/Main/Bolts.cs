@@ -32,6 +32,9 @@ public partial class Bolts : Node3D
     // On the caster's machine: one of its own met a body.
     public static event Action<SkillDefinition>? Landed;
 
+    // On every machine, as one that bursts ends: who threw it and with what.
+    public static event Action<PlayerCharacter, SkillDefinition>? Burst;
+
     public int InFlight => _flights.Count;
 
     // How long the oldest in flight has been flying; 0 with none.
@@ -75,7 +78,7 @@ public partial class Bolts : Node3D
     {
         if (_flights.Remove((casterPeer, id), out var flight))
         {
-            Burst(flight, at);
+            Finish(flight, at);
         }
     }
 
@@ -91,15 +94,6 @@ public partial class Bolts : Node3D
             var after = flight.Position;
             flight.Node.GlobalPosition = after;
 
-            // Walls and whatever else stands in the world stop it, the same on every machine.
-            var wall = space.IntersectRay(PhysicsRayQueryParameters3D.Create(before, after, CollisionLayers.World));
-            if (wall.Count > 0)
-            {
-                _flights.Remove(key);
-                Burst(flight, wall["position"].AsVector3());
-                continue;
-            }
-
             // The caster may have left with its bolt in the air.
             if (!IsInstanceValid(flight.Caster))
             {
@@ -108,7 +102,18 @@ public partial class Bolts : Node3D
                 continue;
             }
 
-            if (flight.Caster.IsMultiplayerAuthority() && flight.Caster.StrikeWith(flight.Skill, before, after))
+            // Walls and whatever else stands in the world stop it, the same on every machine. One that bursts does
+            // so there too, and the caster's machine decides what the burst catches.
+            bool mine = flight.Caster.IsMultiplayerAuthority();
+            var wall = space.IntersectRay(PhysicsRayQueryParameters3D.Create(before, after, CollisionLayers.World));
+            if (wall.Count > 0)
+            {
+                EndHere(key, flight, wall["position"].AsVector3(), mine);
+                continue;
+            }
+
+            // A body it touches on the way: the caster's machine deals with it and tells the others it ended there.
+            if (mine && flight.Caster.StrikeWith(flight.Skill, before, after))
             {
                 Landed?.Invoke(flight.Skill);
                 flight.Caster.EndBoltEverywhere(key.Id, after);
@@ -118,23 +123,40 @@ public partial class Bolts : Node3D
             // Every machine ends a miss on its own at the same distance.
             if (flight.Travelled >= projectile.MaxDistance)
             {
-                _flights.Remove(key);
-                Burst(flight, after);
+                EndHere(key, flight, after, mine);
             }
         }
     }
 
-    // The bolt goes, and a burst of its element swells and is gone where it ended.
-    private void Burst(Flight flight, Vector3 at)
+    // Ended by the world and not by a body: every machine sees that for itself.
+    private void EndHere((long Caster, int Id) key, Flight flight, Vector3 at, bool mine)
+    {
+        _flights.Remove(key);
+        Finish(flight, at);
+        if (mine && flight.Skill.BlastRadius > 0f)
+        {
+            flight.Caster.BlastAt(flight.Skill, at);
+        }
+    }
+
+    // The bolt goes, and a burst of its element swells and is gone where it ended: a puff for a bolt, and for a ball
+    // that bursts, as wide as what it catches.
+    private void Finish(Flight flight, Vector3 at)
     {
         flight.Node.QueueFree();
+        float blast = flight.Skill.BlastRadius;
         float radius = flight.Skill.Projectile!.Radius;
-        var burst = ElementLooks.Made(flight.Element, new SphereMesh { Radius = radius, Height = radius * 2f, RadialSegments = 12, Rings = 6 });
+        var burst = ElementLooks.Made(flight.Element, new SphereMesh { Radius = radius, Height = radius * 2f, RadialSegments = 16, Rings = 8 });
         AddChild(burst);
         burst.GlobalPosition = at;
         BurstsShowing++;
+        if (blast > 0f)
+        {
+            Burst?.Invoke(flight.Caster, flight.Skill);
+        }
+
         var tween = burst.CreateTween();
-        tween.TweenProperty(burst, "scale", Vector3.One * 2.6f, BurstTime * 0.4f);
+        tween.TweenProperty(burst, "scale", Vector3.One * (blast > 0f ? blast / radius : 2.6f), BurstTime * 0.4f);
         tween.TweenProperty(burst, "scale", Vector3.Zero, BurstTime * 0.6f);
         tween.TweenCallback(Callable.From(() =>
         {

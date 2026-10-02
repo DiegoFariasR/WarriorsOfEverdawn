@@ -308,10 +308,10 @@ def allied_town(seed):
     f.put(PROPS, "Money_Coins_Stack_Small", 7.2, -4.9)
     f.marker("seller-merchant", 6.8, -4.0, yaw=-math.pi / 2)
 
-    # The arcanist keeps to the front of the courtyard on the left, by a shrine of candles.
+    # The enchanter keeps to the front of the courtyard on the left, by a shrine of candles.
     f.put(PROPS, "shrine_candles", -8.4, 3.9, yaw=math.pi / 2, solid=True)
     f.put(PROPS, "rug_rectangle_stripes_A", -6.4, 3.9)
-    f.marker("seller-arcanist", -6.6, 3.9, yaw=math.pi / 2)
+    f.marker("seller-enchanter", -6.6, 3.9, yaw=math.pi / 2)
 
     # Stores stacked in the corners, clear of the gate and the doorways.
     f.put(DUNGEON, "barrel_large", -7.9, 6.0, solid=True)

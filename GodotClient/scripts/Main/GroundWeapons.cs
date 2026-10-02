@@ -133,7 +133,9 @@ public partial class GroundWeapons : Node3D
     public static Node3D Lying(WeaponDefinition weapon, Vector3 at, float yaw)
     {
         var look = CombatVisuals.LookFor(weapon);
-        var model = CharacterRig.Adorned(Assets.InstantiateAtOrigin(look.Model), look);
+        var model = Assets.InstantiateAtOrigin(look.Model);
+        ToonLook.ApplyToWeapon(model);
+        CharacterRig.Adorned(model, look);
         var pivot = new Node3D { Position = at + Vector3.Up * RestHeight };
 
         // Weapon models stand along +Y from wherever their grip is; laid on its side, the weapon rests on its middle.
@@ -147,6 +149,8 @@ public partial class GroundWeapons : Node3D
         if (look.OffHand is { } piece)
         {
             var beside = Assets.InstantiateAtOrigin(piece.Model);
+            ToonLook.ApplyToWeapon(beside);
+            CharacterRig.Adorned(beside, look with { Glow = null });
             beside.Basis = Basis.FromEuler(new Vector3(0f, Mathf.Pi, 0f));
             beside.Position = Vector3.Right * OffHandBeside - beside.Basis * MiddleOf(beside);
             pivot.AddChild(beside);

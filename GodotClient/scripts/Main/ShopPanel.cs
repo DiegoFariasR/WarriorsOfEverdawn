@@ -166,14 +166,25 @@ public partial class ShopPanel : Control
         _waiting = false;
         Refresh();
         ChooseWhatCanBeHad();
-        Say(item.IsSale ? $"Sold: {item.Name} for {CostText(item.Pays)}"
-            : item.Armour != null ? $"Now wearing: {item.Name}"
-            : item.Slot == null ? $"Bought: {item.Name}"
-            : $"Made better: {item.Name}", good: true);
+        Say(item.Kind switch
+        {
+            TradeKind.Sale => $"Sold: {item.Name} for {CostText(item.Pays)}",
+            TradeKind.Enchantment => $"Enchanted: {item.Name}",
+            TradeKind.Attunement => $"Now: {item.Name}",
+            TradeKind.Purchase => $"Bought: {item.Name}",
+            _ => item.Armour != null ? $"Now wearing: {item.Name}" : $"Made better: {item.Name}",
+        }, good: true);
     }
 
-    // A weapon for sale is bought; a weapon or armour already had is made better.
-    private static bool IsImprovement(TradeItem item) => item.Slot != null || item.Armour != null;
+    // What the button does to the chosen thing.
+    private static string VerbOf(TradeItem item) => item.Kind switch
+    {
+        TradeKind.Sale => "Sell",
+        TradeKind.Improvement => "Improve",
+        TradeKind.Enchantment => "Enchant",
+        TradeKind.Attunement => "Attune",
+        _ => "Buy",
+    };
 
     // Leaves the choice where it is while that can be had; otherwise moves it to the first offer that can, so the
     // window opens on, and after a purchase moves on to, something the button is good for.
@@ -283,6 +294,17 @@ public partial class ShopPanel : Control
             return "";
         }
 
+        if (item.Kind == TradeKind.Attunement)
+        {
+            return $"The {sets.Active?.Name} in your hand becomes this staff: other spells, the same level";
+        }
+
+        if (item.Kind == TradeKind.Enchantment)
+        {
+            string replaces = sets.Active?.Enchantment is { } old ? $", in place of its {old.ToString().ToLowerInvariant()}" : "";
+            return $"Laid on the {Weapons.Plain(item.Weapon).Name} in your hand{replaces}. Magic grows with WIS, the rest with STR";
+        }
+
         if (item.Slot is { } slot)
         {
             return $"Every blow of the {sets.In(slot)?.Name} {(slot == WeaponSlot.Hand ? "in your hand" : "on your back")} lands harder";
@@ -296,7 +318,8 @@ public partial class ShopPanel : Control
 
     // What the thing is, to this buyer: a weapon's three lines; for an improvement what each skill deals now and
     // what it would deal; for armour how much of a blow it stops against how much is stopped now; for a weapon to
-    // sell, the lines of the weapon that would go.
+    // sell, the lines of the weapon that would go; for an enchantment what each skill deals now and would, and how
+    // much of it would be magic; for a staff of another element, that staff's lines.
     public static string DetailsOf(TradeItem item, Buyer buyer, CharacterStats stats)
     {
         var sets = buyer.Weapons;
@@ -328,14 +351,17 @@ public partial class ShopPanel : Control
             return item.Unavailable ?? "";
         }
 
-        if (item.Slot is not { } slot || sets.In(slot) is not { } now)
+        // A staff of another element is another weapon: its own lines, not this one's against them.
+        if (item.Slot is not { } slot || sets.In(slot) is not { } now || item.Kind == TradeKind.Attunement)
         {
             return GroundWeaponLabels.DetailsOf(item.Weapon, stats);
         }
 
         return string.Join("\n", now.Skills.Zip(item.Weapon.Skills, (before, after) =>
                 $"{after.Name} {GroundWeaponLabels.DamageOf(before, stats)} to {GroundWeaponLabels.DamageOf(after, stats)}"))
-            + $"\nLevel {item.Weapon.Level} of {WeaponDefinition.MaxLevel}";
+            + (item.Kind == TradeKind.Enchantment && item.Weapon.Enchantment is { } element
+                ? $"\n{GroundWeaponLabels.EnchantedOf(element)}"
+                : $"\nLevel {item.Weapon.Level} of {WeaponDefinition.MaxLevel}");
     }
 
     private static int? SlotOf(Key key)
@@ -412,7 +438,7 @@ public partial class ShopPanel : Control
             _slots[i].Button.AddThemeStyleboxOverride("hover", chosen ? ChosenBox : HoverBox);
             _slots[i].Button.AddThemeStyleboxOverride("pressed", ChosenBox);
             _slots[i].Content.Modulate = had ? Colors.White : Dim;
-            _slots[i].Name.Text = item?.Name ?? EmptySlot;
+            _slots[i].Name.Text = item?.Label ?? item?.Name ?? EmptySlot;
             _slots[i].Price.Text = !had ? "" : item!.IsSale ? $"+{CostText(item.Pays)}" : CostText(item.Cost, "\n+ ");
             _slots[i].Price.Modulate = had && ShortOf(item!.Cost).IsNothing ? ColourOf(Coin(item)) : UiTheme.StatusFallen;
         }
@@ -431,7 +457,7 @@ public partial class ShopPanel : Control
         _price.Text = !canBeHad ? "" : shortOf.IsNothing ? price : $"{price}\n{CostText(shortOf, ", ")} short";
         _price.Modulate = shortOf.IsNothing ? ColourOf(Coin(shown)) : UiTheme.StatusFallen;
         _effect.Text = canBeHad ? EffectOf(shown, buyer) : "";
-        _buy.Text = shown.IsSale ? "Sell  -  E" : IsImprovement(shown) ? "Improve  -  E" : "Buy  -  E";
+        _buy.Text = $"{VerbOf(shown)}  -  E";
         _buy.Disabled = !canBeHad || !shortOf.IsNothing;
     }
 
