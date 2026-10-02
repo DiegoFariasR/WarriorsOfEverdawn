@@ -222,6 +222,12 @@ public sealed class BotControls : IPlayerControls
 
     private const float CrowdPenalty = 3f;
 
+    private const float ThrowEvery = 5f;
+    private const float ThrowFor = 2.5f;
+
+    // Share of each step's reading taken into the bot's idea of how fast its target moves.
+    private const float VelocitySmoothing = 0.15f;
+
     // Every SpinDrillEvery the bot spins for SpinDrillFor with nothing in reach, as it swings at the air: no bot then
     // goes a session without a Spin to measure, however the fight falls out.
     private const float SpinDrillEvery = 7f;
@@ -254,6 +260,11 @@ public sealed class BotControls : IPlayerControls
     private float _nextLungeDrill = FirstLungeDrillAt;
     private bool _interactDue;
     private float _unarmedSince = float.NaN;
+    private float _step;
+    private Node3D? _tracked;
+    private Vector3 _trackedAt;
+    private Vector3 _trackedVelocity;
+    private float _trackedWhen;
 
     public BotControls(long peerId, float swapUntil)
     {
@@ -297,6 +308,7 @@ public sealed class BotControls : IPlayerControls
     public void Update(PlayerCharacter player, double delta)
     {
         _time += (float)delta;
+        _step = (float)delta;
         _home ??= player.Weapon;
         DropPressed = false;
         PickUpPressed = false;
@@ -444,7 +456,11 @@ public sealed class BotControls : IPlayerControls
         var toEnemy = enemy == null ? Vector3.Zero : enemy.GlobalPosition - player.GlobalPosition;
         toEnemy.Y = 0f;
         float distance = toEnemy.Length();
-        if (enemy == null || distance > EngageRadius)
+
+        // A staff engages from as far as its bolts fly: its bot turns to the hostile and throws at it while it is
+        // still coming, where a bot with steel in hand has nothing to do until it is close.
+        float engage = weapon.Primary.Projectile != null ? weapon.Primary.Range : EngageRadius;
+        if (enemy == null || distance > engage)
         {
             // With nothing in range to fight the bot goes for the nearest gold or orb, so little is left lying; else for the
             // nearest hostile, by the way round the walls, into the enemy fortress if that is where it is.
@@ -473,18 +489,25 @@ public sealed class BotControls : IPlayerControls
             return;
         }
 
+        // A staff's spell lands on a spot ahead, so its bot keeps the hostile there and not at arm's length.
+        float orbit = weapon.Secondary.Area is { Distance: > 0f } ahead ? ahead.Distance : OrbitDistance;
         var inward = distance > 0.01f ? toEnemy / distance : Yaw.Forward(_phase);
         var around = new Vector3(-inward.Z, 0f, inward.X);
-        var keepDistance = inward * Mathf.Clamp(distance - OrbitDistance, -1f, 1f);
+        var keepDistance = inward * Mathf.Clamp(distance - orbit, -1f, 1f);
 
         // The bot runs at the hostile by the way round the walls, and circles it slowly only once it is close: an
         // archer backs away faster than the circling closes in, and held the bot off for the whole of its volley.
         var way = ArenaMap.In(player.GetTree()).StepToward(player, enemy.GlobalPosition);
-        bool close = distance <= OrbitDistance + 1f;
+        bool close = distance <= orbit + 1f;
         bool inSight = close || way.Dot(inward) > InSightAlignment;
         Move = !close ? way : standing ? Vector3.Zero : (around + keepDistance).Normalized() * OrbitSpeed;
         Activity = $"{(inSight ? "fighting" : "to")}-{Kind(enemy)}";
-        AimYaw = Yaw.Of(toEnemy);
+
+        // A bolt takes a moment to get there: thrown from beyond its spell's reach, it is thrown at where the hostile
+        // is walking to. Thrown at where it stands, most miss a skeleton crossing the line of fire.
+        var velocity = VelocityOf(enemy);
+        bool throwsFromHere = weapon.Primary.Projectile != null && distance - BodySize.Radius > weapon.Secondary.Range;
+        AimYaw = Yaw.Of(throwsFromHere ? toEnemy + velocity * (distance / weapon.Primary.Projectile!.Speed) : toEnemy);
 
         // Every so often when a hostile is close, three quick presses: more than the charges, so the last is refused.
         // They alternate between a sideways dash and one with no direction, which goes where the bot faces, through
@@ -504,9 +527,13 @@ public sealed class BotControls : IPlayerControls
         }
 
         var spin = weapon.Secondary;
+        // A spell lands on its area and nowhere short of it or past it, so there is no starting one early.
         int inSpinReach = Hostiles(player).Count(h =>
-            h.GlobalPosition.DistanceTo(player.GlobalPosition) - BodySize.Radius <= spin.Range + (KeepsAway(h) ? 0f : SpinLead));
-        if (inSpinReach >= 1 && (player.IsChanneling || player.CanUse(PlayerCharacter.Secondary)))
+            h.GlobalPosition.DistanceTo(player.GlobalPosition) - BodySize.Radius <= spin.Range + (KeepsAway(h) || spin.Area != null ? 0f : SpinLead));
+        // A staff's bot throws for a moment every so often even with a hostile in its spell's reach, as a player
+        // would with one close enough not to miss: throwing only from afar, some bots landed a bolt or two a session.
+        bool throwsNow = weapon.Primary.Projectile != null && _time % ThrowEvery < ThrowFor;
+        if (inSpinReach >= 1 && !throwsNow && (player.IsChanneling || player.CanUse(PlayerCharacter.Secondary)))
         {
             if (!player.IsChanneling)
             {
@@ -522,10 +549,24 @@ public sealed class BotControls : IPlayerControls
             // the air, as it does with no hostile about: the reach checks read every swing, hit or not, and a bot
             // that prefers its Spin would otherwise swing a handful of times a session.
             bool inPrimaryRange = distance - BodySize.Radius <= weapon.Primary.Range;
-            bool savesForSpin = weapon.Primary.Range > spin.Range && player.CanUse(PlayerCharacter.Secondary);
+            // Not a thrown primary: bolts are what a staff is for while the hostile is still coming.
+            bool savesForSpin = weapon.Primary.Projectile == null && weapon.Primary.Range > spin.Range && player.CanUse(PlayerCharacter.Secondary);
             bool swings = inPrimaryRange ? !savesForSpin : _time % AttackInterval < 0.1f;
             SkillHeld = !inPrimaryRange && SpinDrill(player) ? PlayerCharacter.Secondary : swings ? PlayerCharacter.Primary : null;
         }
+    }
+
+    // How fast the hostile it is after is moving, from where it was a step ago, smoothed: no machine but the host
+    // is told a skeleton's speed.
+    private Vector3 VelocityOf(Node3D hostile)
+    {
+        var now = hostile.GlobalPosition;
+        bool followed = hostile == _tracked && _step > 0f && _time - _trackedWhen <= _step * 2f;
+        _trackedVelocity = followed ? _trackedVelocity.Lerp((now - _trackedAt) / _step, VelocitySmoothing) : Vector3.Zero;
+        _tracked = hostile;
+        _trackedAt = now;
+        _trackedWhen = _time;
+        return new Vector3(_trackedVelocity.X, 0f, _trackedVelocity.Z);
     }
 
     private static Vector3? TowardLoot(PlayerCharacter player)

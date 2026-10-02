@@ -14,9 +14,10 @@ namespace WarriorsOfEverdawn.Main;
 // The window for trading with a seller, the same for every seller: who they are and what they trade, what the player
 // carries to pay with, nine numbered slots in rows of three (filled or empty), and beside them what the chosen one
 // is, what it costs, what having it would do, and the button that gets it. Mouse, keys or controller: click a slot,
-// press its number or walk to it with the arrows; E, Enter or the button buys; Esc closes. What a seller offers can
-// depend on what the player carries (the blacksmith works on the player's own weapons), so the slots are read afresh
-// as that changes. It only asks: Market carries the request to the host. Design: Docs/Design/trade.md.
+// press its number or walk to it with the arrows; E, Enter or the button buys (or sells, at a seller who pays);
+// Esc closes. What a seller offers can depend on what the player carries (the blacksmith works on the player's own
+// weapons, the merchant pays for them), so the slots are read afresh as that changes. It only asks: Market carries
+// the request to the host. Design: Docs/Design/trade.md.
 public partial class ShopPanel : Control
 {
     private const float SlotWidth = 150f;
@@ -41,6 +42,10 @@ public partial class ShopPanel : Control
     private Button _buy = null!;
     private PlayerCharacter? _player;
     private Input.MouseModeEnum _mouseBefore;
+
+    // Asked and not yet answered. The host judges by what it sees the player carry, which trails what the player
+    // has here by a moment, so a second press before the answer would trade the same thing twice.
+    private bool _waiting;
 
     // The chosen thing is asked for; Market takes it from there.
     public event Action<SellerDefinition, TradeItem>? BuyAsked;
@@ -97,6 +102,7 @@ public partial class ShopPanel : Control
         _name.Text = seller.Name;
         _line.Text = seller.Line;
         _status.Text = "";
+        _waiting = false;
         Chosen = 0;
         _mouseBefore = Input.MouseMode;
         Input.MouseMode = Input.MouseModeEnum.Visible;
@@ -131,7 +137,7 @@ public partial class ShopPanel : Control
     // Asks for the chosen thing when it can be had and paid for; says why not otherwise.
     public bool Buy()
     {
-        if (!Visible || _player == null || ChosenItem is not { } item)
+        if (!Visible || _player == null || _waiting || ChosenItem is not { } item)
         {
             return false;
         }
@@ -149,16 +155,21 @@ public partial class ShopPanel : Control
             return false;
         }
 
+        _waiting = true;
         BuyAsked?.Invoke(Seller!, item);
         return true;
     }
 
     public void ShowBought(TradeItem item)
     {
-        // A tier of armour once had is no longer on offer: the choice moves on to the next.
+        // A tier of armour once had, or a weapon sold, is no longer on offer: the choice moves on to the next.
+        _waiting = false;
         Refresh();
         ChooseWhatCanBeHad();
-        Say(item.Armour != null ? $"Now wearing: {item.Name}" : item.Slot == null ? $"Bought: {item.Name}" : $"Made better: {item.Name}", good: true);
+        Say(item.IsSale ? $"Sold: {item.Name} for {CostText(item.Pays)}"
+            : item.Armour != null ? $"Now wearing: {item.Name}"
+            : item.Slot == null ? $"Bought: {item.Name}"
+            : $"Made better: {item.Name}", good: true);
     }
 
     // A weapon for sale is bought; a weapon or armour already had is made better.
@@ -181,14 +192,18 @@ public partial class ShopPanel : Control
         }
     }
 
-    public void ShowRefused(BuyOutcome outcome) => Say(outcome switch
+    public void ShowRefused(BuyOutcome outcome)
     {
-        BuyOutcome.CannotAfford => "Not enough to pay for it",
-        BuyOutcome.TooFar => "Too far from the seller",
-        BuyOutcome.Down => "Not while down",
-        BuyOutcome.Unavailable => "Not to be had just now",
-        _ => throw new ArgumentOutOfRangeException(nameof(outcome), outcome, "Not a refusal"),
-    }, good: false);
+        _waiting = false;
+        Say(outcome switch
+        {
+            BuyOutcome.CannotAfford => "Not enough to pay for it",
+            BuyOutcome.TooFar => "Too far from the seller",
+            BuyOutcome.Down => "Not while down",
+            BuyOutcome.Unavailable => "Not to be had just now",
+            _ => throw new ArgumentOutOfRangeException(nameof(outcome), outcome, "Not a refusal"),
+        }, good: false);
+    }
 
     public override void _Process(double delta)
     {
@@ -253,6 +268,11 @@ public partial class ShopPanel : Control
     public static string EffectOf(TradeItem item, Buyer buyer)
     {
         var sets = buyer.Weapons;
+        if (item.IsSale)
+        {
+            return item.Slot is { } sold ? $"Leaves your {(sold == WeaponSlot.Hand ? "hand" : "back")} empty" : $"For {CostText(item.Cost)}";
+        }
+
         if (item.Armour != null)
         {
             return $"Worn at once, in place of the {Armours.AtTier(buyer.ArmourTier).Name}";
@@ -275,7 +295,8 @@ public partial class ShopPanel : Control
     }
 
     // What the thing is, to this buyer: a weapon's three lines; for an improvement what each skill deals now and
-    // what it would deal; for armour how much of a blow it stops against how much is stopped now.
+    // what it would deal; for armour how much of a blow it stops against how much is stopped now; for a weapon to
+    // sell, the lines of the weapon that would go.
     public static string DetailsOf(TradeItem item, Buyer buyer, CharacterStats stats)
     {
         var sets = buyer.Weapons;
@@ -295,6 +316,13 @@ public partial class ShopPanel : Control
             return string.Join("\n", lines);
         }
 
+        if (item.IsSale)
+        {
+            return item.Slot is { } sold && sets.In(sold) is { } carried
+                ? GroundWeaponLabels.DetailsOf(carried, stats)
+                : "The blacksmith asks for these to make weapons and armour better";
+        }
+
         if (item.Weapon == null)
         {
             return item.Unavailable ?? "";
@@ -306,7 +334,7 @@ public partial class ShopPanel : Control
         }
 
         return string.Join("\n", now.Skills.Zip(item.Weapon.Skills, (before, after) =>
-                $"{after.Name} {StatRules.Damage(before.Damage, stats)} to {StatRules.Damage(after.Damage, stats)}"))
+                $"{after.Name} {GroundWeaponLabels.DamageOf(before, stats)} to {GroundWeaponLabels.DamageOf(after, stats)}"))
             + $"\nLevel {item.Weapon.Level} of {WeaponDefinition.MaxLevel}";
     }
 
@@ -351,6 +379,9 @@ public partial class ShopPanel : Control
 
     private Cost ShortOf(Cost cost) => cost.ShortWith(_player!.Vitals.Gold, _player.Vitals.Souls, _player.Vitals.Orbs);
 
+    // What changes hands in coin: what a sale pays, or what a purchase costs.
+    private static Cost Coin(TradeItem item) => item.IsSale ? item.Pays : item.Cost;
+
     // Brings the window in line with what the player carries and what is chosen; cheap enough for every frame.
     private void Refresh()
     {
@@ -382,8 +413,8 @@ public partial class ShopPanel : Control
             _slots[i].Button.AddThemeStyleboxOverride("pressed", ChosenBox);
             _slots[i].Content.Modulate = had ? Colors.White : Dim;
             _slots[i].Name.Text = item?.Name ?? EmptySlot;
-            _slots[i].Price.Text = had ? CostText(item!.Cost, "\n+ ") : "";
-            _slots[i].Price.Modulate = had && ShortOf(item!.Cost).IsNothing ? ColourOf(item.Cost) : UiTheme.StatusFallen;
+            _slots[i].Price.Text = !had ? "" : item!.IsSale ? $"+{CostText(item.Pays)}" : CostText(item.Cost, "\n+ ");
+            _slots[i].Price.Modulate = had && ShortOf(item!.Cost).IsNothing ? ColourOf(Coin(item)) : UiTheme.StatusFallen;
         }
 
         Chosen = Mathf.Clamp(Chosen, 0, Math.Max(0, _items.Count - 1));
@@ -396,10 +427,11 @@ public partial class ShopPanel : Control
         bool canBeHad = shown.Unavailable == null;
         _itemName.Text = shown.Name;
         _details.Text = DetailsOf(shown, buyer, _player.Stats);
-        _price.Text = !canBeHad ? "" : shortOf.IsNothing ? CostText(shown.Cost) : $"{CostText(shown.Cost)}\n{CostText(shortOf, ", ")} short";
-        _price.Modulate = shortOf.IsNothing ? ColourOf(shown.Cost) : UiTheme.StatusFallen;
+        string price = shown.IsSale ? $"Pays {CostText(shown.Pays)}" : CostText(shown.Cost);
+        _price.Text = !canBeHad ? "" : shortOf.IsNothing ? price : $"{price}\n{CostText(shortOf, ", ")} short";
+        _price.Modulate = shortOf.IsNothing ? ColourOf(Coin(shown)) : UiTheme.StatusFallen;
         _effect.Text = canBeHad ? EffectOf(shown, buyer) : "";
-        _buy.Text = IsImprovement(shown) ? "Improve  -  E" : "Buy  -  E";
+        _buy.Text = shown.IsSale ? "Sell  -  E" : IsImprovement(shown) ? "Improve  -  E" : "Buy  -  E";
         _buy.Disabled = !canBeHad || !shortOf.IsNothing;
     }
 
@@ -419,7 +451,7 @@ public partial class ShopPanel : Control
         body.AddChild(BuildSlots());
         body.AddChild(BuildDetail());
 
-        var hint = UiTheme.MakeLabel("1-9 or arrows: choose      E / Enter: buy      Esc: close", UiTheme.Words, 12, UiTheme.GoldDk);
+        var hint = UiTheme.MakeLabel("1-9 or arrows: choose      E / Enter: trade      Esc: close", UiTheme.Words, 12, UiTheme.GoldDk);
         hint.HorizontalAlignment = HorizontalAlignment.Center;
         column.AddChild(hint);
         return window;
@@ -473,7 +505,7 @@ public partial class ShopPanel : Control
             content.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect, LayoutPresetMode.Minsize, 6);
             content.AddThemeConstantOverride("separation", 0);
             content.AddChild(UiTheme.MakeLabel((i + 1).ToString(), UiTheme.Numbers, 12, UiTheme.GoldDk));
-            var name = UiTheme.MakeLabel(EmptySlot, UiTheme.Words, 13, UiTheme.TextMain);
+            var name = Wrapped(UiTheme.MakeLabel(EmptySlot, UiTheme.Words, 13, UiTheme.TextMain));
             name.HorizontalAlignment = HorizontalAlignment.Center;
             name.SizeFlagsVertical = SizeFlags.ExpandFill;
             var price = UiTheme.MakeLabel("", UiTheme.Numbers, 15, Colors.White);

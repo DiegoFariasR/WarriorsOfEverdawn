@@ -13,11 +13,18 @@ public sealed record Buyer(WeaponSets Weapons, int ArmourTier);
 // for sale, which goes wherever a bought weapon goes; with a Slot it is the weapon that slot would hold in place of
 // the one there now (an improvement of it). Armour is worn at once in place of what was worn. Unavailable says why it
 // cannot be had just now, when it cannot; what it names then is what the buyer already has.
+//
+// The trade can go the other way: with Pays it is the player who sells and is paid that. What it hands over is then
+// Cost (an orb), or with a Slot and no Weapon the weapon in that slot, which is left empty.
 public sealed record TradeItem(string Id, string Name, Cost Cost, WeaponDefinition? Weapon = null, WeaponSlot? Slot = null, string? Unavailable = null)
 {
     public ArmourDefinition? Armour { get; init; }
 
-    public bool GivesSomething => Weapon != null || Armour != null;
+    public Cost Pays { get; init; } = Cost.Nothing;
+
+    public bool IsSale => !Pays.IsNothing;
+
+    public bool GivesSomething => Weapon != null || Armour != null || IsSale;
 }
 
 // Someone standing in the town who trades. Line says in a few words what for what. What they offer can depend on
@@ -30,13 +37,14 @@ public sealed record SellerDefinition(string Id, string Name, string Line, Func<
 
 public static class Sellers
 {
-    // First pass: every weapon in its plain make, at one price.
-    private const int PlainWeaponPrice = 50;
+    private static readonly IReadOnlyList<TradeItem> PlainWeapons = ForSale(Weapons.Arms);
 
-    private static readonly IReadOnlyList<TradeItem> PlainWeapons =
-        Weapons.All.Select(w => new TradeItem(w.Id, w.Name, new Cost(Gold: PlainWeaponPrice), w)).ToList();
+    private static readonly IReadOnlyList<TradeItem> PlainStaffs = ForSale(Weapons.Staffs);
 
     public static readonly SellerDefinition Weaponsmith = new("weaponsmith", "Weaponsmith", "Plain weapons for gold", _ => PlainWeapons);
+
+    // The magic staffs, one for each element, plain.
+    public static readonly SellerDefinition Arcanist = new("arcanist", "Arcanist", "Magic staffs for gold", _ => PlainStaffs);
 
     // Works on what the buyer has on: one offer each for the weapon in hand, the weapon on the back and the armour
     // worn, always in that order, each the next step up from what is there.
@@ -48,10 +56,24 @@ public static class Sellers
             TradeRules.BetterArmour(buyer.ArmourTier),
         });
 
-    public static IReadOnlyList<SellerDefinition> All { get; } = new[] { Weaponsmith, Blacksmith };
+    // Buys instead of selling: one offer each for the weapon in hand, the weapon on the back and a magic orb, always
+    // in that order.
+    public static readonly SellerDefinition Merchant = new("merchant", "Merchant", "Gold for what you carry",
+        buyer => new[]
+        {
+            TradeRules.Sale(buyer.Weapons, WeaponSlot.Hand),
+            TradeRules.Sale(buyer.Weapons, WeaponSlot.Back),
+            TradeRules.OrbSale,
+        });
+
+    public static IReadOnlyList<SellerDefinition> All { get; } = new[] { Weaponsmith, Blacksmith, Merchant, Arcanist };
 
     public static SellerDefinition ById(string id) =>
         All.FirstOrDefault(s => s.Id == id) ?? throw new KeyNotFoundException($"Unknown seller '{id}'");
+
+    // First pass: every weapon in its plain make, at one price.
+    private static IReadOnlyList<TradeItem> ForSale(IEnumerable<WeaponDefinition> weapons) =>
+        weapons.Select(w => new TradeItem(w.Id, w.Name, new Cost(Gold: TradeRules.PlainWeaponPrice), w)).ToList();
 }
 
 public enum BuyOutcome
@@ -72,6 +94,16 @@ public static class TradeRules
 
     // Centre of a player to a seller: close enough to trade.
     public const float Reach = 2.5f;
+
+    // First pass: every weapon in its plain make, at one price.
+    public const int PlainWeaponPrice = 50;
+
+    // First pass. The merchant pays this share of the gold a weapon took to buy and to improve; the orbs put into
+    // it are not paid for. Less than all of it, so buying and selling back never earns.
+    public const float ResaleShare = 0.5f;
+
+    // First pass: what the merchant pays for a magic orb.
+    public const int OrbPrice = 100;
 
     // First pass. Each level costs more than the last: this much gold for every level reached, and an orb for every
     // two (one for +1 and +2, two for +3 and +4, up to five for +9 and +10).
@@ -103,14 +135,29 @@ public static class TradeRules
             ? ArmourCosts[tier - 1]
             : throw new ArgumentOutOfRangeException(nameof(tier), tier, $"Armour is bought in tiers 1 to {ArmourCosts.Length}");
 
+    // The gold it took to have this weapon: its plain price and every level since.
+    public static int GoldPutInto(WeaponDefinition weapon) =>
+        PlainWeaponPrice + Enumerable.Range(1, weapon.Level).Sum(level => ImprovementCost(level).Gold);
+
+    // What the merchant pays for it.
+    public static Cost ResaleValue(WeaponDefinition weapon) => new(Gold: (int)(GoldPutInto(weapon) * ResaleShare));
+
+    // The merchant's offer for a magic orb: the orb is the cost, gold the pay.
+    public static TradeItem OrbSale { get; } = new("orb", "Magic orb", new Cost(Orbs: 1)) { Pays = new Cost(Gold: OrbPrice) };
+
+    // The merchant's offer for one of the player's slots: gold for its weapon, or why there is nothing to do.
+    public static TradeItem Sale(WeaponSets carried, WeaponSlot slot) =>
+        carried.In(slot) is { } weapon
+            ? new TradeItem(IdOf(slot), weapon.Name, Cost.Nothing, null, slot) { Pays = ResaleValue(weapon) }
+            : new TradeItem(IdOf(slot), NothingIn(slot), Cost.Nothing, null, slot, "No weapon there to sell");
+
     // The blacksmith's offer for one of the buyer's slots: its weapon one level better, or why there is nothing to do.
     public static TradeItem Improvement(WeaponSets buyer, WeaponSlot slot)
     {
-        string id = slot.ToString().ToLowerInvariant();
-        string where = slot == WeaponSlot.Hand ? "hand" : "back";
+        string id = IdOf(slot);
         if (buyer.In(slot) is not { } weapon)
         {
-            return new TradeItem(id, $"Nothing {(slot == WeaponSlot.Hand ? "in" : "on")} your {where}", Cost.Nothing, null, slot, "No weapon there to work on");
+            return new TradeItem(id, NothingIn(slot), Cost.Nothing, null, slot, "No weapon there to work on");
         }
 
         if (weapon.Level >= WeaponDefinition.MaxLevel)
@@ -141,6 +188,13 @@ public static class TradeRules
     public static (WeaponSets Sets, WeaponDefinition? PutDown) Receive(WeaponSets buyer, WeaponDefinition weapon, WeaponSlot? slot) =>
         slot is { } held ? (buyer.With(held, weapon), null) : buyer.WithBought(weapon);
 
+    // What the player carries once this trade is done: a weapon received, a weapon sold gone from its slot, and
+    // otherwise what it carried.
+    public static (WeaponSets Sets, WeaponDefinition? PutDown) After(WeaponSets carried, TradeItem item) =>
+        item.Weapon != null ? Receive(carried, item.Weapon, item.Slot)
+        : item.IsSale && item.Slot is { } sold ? (carried.Without(sold), null)
+        : (carried, null);
+
     // What comes of a player `distance` from the seller, on its feet or not, asking for this.
     public static BuyOutcome Judge(Purse purse, TradeItem item, float distance, bool down) =>
         down ? BuyOutcome.Down
@@ -149,15 +203,20 @@ public static class TradeRules
         : purse.CanPay(item.Cost) ? BuyOutcome.Bought
         : BuyOutcome.CannotAfford;
 
-    // Judges the purchase and, when it goes through, takes the cost out of the purse.
+    // Judges the trade and, when it goes through, takes the cost out of the purse and puts in what it pays.
     public static BuyOutcome Buy(Purse purse, TradeItem item, float distance, bool down)
     {
         var outcome = Judge(purse, item, distance, down);
         if (outcome == BuyOutcome.Bought)
         {
             purse.Pay(item.Cost);
+            purse.Earn(item.Pays);
         }
 
         return outcome;
     }
+
+    private static string IdOf(WeaponSlot slot) => slot.ToString().ToLowerInvariant();
+
+    private static string NothingIn(WeaponSlot slot) => slot == WeaponSlot.Hand ? "Nothing in your hand" : "Nothing on your back";
 }

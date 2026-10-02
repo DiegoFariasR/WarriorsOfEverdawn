@@ -14,7 +14,7 @@ Ported from Everdawn's `EverdawnTheme` into `GodotClient/scripts/Theme/UiTheme.c
 |---|---|---|
 | Player frame | Top left | Name and weapon (with "PvP" when on), HP bar with value, mana bar with value, STR / WIS / AGI and ARM (the tier of armour worn, from 0), gold, souls and orbs earned (the orbs' count tinted with the colour the orbs are passing through), "down" status |
 | Skill bar | Bottom centre | The held weapon's two skills: primary (LMB) and Spin (RMB, held, with its mana per revolution, e.g. "4 MP / turn"); it changes with the weapon. A slot dims while it cannot be used (not enough mana, or a cooldown with seconds left). With an empty hand the slots and the guard read "-" and stay dimmed, and the player frame says "Unarmed" |
-| Guard slot | Bottom centre, after the skills | "SHIFT", the guard, "hold"; the name turns gold while the guard is up and the slot dims for the 0.4 s it cannot go up again |
+| Guard slot | Bottom centre, after the skills | "SHIFT", the guard, "hold"; the name turns gold while the guard is up and the slot dims for the 0.4 s it cannot go up again. A staff's barrier shows what is left of it: "Barrier 28" |
 | Dash slot | Bottom centre, after Guard | "SPACE Dash", a pip per charge (lit while available), the seconds until the next charge, and "+ LMB: lunge" |
 | Back weapon slot | Bottom centre, after Dash | "X", the weapon on the back ("Empty" with none), "on your back": what X swaps to |
 | Ground weapon labels | Over each weapon on the ground within 4 of the player | The weapon's name. The one F would take (the one the player faces) also shows three lines of what it does in this player's hands (damage with the player's STR) and, within reach, "F - pick up" in gold, or in red that hands and back are full and G drops |

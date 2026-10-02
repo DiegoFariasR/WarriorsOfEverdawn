@@ -76,9 +76,14 @@ public partial class GroundWeaponLabels : Control
 
     // What a weapon does in the hands of a player with these stats.
     public static string DetailsOf(WeaponDefinition weapon, CharacterStats stats) =>
-        $"{weapon.Primary.Name} {StatRules.Damage(weapon.Primary.Damage, stats)}  -  reach {weapon.Primary.Range:F1}\n"
-        + $"{weapon.Secondary.Name} {StatRules.Damage(weapon.Secondary.Damage, stats)} a turn  -  {weapon.Secondary.ManaCost} MP\n"
-        + $"{weapon.Lunge.Name} {StatRules.Damage(weapon.Lunge.Damage, stats)}  -  guard stops {(1f - weapon.Guard.DamageTaken) * 100f:F0}%";
+        $"{weapon.Primary.Name} {DamageOf(weapon.Primary, stats)}  -  {(weapon.Primary.Projectile == null ? "reach" : "flies")} {weapon.Primary.Range:F1}\n"
+        + $"{weapon.Secondary.Name} {DamageOf(weapon.Secondary, stats)} a turn  -  {weapon.Secondary.ManaCost} MP\n"
+        + $"{weapon.Lunge.Name} {DamageOf(weapon.Lunge, stats)}  -  "
+        + (weapon.Guard.Barrier is { } barrier ? $"barrier takes {barrier.Strength}" : $"guard stops {(1f - weapon.Guard.DamageTaken) * 100f:F0}%");
+
+    // What a skill deals in these hands; a volley as so many darts of so much: "3 x 12".
+    public static string DamageOf(SkillDefinition skill, CharacterStats stats) =>
+        skill.Projectiles > 1 ? $"{skill.Projectiles} x {StatRules.Damage(skill, stats)}" : StatRules.Damage(skill, stats).ToString();
 
     private IEnumerable<GroundWeapon> Near()
     {

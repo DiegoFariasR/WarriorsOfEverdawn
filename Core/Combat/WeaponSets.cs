@@ -30,15 +30,23 @@ public sealed record WeaponSets(WeaponDefinition? Active, WeaponDefinition? Stow
 
     public WeaponSets Swapped() => new(Stowed, Active);
 
-    // Changes the weapon in hand to the next kind, skipping the kind on the back. An empty hand takes the first.
+    // Changes the weapon in hand to the next kind, skipping the kind on the back. An empty hand stays empty: a
+    // weapon out of nothing could be sold, and another had the same way.
     public WeaponSets WithNextActive()
     {
-        var next = Active == null ? Weapons.Default : Weapons.Next(Active);
+        if (Active == null)
+        {
+            return this;
+        }
+
+        var next = Weapons.Next(Active);
         return new WeaponSets(next.Kind == Stowed?.Kind ? Weapons.Next(next) : next, Stowed);
     }
 
-    // The hand lets go of its weapon; the back keeps its own.
-    public WeaponSets WithHandEmptied() => new(null, Stowed);
+    // That slot lets go of its weapon; the other keeps its own.
+    public WeaponSets Without(WeaponSlot slot) => slot == WeaponSlot.Hand ? new WeaponSets(null, Stowed) : new WeaponSets(Active, null);
+
+    public WeaponSets WithHandEmptied() => Without(WeaponSlot.Hand);
 
     // A weapon taken up goes to the hand if it is empty, else onto the back.
     public WeaponSets WithPickedUp(WeaponDefinition weapon)

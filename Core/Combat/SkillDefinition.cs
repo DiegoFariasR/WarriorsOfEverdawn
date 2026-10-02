@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 
 namespace WarriorsOfEverdawn.Core.Combat;
 
@@ -26,7 +27,21 @@ public sealed record SkillDefinition(string Id, int Damage, float Range, float H
     // A ranged attack looses this at HitTime toward its target instead of testing an arc; Range is then how far away
     // the attacker is willing to shoot from.
     public ProjectileDefinition? Projectile { get; init; }
+
+    // How many it looses, one every VolleyInterval of clip time from HitTime; each deals Damage.
+    public int Projectiles { get; init; } = 1;
+
+    public float VolleyInterval { get; init; }
+
+    // A spell lands on this instead of in an arc from the caster; Range is then how far its far edge reaches.
+    public AreaDefinition? Area { get; init; }
+
+    // The magic it is made of; none for a blow with a weapon. Magic grows with WIS where a blow grows with STR.
+    public Element? Element { get; init; }
 }
+
+// What a magic staff casts: its bolt or volley, the spell held on an area, and the thrust its dash carries.
+public sealed record StaffSkills(SkillDefinition Primary, SkillDefinition Channel, SkillDefinition Lunge);
 
 public static class Skills
 {
@@ -42,8 +57,11 @@ public static class Skills
 
     private const float ThrustHalfArc = 20f * Angles.DegToRad;
 
-    // Melee_2H_Attack_Stab, the clip every thrust plays, at full extension (./dev.sh swing-survey).
+    // Melee_2H_Attack_Stab, the clip a thrust with both hands plays, at full extension (./dev.sh swing-survey).
     private const float StabExtended = 0.764f;
+
+    // Melee_1H_Attack_Stab, the one-handed thrust, at full extension.
+    private const float OneHandedStabExtended = 0.476f;
 
     // Share of the way to full extension at which a lunge's point starts forward and its hit window opens.
     private const float LungeOpens = 0.4f;
@@ -107,6 +125,19 @@ public static class Skills
 
     public static readonly SkillDefinition ScytheLunge = LungeOf("scythe-lunge", ScytheSwing.Damage * ThrustDamageFactor, range: 2.8f);
 
+    // The sword of a sword and shield: one-handed and short, so it hits least, in exchange for the shield's guard.
+    // Measured as the others are: the slash lands when the blade moves fastest (Melee_1H_Attack_Slice_Diagonal,
+    // 0.417 s), reaching 2.04 standing and 1.78 in play; the lunge closes at the one-handed stab's full extension,
+    // where the blade reaches 2.3 in a dash.
+    public static readonly SkillDefinition SwordSlash = new("sword-slash", Damage: 14, Range: 1.8f, HalfArc: 60f * Angles.DegToRad, HitTime: 0.417f)
+    {
+        Name = "Slash",
+    };
+
+    public static readonly SkillDefinition SwordSpin = SpinOf("sword-spin", damage: 7, range: 1.75f, manaCost: 3);
+
+    public static readonly SkillDefinition SwordLunge = LungeOf("sword-lunge", SwordSlash.Damage * ThrustDamageFactor, range: 2.25f, OneHandedStabExtended);
+
     public static readonly SkillDefinition MinionChop = new("minion-chop", Damage: 6, Range: 1.65f, HalfArc: 45f * Angles.DegToRad, HitTime: 0.60f)
     {
         Name = "Chop",
@@ -125,11 +156,76 @@ public static class Skills
         Projectile = Projectiles.Arrow,
     };
 
-    private static SkillDefinition LungeOf(string id, int damage, float range) =>
-        new(id, damage, range, ThrustHalfArc, HitTime: StabExtended * LungeOpens)
+    // Staffs, first pass, after Everdawn's spells. Fire, earth and divine throw one Bolt; water, wind and void a
+    // Volley of three darts of a third the damage each, loosed 0.12 s of clip time apart. Every staff holds a spell
+    // on an area: its damage lands on everything in the area once a cycle, a cycle being one loop of the casting
+    // clip (Ranged_Magic_Spellcasting, 0.667 s), paid for in mana as it starts, as a Spin's revolution is. The area
+    // lies ahead of the caster, but for the Divine Nova, which bursts round it.
+    private const int BoltDamage = 30;
+
+    // Between one throw and the next. With none, a bolt out-dealt every blade from twelve times its reach.
+    private const float ThrowCooldown = 1f;
+    private const int DartsInVolley = 3;
+    private const float VolleyGap = 0.12f;
+
+    // Ranged_Magic_Shoot, the clip a bolt or volley is thrown with: the staff is furthest forward here
+    // (./dev.sh swing-survey), and the bolt leaves it.
+    private const float CastReleased = 0.3f;
+
+    private const float CastingLoop = 0.6667f;
+    private const float ChannelMoveSpeedFactor = 0.5f;
+    private const float AreaAhead = 4f;
+
+    // A poke with the butt of the staff: the least of the lunges.
+    private const int StaffPokeDamage = 24;
+    private const float StaffPokeRange = 2.1f;
+
+    private static readonly Dictionary<Element, StaffSkills> Staffs = new()
+    {
+        [Element.Fire] = StaffOf(Element.Fire, volley: false, "inferno", "Inferno", damage: 10, manaCost: 6, new AreaDefinition(AreaAhead, Radius: 2.5f)),
+        [Element.Water] = StaffOf(Element.Water, volley: true, "blizzard", "Blizzard", damage: 6, manaCost: 5, new AreaDefinition(AreaAhead, Radius: 3.5f)),
+        [Element.Wind] = StaffOf(Element.Wind, volley: true, "storm", "Lightning Storm", damage: 8, manaCost: 5, new AreaDefinition(AreaAhead, Radius: 3f)),
+        [Element.Earth] = StaffOf(Element.Earth, volley: false, "quake", "Earthquake", damage: 8, manaCost: 5, new AreaDefinition(AreaAhead, Radius: 3f)),
+        [Element.Divine] = StaffOf(Element.Divine, volley: false, "nova", "Divine Nova", damage: 8, manaCost: 5, new AreaDefinition(Distance: 0f, Radius: 3.5f)),
+        [Element.Void] = StaffOf(Element.Void, volley: true, "corrosion", "Void Corrosion", damage: 7, manaCost: 4, new AreaDefinition(AreaAhead, Radius: 3f)),
+    };
+
+    public static StaffSkills StaffOf(Element element) => Staffs[element];
+
+    private static StaffSkills StaffOf(Element element, bool volley, string channelId, string channelName, int damage, int manaCost, AreaDefinition area)
+    {
+        string id = Elements.IdOf(element);
+        var projectile = volley ? Projectiles.Dart : Projectiles.Bolt;
+        int darts = volley ? DartsInVolley : 1;
+        string thrown = volley ? "Volley" : "Bolt";
+        var primary = new SkillDefinition($"{id}-{thrown.ToLowerInvariant()}", BoltDamage / darts, projectile.MaxDistance, ThrustHalfArc, CastReleased)
+        {
+            Name = $"{element} {thrown}",
+            Projectile = projectile,
+            Projectiles = darts,
+            Cooldown = ThrowCooldown,
+            VolleyInterval = volley ? VolleyGap : 0f,
+            SweepEnd = volley ? CastReleased + (darts - 1) * VolleyGap : null,
+            Element = element,
+        };
+        var channel = new SkillDefinition($"{id}-{channelId}", damage, area.Reach, HalfArc: MathF.PI, HitTime: 0f)
+        {
+            Name = channelName,
+            SweepEnd = CastingLoop,
+            ManaCost = manaCost,
+            MoveSpeedFactor = ChannelMoveSpeedFactor,
+            Channeled = true,
+            Area = area,
+            Element = element,
+        };
+        return new StaffSkills(primary, channel, LungeOf($"{id}-staff-lunge", StaffPokeDamage, StaffPokeRange));
+    }
+
+    private static SkillDefinition LungeOf(string id, int damage, float range, float extended = StabExtended) =>
+        new(id, damage, range, ThrustHalfArc, HitTime: extended * LungeOpens)
         {
             Name = "Lunge",
-            SweepEnd = StabExtended,
+            SweepEnd = extended,
         };
 
     private static SkillDefinition SpinOf(string id, int damage, float range, int manaCost) =>

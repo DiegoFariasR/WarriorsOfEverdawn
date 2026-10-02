@@ -170,6 +170,7 @@ public partial class GhostTrail : Node
         if (_inHand != null)
         {
             CharacterRig.AttachToHand(body, _inHand);
+            CharacterRig.AttachOffHand(body, _inHand);
         }
 
         if (_onBack != null)

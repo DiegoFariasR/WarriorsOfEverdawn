@@ -7,7 +7,7 @@ Solo and multiplayer are one code path. Up to 8 players, hosted by one of them (
 | State | Owner |
 |---|---|
 | A player's movement and aim | That player's machine |
-| Whether a player's own swings hit | That player's machine |
+| Whether a player's own swings hit, and what its bolts and held spells hit ([magic.md](magic.md)) | That player's machine |
 | Enemy AI and movement, HP, damage (computed by `Core`), deaths, spawns | Host |
 | The map (walls, spawn spots, the safe town) | Nobody: every machine builds it from the same two layout files |
 | Player HP, going down, getting back up | Host |
@@ -17,6 +17,7 @@ Solo and multiplayer are one code path. Up to 8 players, hosted by one of them (
 | A player's weapons, in hand and on the back | That player's machine |
 | Weapons lying on the ground, and who gets one that is reached for | Host |
 | Raising and lowering a player's guard | That player's machine |
+| What is left of a player's barrier | Host |
 | Whether a guard blocks or parries | Host, by its own copy of the guard |
 | Whether a player's swing hits another player (PvP) | The attacker's machine |
 | Enemy attacks on players | Host for now; move to the player's machine if dashes feel unfair under lag |
@@ -60,7 +61,7 @@ The host chooses co-op or PvP for the session (`./dev.sh host --pvp`) and sends 
 
 ## Testing
 
-- `./dev.sh net-test`: a headless host and three headless bot clients on one machine, one per weapon (greatsword, quarterstaff, spear, scythe) with a different one on each back, about 50 s, against tripled waves (`--wave-scale 3`). Each peer must see all the others move at least 3 units and attack, holding and carrying their weapons, and see each bot swap its sets and back; each must land its own hits and see a skeleton die; damage from all four must reach the host; skeleton attacks must land on someone; the torso twist must keep the chest near the aim; no character may turn faster than its limit, which must actually come into play; heads (including the warrior's bone-attached helmet) must be at their scale; every peer must spin, land spin hits and keep to half speed while spinning; and dashes must keep their distance and charges and show on the other machines. Logs land in `_staging/net-test/`.
+- `./dev.sh net-test`: a headless host and four headless bot clients on one machine, one per weapon (greatsword, quarterstaff, spear, scythe, sword and shield) with a different one on each back, about 50 s, against tripled waves (`--wave-scale 3`). Each peer must see all the others move at least 3 units and attack, holding and carrying their weapons, and see each bot swap its sets and back; each must land its own hits and see a skeleton die; damage from all four must reach the host; skeleton attacks must land on someone; the torso twist must keep the chest near the aim; no character may turn faster than its limit, which must actually come into play; heads (including the warrior's bone-attached helmet) must be at their scale; every peer must spin, land spin hits and keep to half speed while spinning; and dashes must keep their distance and charges and show on the other machines. Logs land in `_staging/net-test/`.
 - **Trade** (`Market`, a node at the same path on every machine): the buyer's machine sends the host `RequestBuy(seller, goods)`; the host checks reach, that the player is up and can pay, takes the price from the purse it holds, and answers that machine alone with `Deliver(seller, offer, weapon, slot)` or `Refuse(reason)`. What a seller offers a player depends on the weapons it carries, so the host works the offer out itself from the weapons it sees that player carry, and names the weapon it took the cost for. The sellers themselves need no messages: every machine stands them where the town's layout says ([trade.md](trade.md)).
 - **Weapon levels** ride on the weapon's id (`greatsword+3`), so the hand and back each player reports, and weapons on the ground, carry them with no further messages. Hits still name a skill by its plain id; the host works out the damage from the weapon it sees in the attacker's hand.
 - `./dev.sh trade-test`: for each seller, a host and one bot client beside it with gold and orbs, about 14 s; each gets things through the shop window and is then refused, and the host's view of every player's gold, orbs and weapon in hand must match that player's own.

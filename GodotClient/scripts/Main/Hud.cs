@@ -145,7 +145,10 @@ public partial class Hud : CanvasLayer
         }
 
         // Lit while the guard is up, dimmed while it recovers.
-        _guardName.Text = Player.Weapon?.Guard.Name ?? NoSkill;
+        // A barrier shows what is left of it.
+        _guardName.Text = Player.Weapon?.Guard is not { } guard ? NoSkill
+            : guard.Barrier != null ? $"{guard.Name}  {Player.Vitals.Barrier}"
+            : guard.Name;
         _guardName.Modulate = Player.IsGuarding ? UiTheme.GoldHi : Colors.White;
         _guardDim.Visible = Player.GuardRecoveryLeft > 0f;
 

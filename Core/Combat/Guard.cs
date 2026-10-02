@@ -10,6 +10,50 @@ namespace WarriorsOfEverdawn.Core.Combat;
 public sealed record GuardDefinition(float HalfArc, float DamageTaken, float MoveSpeedFactor, float ParryWindow)
 {
     public string Name { get; init; } = "Guard";
+
+    // A guard of magic and not of the weapon: what it stops comes off a pool of its own, and when that is spent it
+    // stops nothing. Null for a guard held with the weapon.
+    public BarrierDefinition? Barrier { get; init; }
+}
+
+// How much a barrier takes before it gives (Strength), and how it comes back: RechargePerSecond, once it has been
+// down for RechargeDelay.
+public sealed record BarrierDefinition(int Strength, float RechargePerSecond, float RechargeDelay);
+
+// One character's barrier over time: what is left of it. It only comes back while it is down.
+public sealed class BarrierPool
+{
+    private float _left;
+    private float _down;
+
+    public BarrierPool(BarrierDefinition barrier)
+    {
+        Definition = barrier;
+        _left = barrier.Strength;
+    }
+
+    public BarrierDefinition Definition { get; }
+
+    public int Left => (int)_left;
+
+    public bool Holds => Left > 0;
+
+    // Takes what it can of a blow; what it cannot take gets through.
+    public int Absorb(int damage)
+    {
+        int taken = Math.Clamp(damage, 0, Left);
+        _left -= taken;
+        return damage - taken;
+    }
+
+    public void Advance(float delta, bool up)
+    {
+        _down = up ? 0f : _down + delta;
+        if (_down >= Definition.RechargeDelay)
+        {
+            _left = MathF.Min(Definition.Strength, _left + Definition.RechargePerSecond * delta);
+        }
+    }
 }
 
 public enum GuardOutcome
@@ -80,7 +124,7 @@ public sealed class Guard
             return GuardOutcome.Unguarded;
         }
 
-        return now - _raisedAt <= guard.ParryWindow ? GuardOutcome.Parried : GuardOutcome.Blocked;
+        return guard.ParryWindow > 0f && now - _raisedAt <= guard.ParryWindow ? GuardOutcome.Parried : GuardOutcome.Blocked;
     }
 
     public static int DamageThrough(GuardDefinition guard, GuardOutcome outcome, int damage) => outcome switch

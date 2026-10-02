@@ -40,10 +40,11 @@ public class WeaponsTests
     [Fact]
     public void A_thrust_hits_as_hard_as_the_thrust_factor_times_the_swing()
     {
-        // The spear's primary is already a thrust, so its lunge matches it; the others double their swing.
+        // The spear's primary is already a thrust, so its lunge matches it; the others double their swing. A staff's
+        // lunge is a poke with the staff, nothing to do with what it casts (StaffsTests).
         Assert.Equal(Weapons.Spear.Primary.Damage, Weapons.Spear.Lunge.Damage);
         Assert.Equal(Weapons.Spear.Primary.HalfArc, Weapons.Spear.Lunge.HalfArc);
-        foreach (var weapon in Weapons.All.Where(w => w != Weapons.Spear))
+        foreach (var weapon in Weapons.Arms.Where(w => w != Weapons.Spear))
         {
             Assert.Equal(weapon.Primary.Damage * Skills.ThrustDamageFactor, weapon.Lunge.Damage);
         }
@@ -63,9 +64,9 @@ public class WeaponsTests
     }
 
     [Fact]
-    public void Every_weapon_guards_a_front_arc_slows_and_parries_briefly()
+    public void Every_weapon_of_steel_or_wood_guards_a_front_arc_slows_and_parries_briefly()
     {
-        foreach (var weapon in Weapons.All)
+        foreach (var weapon in Weapons.Arms)
         {
             var guard = weapon.Guard;
             Assert.True(guard.HalfArc is > 0f and < MathF.PI, weapon.Id);
@@ -74,6 +75,21 @@ public class WeaponsTests
             Assert.True(guard.ParryWindow is > 0f and < Guard.Recovery, weapon.Id);
             Assert.False(string.IsNullOrWhiteSpace(guard.Name), weapon.Id);
         }
+    }
+
+    [Fact]
+    public void The_sword_and_shield_guards_best_of_all_and_hits_least()
+    {
+        var pair = Weapons.SwordAndShield;
+        var others = Weapons.Arms.Where(w => w != pair).ToList();
+
+        Assert.NotEmpty(others);
+        Assert.All(others, w => Assert.True(pair.Guard.HalfArc > w.Guard.HalfArc, w.Id));
+        Assert.All(others, w => Assert.True(pair.Guard.DamageTaken <= w.Guard.DamageTaken, w.Id));
+        Assert.All(others, w => Assert.True(pair.Guard.MoveSpeedFactor > w.Guard.MoveSpeedFactor, w.Id));
+        Assert.All(others, w => Assert.True(pair.Guard.ParryWindow > w.Guard.ParryWindow, w.Id));
+        Assert.All(others, w => Assert.True(pair.Primary.Damage < w.Primary.Damage, w.Id));
+        Assert.All(others, w => Assert.True(pair.Secondary.Damage < w.Secondary.Damage, w.Id));
     }
 
     [Fact]

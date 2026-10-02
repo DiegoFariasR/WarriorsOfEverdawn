@@ -28,6 +28,9 @@ public partial class PlayerCharacter : CharacterBody3D
     private const float SyncInterval = 0.05f;
     private const float RemoteFollowRate = 15f;
     private const float BodyTurnRate = 12f;
+    // A bolt starts this far in front of the caster, clear of its own body.
+    private const float BoltLeaves = 0.6f;
+
     private const float MovingThreshold = 0.2f;
 
     private static readonly Color TrailTint = new(1f, 0.92f, 0.75f);
@@ -54,6 +57,11 @@ public partial class PlayerCharacter : CharacterBody3D
     private WeaponDefinition? _stowed = WeaponSets.Default.Stowed;
     private bool _pickUpPending;
     private BoneAttachment3D _hand = null!;
+    private BoneAttachment3D _offHand = null!;
+    private SpellArea _spellArea = null!;
+    private BarrierBubble _barrier = null!;
+    private int _swingLoosed;
+    private int _boltsThrown;
     private BoneAttachment3D _back = null!;
     private bool _reportedUnknownWeapon;
 
@@ -148,6 +156,11 @@ public partial class PlayerCharacter : CharacterBody3D
     // The skill whose swing is playing, on every peer.
     public SkillDefinition? ActiveSkill => _active != null && _animator.IsAttacking ? _active : null;
 
+    // The spell this machine draws the player holding on an area, and the barrier it draws round it.
+    public SpellArea SpellArea => _spellArea;
+
+    public bool BarrierShown => _barrier.Visible;
+
     public bool IsChanneling => ActiveSkill?.Channeled == true;
 
     public LegDirection? Legs => NetVelocity.Length() > MovingThreshold ? _legs : null;
@@ -212,6 +225,7 @@ public partial class PlayerCharacter : CharacterBody3D
         var look = CombatVisuals.LookFor(WeaponSets.Default.Active!);
         var backLook = CombatVisuals.LookFor(WeaponSets.Default.Stowed!);
         player._hand = CharacterRig.AttachToHand(body, look);
+        player._offHand = CharacterRig.AttachOffHand(body, look);
         player._back = CharacterRig.AttachToBack(body, backLook);
         CharacterRig.ShrinkHead(body);
         player.Skeleton = body.GetNode<Skeleton3D>(RigAnimations.SkeletonPath);
@@ -222,6 +236,10 @@ public partial class PlayerCharacter : CharacterBody3D
         player.AddChild(player.Flash);
         player.Ghosts = new GhostTrail(body, ModelPath, look, backLook) { Name = "Ghosts" };
         player.AddChild(player.Ghosts);
+        player._spellArea = new SpellArea { Name = "SpellArea" };
+        player.AddChild(player._spellArea);
+        player._barrier = new BarrierBubble();
+        player.AddChild(player._barrier);
         player._animator = new CharacterAnimator(body);
 
         player.Vitals = PlayerVitals.Create();
@@ -448,6 +466,9 @@ public partial class PlayerCharacter : CharacterBody3D
         Carry(sets);
     }
 
+    // The host paid this player for the weapon in that slot: it is gone, and the slot free.
+    internal void OnSold(WeaponSlot slot) => Carry(new WeaponSets(_weapon, _stowed).Without(slot));
+
     // Someone else took it first.
     internal void OnPickUpRefused()
     {
@@ -498,6 +519,7 @@ public partial class PlayerCharacter : CharacterBody3D
         if (inHand != _weapon)
         {
             CharacterRig.HoldWeapon(_hand, handLook);
+            CharacterRig.HoldOffHand(_offHand, handLook);
             Trail.Retarget();
         }
 
@@ -507,7 +529,7 @@ public partial class PlayerCharacter : CharacterBody3D
         }
 
         Ghosts.SetWeapons(handLook, backLook);
-        _animator.TwoHanded = inHand != null;
+        _animator.Stance = handLook == null ? WeaponStance.Unarmed : handLook.OneHanded ? WeaponStance.OneHanded : WeaponStance.TwoHanded;
         _weapon = inHand;
         _stowed = onBack;
         WeaponsChanged?.Invoke(new WeaponSets(inHand, onBack));
@@ -535,12 +557,24 @@ public partial class PlayerCharacter : CharacterBody3D
             return;
         }
 
+        // A thrown spell hits nothing itself: its bolts do, each when it gets there (Bolts).
+        while (skill.Projectile != null && _swingLoosed < skill.Projectiles
+            && _swingElapsed >= (skill.HitTime + _swingLoosed * skill.VolleyInterval) / _swingSpeed)
+        {
+            _swingLoosed++;
+            Rpc(MethodName.LooseBolt, _boltsThrown++, skill.Id, GlobalPosition + Vector3.Up * Bolts.Height + Yaw.Forward(AimYaw) * BoltLeaves, AimYaw);
+        }
+
         var me = Yaw.ToGround(GlobalPosition);
-        HitTested?.Invoke(skill, Trail.ReachFrom(GlobalPosition));
+        if (skill.Projectile == null && skill.Area == null)
+        {
+            HitTested?.Invoke(skill, Trail.ReachFrom(GlobalPosition));
+        }
+
         foreach (var node in GetTree().GetNodesInGroup(EnemyCharacter.Group))
         {
             if (node is EnemyCharacter enemy && !enemy.IsDead && !_hitThisSwing.Contains(enemy.GetInstanceId())
-                && MeleeArc.Hits(me, AimYaw, skill, Yaw.ToGround(enemy.GlobalPosition), BodySize.Radius))
+                && SkillHits.Catches(me, AimYaw, skill, Yaw.ToGround(enemy.GlobalPosition), BodySize.Radius))
             {
                 enemy.RpcId(1, EnemyCharacter.MethodName.RequestDamage, skill.Id);
                 _hitThisSwing.Add(enemy.GetInstanceId());
@@ -553,7 +587,7 @@ public partial class PlayerCharacter : CharacterBody3D
             foreach (var other in GetTree().GetNodesInGroup(Group).OfType<PlayerCharacter>())
             {
                 if (other != this && !other.IsDowned && !_hitThisSwing.Contains(other.GetInstanceId())
-                    && MeleeArc.Hits(me, AimYaw, skill, Yaw.ToGround(other.GlobalPosition), BodySize.Radius))
+                    && SkillHits.Catches(me, AimYaw, skill, Yaw.ToGround(other.GlobalPosition), BodySize.Radius))
                 {
                     other.Vitals.RpcId(1, PlayerVitals.MethodName.RequestDamage, skill.Id);
                     _hitThisSwing.Add(other.GetInstanceId());
@@ -592,6 +626,48 @@ public partial class PlayerCharacter : CharacterBody3D
         _swingHits = 0;
         _hitThisSwing.Clear();
     }
+
+    // On the owner, for Bolts: the first body one of its bolts touches on its way from one point to the next takes the
+    // skill's damage, as a body caught by a swing does. False when it touches none.
+    public bool StrikeWith(SkillDefinition skill, Vector3 from, Vector3 to)
+    {
+        var projectile = skill.Projectile!;
+        var enemy = GetTree().GetNodesInGroup(EnemyCharacter.Group).OfType<EnemyCharacter>()
+            .Where(e => !e.IsDead && Projectiles.Hits(Yaw.ToGround(from), Yaw.ToGround(to), Yaw.ToGround(e.GlobalPosition), BodySize.Radius, projectile))
+            .MinBy(e => e.GlobalPosition.DistanceSquaredTo(from));
+        if (enemy != null)
+        {
+            enemy.RpcId(1, EnemyCharacter.MethodName.RequestDamage, skill.Id);
+            return true;
+        }
+
+        var other = !SessionRules.Pvp ? null : GetTree().GetNodesInGroup(Group).OfType<PlayerCharacter>()
+            .Where(p => p != this && !p.IsDowned && Projectiles.Hits(Yaw.ToGround(from), Yaw.ToGround(to), Yaw.ToGround(p.GlobalPosition), BodySize.Radius, projectile))
+            .MinBy(p => p.GlobalPosition.DistanceSquaredTo(from));
+        if (other == null)
+        {
+            return false;
+        }
+
+        other.Vitals.RpcId(1, PlayerVitals.MethodName.RequestDamage, skill.Id);
+        PlayerHit?.Invoke(other);
+        return true;
+    }
+
+    public void EndBoltEverywhere(int id, Vector3 at) => Rpc(MethodName.EndBolt, id, at);
+
+    // Every peer flies its own copy of the bolt, from where the caster's machine loosed it.
+    [Rpc(MultiplayerApi.RpcMode.Authority, CallLocal = true, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
+    private void LooseBolt(int id, string skillId, Vector3 from, float yaw)
+    {
+        if (FindSkill(skillId) is { } skill)
+        {
+            Bolts.In(GetTree()).Fly(this, id, skill, from, yaw);
+        }
+    }
+
+    [Rpc(MultiplayerApi.RpcMode.Authority, CallLocal = true, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
+    private void EndBolt(int id, Vector3 at) => Bolts.In(GetTree()).End(PeerId, id, at);
 
     // The owner's side of a dash: charge already spent. Skeletons stop blocking so the dash can roll through them.
     // A Spin still held carries on through the dash, hitting and costing as it goes. Any other swing in progress is
@@ -677,7 +753,27 @@ public partial class PlayerCharacter : CharacterBody3D
 
         // Driven by the swing's start on this peer, so every player's trail shows on every machine.
         _swingShownTime += delta;
-        Trail.Recording = ActiveSkill is { } swing && (swing.Channeled || WeaponTrail.Shows(swing, _swingShownTime, _swingSpeed));
+        // A spell is no swing of the weapon: it leaves no trail.
+        Trail.Recording = ActiveSkill is { Element: null } swing && (swing.Channeled || WeaponTrail.Shows(swing, _swingShownTime, _swingSpeed));
+        ShowMagic();
+    }
+
+    // The spell held on an area and the barrier, as this machine sees them: the area where the player is drawn
+    // aiming, a round of strikes each loop of the casting clip.
+    private void ShowMagic()
+    {
+        if (ActiveSkill is { Area: { } area, Element: { } element })
+        {
+            _spellArea.Hold(element, area, _animator.AttackClipLength / _swingSpeed);
+            _spellArea.MoveTo(GlobalPosition + Yaw.Forward(_shownAimYaw) * area.Distance);
+        }
+        else if (_spellArea.Showing)
+        {
+            _spellArea.Release();
+        }
+
+        var barrier = IsGuarding && !IsDowned ? _weapon?.Guard.Barrier : null;
+        _barrier.Show(barrier == null ? null : _weapon!.Element, barrier == null ? 0f : (float)Vitals.Barrier / barrier.Strength);
     }
 
     // By skill id, not button: the swing plays as started even if the weapon change that preceded it hasn't reached
@@ -737,6 +833,7 @@ public partial class PlayerCharacter : CharacterBody3D
         _swingSpeed = speed;
         _swingElapsed = 0f;
         _swingHits = 0;
+        _swingLoosed = 0;
         _swingShownTime = 0f;
         _hitThisSwing.Clear();
         AttackStarted?.Invoke(skill);

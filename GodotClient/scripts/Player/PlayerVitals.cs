@@ -21,6 +21,7 @@ public partial class PlayerVitals : Node
     private readonly Health _health = new(PlayerRules.MaxHp);
     private readonly Purse _purse = new();
     private readonly ArmourWear _wear = new();
+    private readonly BarrierPool _barrier = new(Weapons.Barrier.Barrier!);
 
     [Export]
     public int Hp { get; set; } = PlayerRules.MaxHp;
@@ -38,6 +39,10 @@ public partial class PlayerVitals : Node
     [Export]
     public int Armour { get; set; }
 
+    // What is left of the barrier a staff raises: the host's to keep, like the HP it stands in front of.
+    [Export]
+    public int Barrier { get; set; } = Weapons.Barrier.Barrier!.Strength;
+
     public event Action<int>? Hit;
 
     // Host only, PvP: attacker peer, victim peer, damage taken.
@@ -46,13 +51,16 @@ public partial class PlayerVitals : Node
     // Host only: an attack met this player's guard.
     public static event Action<PlayerCharacter, GuardOutcome>? Guarded;
 
+    // Host only: this player's barrier took that much of a blow.
+    public static event Action<PlayerCharacter, int>? BarrierTook;
+
     private PlayerCharacter Player => GetParent<PlayerCharacter>();
 
     public static PlayerVitals Create()
     {
         var vitals = new PlayerVitals { Name = "Vitals" };
         var config = new SceneReplicationConfig();
-        foreach (var property in new[] { PropertyName.Hp, PropertyName.Gold, PropertyName.Souls, PropertyName.Orbs, PropertyName.Armour })
+        foreach (var property in new[] { PropertyName.Hp, PropertyName.Gold, PropertyName.Souls, PropertyName.Orbs, PropertyName.Armour, PropertyName.Barrier })
         {
             var path = new NodePath($".:{property}");
             config.AddProperty(path);
@@ -68,15 +76,19 @@ public partial class PlayerVitals : Node
     // parry (none does). Whoever calls it reacts to a parry.
     public GuardOutcome TakeAttack(int damage, Vector3 from)
     {
-        var outcome = Player.ResolveGuard(from);
+        // A barrier that is spent is no guard at all.
+        var guard = Player.Weapon?.Guard;
+        var outcome = guard?.Barrier != null && !_barrier.Holds ? GuardOutcome.Unguarded : Player.ResolveGuard(from);
         if (outcome != GuardOutcome.Unguarded)
         {
             Guarded?.Invoke(Player, outcome);
             Rpc(MethodName.ShowGuarded, (int)outcome);
         }
 
-        // The guard takes its share first, then the armour takes its own of what is left.
-        int past = Player.Weapon is { } weapon ? Guard.DamageThrough(weapon.Guard, outcome, damage) : damage;
+        // The guard takes its share first (a barrier, all it has left), then the armour takes its own of what is left.
+        int past = guard == null ? damage
+            : guard.Barrier != null && outcome != GuardOutcome.Unguarded ? AbsorbWithBarrier(damage)
+            : Guard.DamageThrough(guard, outcome, damage);
         int through = _wear.Through(Armours.AtTier(Armour), past);
         if (through > 0)
         {
@@ -84,6 +96,24 @@ public partial class PlayerVitals : Node
         }
 
         return outcome;
+    }
+
+    // Host only: the barrier comes back while it is down.
+    public override void _Process(double delta)
+    {
+        if (Multiplayer.IsServer())
+        {
+            _barrier.Advance((float)delta, up: Player.IsGuarding && Player.Weapon?.Guard.Barrier != null);
+            Barrier = _barrier.Left;
+        }
+    }
+
+    private int AbsorbWithBarrier(int damage)
+    {
+        int through = _barrier.Absorb(damage);
+        Barrier = _barrier.Left;
+        BarrierTook?.Invoke(Player, damage - through);
+        return through;
     }
 
     // Host only.
@@ -182,7 +212,7 @@ public partial class PlayerVitals : Node
         }
 
         int before = _health.Current;
-        TakeAttack(StatRules.Damage(skill.Damage, attacker.Stats), attacker.NetPosition);
+        TakeAttack(StatRules.Damage(skill, attacker.Stats), attacker.NetPosition);
         if (before > _health.Current)
         {
             DamagedByPlayer?.Invoke(attackerId, Player.PeerId, before - _health.Current);

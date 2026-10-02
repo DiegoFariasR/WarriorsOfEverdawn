@@ -421,7 +421,7 @@ public partial class EnemyCharacter : CharacterBody3D
             return;
         }
 
-        int taken = _health.TakeDamage(StatRules.Damage(skill.Damage, attacker.Stats));
+        int taken = _health.TakeDamage(StatRules.Damage(skill, attacker.Stats));
         Hp = _health.Current;
         DamageTaken?.Invoke(attackerId, skill, taken);
         bool staggered = !_health.IsDead && _stagger.TryApply(_clock);

@@ -23,6 +23,8 @@ public partial class SellerNpc : Node3D
     {
         [Sellers.Weaponsmith.Id] = "res://assets/characters/Barbarian.glb",
         [Sellers.Blacksmith.Id] = "res://assets/characters/Engineer.glb",
+        [Sellers.Merchant.Id] = "res://assets/characters/Rogue_Hooded.glb",
+        [Sellers.Arcanist.Id] = "res://assets/characters/Mage.glb",
     };
 
     private Label3D _prompt = null!;

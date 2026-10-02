@@ -21,6 +21,9 @@ public sealed record WeaponDefinition(string Id, string Name, SkillDefinition Pr
     // The id of the plain weapon this is a make of; its own, for a plain one. How it looks and is held go by this.
     public string Kind { get; init; } = Id;
 
+    // The magic a staff is made for; none for a weapon of steel or wood.
+    public Element? Element { get; init; }
+
     public IEnumerable<SkillDefinition> Skills => new[] { Primary, Secondary, Lunge };
 
     public SkillDefinition Skill(int button) => button switch
@@ -55,12 +58,43 @@ public static class Weapons
     public static readonly WeaponDefinition Scythe = new("scythe", "Scythe", Skills.ScytheSwing, Skills.ScytheSpin, Skills.ScytheLunge,
         new GuardDefinition(HalfArc: 70f * Angles.DegToRad, DamageTaken: 0.4f, MoveSpeedFactor: 0.6f, ParryWindow: 0.15f));
 
+    // A sword in one hand and a shield in the other, carried, bought, improved and sold as the one weapon it is here.
+    // The shield stops everything across the widest front, slows least and parries most easily; the sword pays for
+    // it in damage and reach.
+    public static readonly WeaponDefinition SwordAndShield = new("sword-and-shield", "Sword and shield", Skills.SwordSlash, Skills.SwordSpin, Skills.SwordLunge,
+        new GuardDefinition(HalfArc: 110f * Angles.DegToRad, DamageTaken: 0f, MoveSpeedFactor: 0.7f, ParryWindow: 0.3f));
+
+    // Every staff's guard is the same barrier, first pass: a shell all round that takes 40 before it gives and comes
+    // back at 8 a second once it has been down for 2 s. Nothing gets past it while it holds, and it parries nothing.
+    public static readonly GuardDefinition Barrier = new(HalfArc: MathF.PI, DamageTaken: 0f, MoveSpeedFactor: 0.5f, ParryWindow: 0f)
+    {
+        Name = "Barrier",
+        Barrier = new BarrierDefinition(Strength: 40, RechargePerSecond: 8f, RechargeDelay: 2f),
+    };
+
     private static readonly Dictionary<(string Kind, int Level), WeaponDefinition> Improved = new();
 
+    // Weapons of steel and wood: what the weaponsmith sells.
+    public static IReadOnlyList<WeaponDefinition> Arms { get; } = new[] { Greatsword, Quarterstaff, Spear, Scythe, SwordAndShield };
+
+    // A magic staff for each element: a bolt or a volley, a spell held on an area, and the barrier.
+    public static IReadOnlyList<WeaponDefinition> Staffs { get; } = Elements.All.Select(StaffFor).ToList();
+
     // The plain makes. Also the order the weapon key cycles through.
-    public static IReadOnlyList<WeaponDefinition> All { get; } = new[] { Greatsword, Quarterstaff, Spear, Scythe };
+    public static IReadOnlyList<WeaponDefinition> All { get; } = Arms.Concat(Staffs).ToList();
 
     public static WeaponDefinition Default => Greatsword;
+
+    public static WeaponDefinition Staff(Element element) => Staffs[(int)element];
+
+    private static WeaponDefinition StaffFor(Element element)
+    {
+        var skills = Skills.StaffOf(element);
+        return new WeaponDefinition($"{Elements.IdOf(element)}-staff", $"{element} staff", skills.Primary, skills.Channel, skills.Lunge, Barrier)
+        {
+            Element = element,
+        };
+    }
 
     // A weapon by its id, improved ones included: "spear", "spear+4".
     public static WeaponDefinition ById(string id)

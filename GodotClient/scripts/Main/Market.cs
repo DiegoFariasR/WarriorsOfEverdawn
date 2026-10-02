@@ -10,9 +10,11 @@ using WarriorsOfEverdawn.Player;
 namespace WarriorsOfEverdawn.Main;
 
 // The sellers standing in the allied town, and the trade done with them. The host holds every purse, so it decides
-// every purchase: the buyer's machine asks, the host works out what the seller offers that player from what it sees
-// them carry and wear, takes the cost and answers. A weapon it names in the answer, and the buyer's machine puts it
-// in its player's hands; armour the host puts on the player itself, since it is the host that reckons the blows. Present on every machine at the same path, for its RPCs. Design: Docs/Design/trade.md.
+// every trade: the player's machine asks, the host works out what the seller offers that player from what it sees
+// them carry and wear, takes the cost, pays what a sale pays, and answers. A weapon it names in the answer, and the
+// player's machine puts it in its player's hands, or for a weapon sold empties the slot it names; armour the host
+// puts on the player itself, since it is the host that reckons the blows. Present on every machine at the same path,
+// for its RPCs. Design: Docs/Design/trade.md.
 public partial class Market : Node3D
 {
     public const string NodeName = "Market";
@@ -93,7 +95,8 @@ public partial class Market : Node3D
     }
 
     // A weapon comes by id from the host, who took the cost for exactly that one; the slot is the one it replaces
-    // the weapon of, for an improvement. Armour comes as its tier, and the host has already put it on.
+    // the weapon of, for an improvement. A slot with no weapon to put in it is one whose weapon the host has paid
+    // for. Armour comes as its tier, and the host has already put it on.
     [Rpc(MultiplayerApi.RpcMode.Authority, CallLocal = true, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
     private void Deliver(string sellerId, string itemId, string weaponId, int slot, int armourTier)
     {
@@ -114,6 +117,10 @@ public partial class Market : Node3D
         if (weapon != null)
         {
             buyer.OnBought(weapon, into);
+        }
+        else if (into is { } sold)
+        {
+            buyer.OnSold(sold);
         }
 
         Bought?.Invoke(seller, item);

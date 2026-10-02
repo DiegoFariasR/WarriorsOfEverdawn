@@ -73,6 +73,17 @@ public sealed record LaunchOptions
     // named here (comma-separated). Null without the flag.
     public IReadOnlyList<string>? ArmourLineup { get; init; }
 
+    // For looking at a weapon: the player's figure in a row in the field, holding it in its stance, its guard and
+    // each of its skills, and carrying it on the back. Null without the flag.
+    public WeaponDefinition? WeaponLineup { get; init; }
+
+    // For looking at magic: the player's figure in a row in the field, once per staff of the elements named (all
+    // six with "all"), each casting; with MagicBarriers, every staff's figure inside its barrier instead. Null
+    // without the flag.
+    public IReadOnlyList<Element>? MagicLineup { get; init; }
+
+    public bool MagicBarriers { get; init; }
+
     // Host only, for test sessions and for looking at an orb: every monster's chance of leaving a magic orb, in place
     // of its own, so a short session is sure to see some.
     public float? OrbChance { get; init; }
@@ -87,6 +98,10 @@ public sealed record LaunchOptions
 
     // For the trade test: the bot trades with the seller it starts beside (NetSelfTest.Trade).
     public bool TradeDrill { get; init; }
+
+    // Host only, for the self-tests: every barrier that goes up is dealt a blow, through the same path as a
+    // skeleton's (NetSelfTest.Magic).
+    public bool BarrierDrill { get; init; }
 
     // Host only, for looking at a place: players start on this spot of the ground instead of in the town.
     public Godot.Vector3? StartAt { get; init; }
@@ -121,12 +136,16 @@ public sealed record LaunchOptions
                 "--swing-survey" => options with { SwingSurvey = true },
                 "--armour-lineup" => options with { ArmourLineup = Array.Empty<string>() },
                 "--outfits" => options with { ArmourLineup = ValueAfter(args, ref i).Split(',', StringSplitOptions.RemoveEmptyEntries) },
+                "--weapon-lineup" => options with { WeaponLineup = WeaponAfter(args, ref i) },
+                "--magic-lineup" => options with { MagicLineup = ElementsAfter(args, ref i) },
+                "--magic-barriers" => options with { MagicLineup = Array.Empty<Element>(), MagicBarriers = true },
                 "--start-at" => options with { StartAt = GroundSpotAfter(args, ref i) },
                 "--orb-chance" => options with { OrbChance = ChanceAfter(args, ref i) },
                 "--start-gold" => options with { StartGold = PositiveIntAfter(args, ref i) },
                 "--start-orbs" => options with { StartOrbs = PositiveIntAfter(args, ref i) },
                 "--start-armour" => options with { StartArmour = ArmourTierAfter(args, ref i) },
                 "--trade-drill" => options with { TradeDrill = true },
+                "--barrier-drill" => options with { BarrierDrill = true },
                 _ => throw new ArgumentException($"Unknown launch argument '{args[i]}'"),
             };
         }
@@ -189,6 +208,16 @@ public sealed record LaunchOptions
             && float.TryParse(parts[1], NumberStyles.Float, CultureInfo.InvariantCulture, out float z)
             ? new Godot.Vector3(x, 0f, z)
             : throw new ArgumentException($"{flag} needs a spot on the ground as x,z, got '{value}'");
+    }
+
+    private static IReadOnlyList<Element> ElementsAfter(string[] args, ref int i)
+    {
+        string flag = args[i];
+        string value = ValueAfter(args, ref i);
+        return value == "all" ? Array.Empty<Element>()
+            : value.Split(',').Select(name => Enum.TryParse<Element>(name, ignoreCase: true, out var element)
+                ? element
+                : throw new ArgumentException($"{flag} needs elements ({string.Join(", ", Elements.All)}) or 'all', got '{name}'")).ToList();
     }
 
     private static WeaponDefinition WeaponAfter(string[] args, ref int i)

@@ -12,10 +12,11 @@ namespace WarriorsOfEverdawn.Dev;
 // [trade-check], with --trade-drill: the local bot, started in reach of a seller with gold and orbs to spend, sees
 // the prompt, opens the window (nine slots in rows of three, no bigger than the game's window), gets through it
 // what the seller offers, slot after slot (weapons from the weaponsmith; from the blacksmith the weapon in its hand
-// a level better, the one on its back, then its armour a tier better) for as long as it can pay, is then told by the window that it cannot, asks the host
-// anyway and is refused, and closes it. The weapons in its hand and on its back and the armour it wears are what
-// those purchases should leave it with, the gold and orbs it has left are what it started with less what it paid,
-// and it stood still throughout. Every player's figure on this machine is dressed in the look of the armour that
+// a level better, the one on its back, then its armour a tier better; to the merchant it sells the weapon in its
+// hand, the one on its back and an orb) for as long as it can pay, is then told by the window that it cannot, asks
+// the host anyway and is refused, and closes it. The weapons in its hand and on its back and the armour it wears are
+// what those trades should leave it with, the gold and orbs it has left are what it started with less what it paid
+// and plus what it was paid, and it stood still throughout. Every player's figure on this machine is dressed in the look of the armour that
 // player wears (ArmourLook) for as long as it is here, which for the buyer is another than it came in. On the host,
 // [trade-host]: who was sold how much, and what the host sees in every player's hand.
 public partial class NetSelfTest
@@ -46,6 +47,7 @@ public partial class NetSelfTest
     private int _tradeAsked;
     private int _tradeBought;
     private int _tradeSpent;
+    private int _tradeEarned;
     private int _tradeOrbsSpent;
     private int _tradeOrbsStart = -1;
     private int _tradeRefusedByWindow;
@@ -72,11 +74,9 @@ public partial class NetSelfTest
         {
             _tradeBought++;
             _tradeSpent += item.Cost.Gold;
+            _tradeEarned += item.Pays.Gold;
             _tradeOrbsSpent += item.Cost.Orbs;
-            if (item.Weapon != null)
-            {
-                _tradeExpected = TradeRules.Receive(_tradeExpected, item.Weapon, item.Slot).Sets;
-            }
+            _tradeExpected = TradeRules.After(_tradeExpected, item).Sets;
 
             _tradeExpectedArmour = item.Armour?.Tier ?? _tradeExpectedArmour;
         };
@@ -185,7 +185,7 @@ public partial class NetSelfTest
                 _tradeStep = TradeStep.Closing;
                 break;
             case TradeStep.Closing:
-                // The weapon it bought is the one it keeps from here on.
+                // The weapon it bought is the one it keeps from here on; none, when it sold what it had.
                 bot.Rehome(local.Weapon);
                 shop.Close();
                 _tradeStep = TradeStep.Done;
@@ -204,7 +204,7 @@ public partial class NetSelfTest
         GD.Print($"[trade-check] me={me} sellers={_market?.Sellers.Count ?? -1} prompt_frames={_promptFrames} opened={_tradeOpened} closed={_tradeClosed} "
             + $"slots={_tradeSlots} slots_wanted={TradeRules.Slots} items={_tradeItems} window_fits={_tradeWindowFits} "
             + $"window={_tradeWindow.Size.X:F0}x{_tradeWindow.Size.Y:F0} game_window={DesignSize().X:F0}x{DesignSize().Y:F0} "
-            + $"seller={_hud.Shop.Seller?.Id ?? "none"} bought={_tradeBought} spent={_tradeSpent} gold_start={_tradeGoldStart} gold_here={local?.Vitals.Gold} "
+            + $"seller={_hud.Shop.Seller?.Id ?? "none"} bought={_tradeBought} spent={_tradeSpent} earned={_tradeEarned} gold_start={_tradeGoldStart} gold_here={local?.Vitals.Gold} "
             + $"orbs_spent={_tradeOrbsSpent} orbs_start={_tradeOrbsStart} orbs_here={local?.Vitals.Orbs} "
             + $"refused_by_window={_tradeRefusedByWindow} refused_by_host={_tradeRefusedByHost} "
             + $"in_hand={local?.Weapon?.Id ?? NoWeapon} expected_in_hand={_tradeExpected.Active?.Id ?? NoWeapon} "

@@ -14,6 +14,12 @@
   "table_long": "res://assets/dungeon/table_long.glb",
   "anvil": "res://assets/props/anvil.glb",
   "Trainingdummy": "res://assets/props/Trainingdummy.glb",
+  "trunk_medium_A": "res://assets/dungeon/trunk_medium_A.glb",
+  "Money_Coins_Stack_Large": "res://assets/props/Money_Coins_Stack_Large.glb",
+  "Money_Coins_Stack_Medium": "res://assets/props/Money_Coins_Stack_Medium.glb",
+  "Money_Coins_Stack_Small": "res://assets/props/Money_Coins_Stack_Small.glb",
+  "shrine_candles": "res://assets/props/shrine_candles.glb",
+  "rug_rectangle_stripes_A": "res://assets/props/rug_rectangle_stripes_A.glb",
   "barrel_large": "res://assets/dungeon/barrel_large.glb",
   "crates_stacked": "res://assets/dungeon/crates_stacked.glb",
   "keg": "res://assets/dungeon/keg.glb",
@@ -34,7 +40,6 @@
   "shelves": "res://assets/dungeon/shelves.glb",
   "sword_shield": "res://assets/dungeon/sword_shield.glb",
   "bed_A_single": "res://assets/dungeon/bed_A_single.glb",
-  "trunk_medium_A": "res://assets/dungeon/trunk_medium_A.glb",
   "table_small": "res://assets/dungeon/table_small.glb",
   "chair": "res://assets/dungeon/chair.glb",
   "stool": "res://assets/dungeon/stool.glb",
@@ -1084,6 +1089,122 @@
     1.0
    ],
    "solid": true
+  },
+  {
+   "asset": "trunk_medium_A",
+   "position": [
+    -8.7,
+    0.0,
+    26.0
+   ],
+   "rotation": [
+    0.0,
+    0.707107,
+    0.0,
+    0.707107
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "solid": true
+  },
+  {
+   "asset": "Money_Coins_Stack_Large",
+   "position": [
+    -7.7,
+    0.0,
+    26.6
+   ],
+   "rotation": [
+    0.0,
+    1.0,
+    0.0,
+    0.0
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  {
+   "asset": "Money_Coins_Stack_Medium",
+   "position": [
+    -7.6,
+    0.0,
+    25.4
+   ],
+   "rotation": [
+    0.0,
+    1.0,
+    0.0,
+    0.0
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  {
+   "asset": "Money_Coins_Stack_Small",
+   "position": [
+    -7.2,
+    0.0,
+    26.9
+   ],
+   "rotation": [
+    0.0,
+    1.0,
+    0.0,
+    0.0
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  {
+   "asset": "shrine_candles",
+   "position": [
+    8.4,
+    0.0,
+    18.1
+   ],
+   "rotation": [
+    0.0,
+    0.707107,
+    0.0,
+    -0.707107
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "solid": true
+  },
+  {
+   "asset": "rug_rectangle_stripes_A",
+   "position": [
+    6.4,
+    0.0,
+    18.1
+   ],
+   "rotation": [
+    0.0,
+    1.0,
+    0.0,
+    0.0
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ]
   },
   {
    "asset": "barrel_large",
@@ -2496,6 +2617,24 @@
     6.4,
     0.0,
     23.8
+   ],
+   "yaw": 4.7124
+  },
+  {
+   "name": "seller-merchant",
+   "position": [
+    -6.8,
+    0.0,
+    26.0
+   ],
+   "yaw": 1.5708
+  },
+  {
+   "name": "seller-arcanist",
+   "position": [
+    6.6,
+    0.0,
+    18.1
    ],
    "yaw": 4.7124
   },

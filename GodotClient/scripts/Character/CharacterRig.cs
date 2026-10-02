@@ -28,10 +28,12 @@ public static class CharacterRig
 
     public const string BackBone = "chest";
 
+    private const float GlowRadius = 0.3f;
+
     // Two points within this distance of the grip count as equally far.
     private const float TipTie = 0.01f;
 
-    private static readonly string[] HeadParts = { "_Head", "_Eyes", "_Jaw" };
+    private static readonly string[] HeadParts = { "_Head", "_Eyes", "_Jaw", "_Mask" };
     private static readonly string[] Headgear = { "Helmet", "Visor", "Hat", "Hood", "Crown" };
 
     public static CollisionShape3D CreateCapsule() => new()
@@ -83,7 +85,8 @@ public static class CharacterRig
     public static float HeadScaleOf(string meshName) =>
         IsHeadgear(meshName) ? HeadgearScale : HeadParts.Any(meshName.EndsWith) ? HeadScale : 1f;
 
-    private static bool IsHeadgear(string meshName) => Headgear.Any(meshName.Contains);
+    // By the part's own name, after the character's: "RogueHooded_Body" is no hood.
+    private static bool IsHeadgear(string meshName) => Headgear.Any(meshName[(meshName.LastIndexOf('_') + 1)..].Contains);
 
     private static Transform3D ScaledAround(Transform3D transform, Vector3 pivot, float scale) =>
         new(transform.Basis.Scaled(Vector3.One * scale), pivot * (1f - scale) + transform.Origin * scale);
@@ -111,6 +114,25 @@ public static class CharacterRig
         return hand;
     }
 
+    // The left hand, holding the look's off-hand piece when it has one.
+    public static BoneAttachment3D AttachOffHand(Node3D body, WeaponLook? look)
+    {
+        var hand = new BoneAttachment3D { Name = "OffHand", BoneName = LeftHandBone };
+        HoldOffHand(hand, look);
+        body.GetNode<Skeleton3D>(RigAnimations.SkeletonPath).AddChild(hand);
+        return hand;
+    }
+
+    // Replaces whatever the off hand holds with the look's piece for it; an empty hand, when the look has none.
+    public static void HoldOffHand(BoneAttachment3D offHand, WeaponLook? look)
+    {
+        Empty(offHand);
+        if (look?.OffHand is { } piece)
+        {
+            offHand.AddChild(Placed(piece.Model, piece.HandPosition, piece.HandRotation));
+        }
+    }
+
     public static BoneAttachment3D AttachToLeftHand(Node3D body, string weaponPath, Vector3 rotation)
     {
         var hand = new BoneAttachment3D { Name = "LeftHand", BoneName = LeftHandBone };
@@ -136,8 +158,19 @@ public static class CharacterRig
             return;
         }
 
-        var weapon = HoldWeapon(back, look.Model, look.BackGrip, look.Scale);
+        var weapon = Adorned(HoldWeapon(back, look.Model, look.BackGrip, look.Scale), look);
         weapon.Transform = new Transform3D(Basis.FromEuler(look.BackRotation), look.BackPosition) * weapon.Transform;
+        if (look.OffHand is { } piece)
+        {
+            back.AddChild(Placed(piece.Model, piece.BackPosition, piece.BackRotation));
+        }
+    }
+
+    private static Node3D Placed(string modelPath, Vector3 position, Vector3 rotation)
+    {
+        var model = Assets.InstantiateAtOrigin(modelPath);
+        model.Transform = new Transform3D(Basis.FromEuler(rotation), position);
+        return model;
     }
 
     // Replaces whatever the hand holds with the look's weapon, at its grip; an empty hand, with no look.
@@ -149,8 +182,22 @@ public static class CharacterRig
         }
         else
         {
-            HoldWeapon(hand, look.Model, look.Grip, look.Scale, look.HandTurn);
+            Adorned(HoldWeapon(hand, look.Model, look.Grip, look.Scale, look.HandTurn), look);
         }
+    }
+
+    // The weapon with what its look adds to its model: a staff's element, alight at its head.
+    public static Node3D Adorned(Node3D weapon, WeaponLook look)
+    {
+        if (look.Glow is { } element)
+        {
+            var orb = ElementLooks.Made(element, new SphereMesh { Radius = GlowRadius, Height = GlowRadius * 2f, RadialSegments = 12, Rings = 6 });
+            orb.Name = "Glow";
+            orb.Position = look.GlowAt;
+            weapon.AddChild(orb);
+        }
+
+        return weapon;
     }
 
     // Replaces whatever the hand holds. The grip is the point on the weapon, in its own space, that the hand closes

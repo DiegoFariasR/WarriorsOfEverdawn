@@ -16,13 +16,15 @@ Build and test:
   import            Headless asset import (run after copying assets in)
 
 Godot self-tests (headless):
-  net-test          Co-op host + 3 bot clients, one per weapon; asserts movement, combat, visuals and HUD reach every peer
+  net-test          Co-op host + 4 bot clients, one per weapon; asserts movement, combat, visuals and HUD reach every peer
   pvp-test          PvP host + 1 bot client, no skeletons; asserts players hit and damage each other
+  magic-test        Host + 2 bot clients with magic staffs; asserts bolts and volleys are thrown, land and are seen
+                    by the others, area spells are drawn, and barriers take blows and come back
   trade-test        For each seller, a host + 1 bot client beside it with gold and orbs; asserts each opens the
-                    shop window, gets what it can pay for, is refused after, and ends with the weapon in hand and
-                    the cost taken
+                    shop window, gets what it can pay for (or sells what it carries), is refused after, and ends
+                    with the right weapons in hand and the cost taken or the pay given
   camera-test       In every camera mode, W must move up the screen and D right; HUD sits on screen
-  smoke             camera-test, net-test, pvp-test and trade-test in turn; fails if any fails
+  smoke             camera-test, net-test, pvp-test, trade-test and magic-test in turn; fails if any fails
   playtest          net-test made 2.5 minutes long with a player downed on cue: every net-test gate plus waves,
                     removal of the dead and of damage numbers, a flat node count, and going down and back up
                     --screenshots N   the host runs in an off-screen, minimized window and captures N frames
@@ -30,7 +32,7 @@ Godot self-tests (headless):
 Screenshots (real renderer; off-screen, minimized, unfocused window):
   screenshot        Bot plays solo; saves _staging/screenshot.png after --at seconds (default 6)
                     --frames N --interval S   a series: _staging/screenshot_1.png .. _N.png
-                    --camera 1-4   --zoom 0.5-2 (below 1 is nearer)   --no-ui   --no-enemies   --weapon <id>   --back-weapon <id>   (greatsword, quarterstaff, spear, scythe)
+                    --camera 1-4   --zoom 0.5-2 (below 1 is nearer)   --no-ui   --no-enemies   --weapon <id>   --back-weapon <id>   (greatsword, quarterstaff, spear, scythe, sword-and-shield, <element>-staff)
                     --start-at x,z   the bot starts on that spot of the ground instead of in the town
                     --orb-chance P   every monster leaves a magic orb P of the time (0 to 1) instead of rarely
                     --start-gold N   --start-orbs N   --start-armour TIER   the bot starts with that much
@@ -38,6 +40,10 @@ Screenshots (real renderer; off-screen, minimized, unfocused window):
 
   armour-lineup     The knight in a row in each tier of armour, seen from the front; saves _staging/armour-lineup.png
                     [Outfit,Outfit,...] shows those outfits instead (models under assets/character_parts)
+  weapon-lineup <id>  The knight holding that weapon in its stance, its guard and each skill as it lands, and
+                    carrying it on the back; saves _staging/weapon-lineup.png
+  magic-lineup      The staffs casting: each holds its spell on an area, what it throws beside it; saves
+                    _staging/magic-lineup.png. [fire,water,...] shows those; [barriers] each inside its barrier
 
 Measurements:
   swing-survey      Each weapon skill's clip: when the striking point moves fastest (hit time) and how far it reaches
@@ -84,11 +90,11 @@ MAX_ORPHAN_GROWTH=2
 
 # Session players' weapons in order: the host, then client1, client2, ... Every weapon is in each co-op session, in a
 # hand so every skill's gates run, and on a back.
-SESSION_WEAPONS=(greatsword quarterstaff spear scythe)
-SESSION_BACK_WEAPONS=(spear scythe greatsword quarterstaff)
-COOP_CLIENTS=3
+SESSION_WEAPONS=(greatsword quarterstaff spear scythe sword-and-shield)
+SESSION_BACK_WEAPONS=(spear scythe sword-and-shield quarterstaff greatsword)
+COOP_CLIENTS=4
 
-# Waves are not scaled by player count yet, and one wave shared by four bots is gone before the slower weapons get
+# Waves are not scaled by player count yet, and one wave shared by five bots is gone before the slower weapons get
 # a turn (thrusts and lunges hit twice as hard as swings), so the test sessions triple each wave.
 COOP_WAVE_SCALE=3
 
@@ -193,7 +199,7 @@ co_op_session() {
     local failed=0
     run_session "$logs" "$COOP_CLIENTS" "$host_quit" "$client_quit" --wave-scale "$COOP_WAVE_SCALE" --orb-chance "$COOP_ORB_CHANCE" "$@" || failed=1
 
-    local damage_taken_total=0 lunge_hits_total=0 hangings_faded_total=0 spin_dashes_kept=0 spin_dash_tests=0 spin_dashes_seen=0 channelled="" log
+    local damage_taken_total=0 lunge_hits_total=0 hangings_faded_total=0 spin_dashes_kept=0 spin_dash_tests=0 spin_dashes_seen=0 one_handed_runners=0 channelled="" log
     for log in $(session_logs); do
         local file="$logs/$log.log"
         grep -E '^\[(net-check|combat-check|combat-host|anim-check|turn-check|head-check|carry-check|speed-check|skill-check|trail-check|reach-check|flash-check|ui-check|dash-check|spin-dash-check|lunge-check|pickup-check|loot-check|map-check|bot-check|ranged-check|guard-check)\]' "$file" | sed "s/^/$log: /"
@@ -275,10 +281,16 @@ co_op_session() {
         gate "$log" "$file" ranged-check 'v["arrows_seen"] + 0 >= 1 && v["lingering_frames"] + 0 == 0 && v["drawn_off_max"] + 0 <= 0.1' \
             "no archer arrows seen, arrows drawn away from their flight, or arrows outliving their flight" || failed=1
 
-        # Running, both hands stay on the weapon (0.69 apart in the two-handed stance; 1.14 with the run clip's arms).
-        # Standing with an empty hand they come apart (0.87 in the unarmed idle; 0.69 would be the two-handed idle).
-        gate "$log" "$file" carry-check 'v["samples"] + 0 >= 1 && v["hands_apart_running"] + 0 <= 0.85 && v["unarmed_samples"] + 0 >= 1 && v["hands_apart_standing_unarmed"] + 0 >= 0.8' \
-            "the weapon is carried in one hand while running, or empty hands stand as if holding one" || failed=1
+        # Each machine measures its own player. Running, both hands stay on a weapon for two (0.69 apart in the
+        # two-handed stance; 1.14 with the run clip's arms), and a sword and shield stay up in their stance (0.87)
+        # instead of swinging with the run; a player runs with whichever it holds, and the one with the sword and
+        # shield must be among them. Standing with an empty hand the hands come apart (0.87 in the unarmed idle; 0.69
+        # would be the two-handed idle).
+        gate "$log" "$file" carry-check 'v["samples"] + v["one_handed_samples"] >= 1 && (v["samples"] + 0 == 0 || v["hands_apart_running"] + 0 <= 0.85) && (v["one_handed_samples"] + 0 == 0 || v["hands_apart_running_one_handed"] + 0 <= 1.0) && v["unarmed_samples"] + 0 >= 1 && v["hands_apart_standing_unarmed"] + 0 >= 0.8' \
+            "a weapon for two carried in one hand while running, a sword and shield swinging with the run, or empty hands standing as if holding a weapon" || failed=1
+        if gate "$log" "$file" carry-check 'v["one_handed_samples"] + 0 >= 1' "" > /dev/null; then
+            one_handed_runners=$((one_handed_runners + 1))
+        fi
 
         # Every bot lets go of its weapon and takes it back. Every machine sees weapons put down and taken up (its own and
         # at least one other's) and what it shows on the ground matches what it was told; an unarmed player starts no
@@ -386,6 +398,11 @@ co_op_session() {
         failed=1
     fi
     # Holding Spin must carry it past its first revolution, on the host and on at least one client.
+    if [ "$one_handed_runners" -lt 1 ]; then
+        echo "FAIL: no player was seen running with a sword and shield"
+        failed=1
+    fi
+
     if [[ " $channelled " != *" host "* || " $channelled " != *" client"* ]]; then
         echo "FAIL: no held Spin went past two revolutions on the host and on a client (channelled on:${channelled:- none})"
         failed=1
@@ -440,8 +457,9 @@ playtest() {
             "dead skeletons or damage numbers outstaying their time, or nodes piling up from wave to wave" || failed=1
         gate "$log" "$file" down-check 'v["downs"] + 0 >= 1 && v["revives"] + 0 >= 1 && (v["down_seconds_min"] - v["expected_seconds"]) ^ 2 < 0.25 && (v["down_seconds_max"] - v["expected_seconds"]) ^ 2 < 0.25 && v["hp_after_revive_min"] + 0 == v["hp_max"] + 0 && v["hits_while_down"] + 0 == 0' \
             "no one seen going down and back up after the respawn delay at full HP, or a downed player was hit" || failed=1
-        # Only the machine that owns the downed player can see it hold still and land back at the centre.
-        gate "$log" "$file" down-check 'v["local_downs"] + 0 == 0 || (v["down_drift_max"] + 0 <= 0.01 && v["attacks_while_down"] + 0 == 0 && v["revive_distance_max"] + 0 <= 0.5)' \
+        # Only the machine that owns the downed player can see it hold still and land back at the centre. A body may
+        # settle by less than its own radius in the steps after it falls (pushed clear of a wall it was pressed into).
+        gate "$log" "$file" down-check 'v["local_downs"] + 0 == 0 || (v["down_drift_max"] + 0 <= 0.01 && v["down_settle_max"] + 0 <= v["settle_allowed"] + 0 && v["attacks_while_down"] + 0 == 0 && v["revive_distance_max"] + 0 <= 0.5)' \
             "the downed player moved or attacked while down, or did not get back up at the arena centre" || failed=1
         if gate "$log" "$file" down-check 'v["local_downs"] + 0 >= 1' "" > /dev/null; then
             downed_on="$downed_on $log"
@@ -499,6 +517,11 @@ TRADE_TEST_SMITH_ARMOUR=2
 TRADE_TEST_SMITH_GOLD=280
 TRADE_TEST_SMITH_ORBS=3
 
+# At the merchant the players sell the weapon in hand, the one on the back and the one orb they start with; the
+# drill waits for a little gold to arrive before it opens the window.
+TRADE_TEST_MERCHANT_GOLD=10
+TRADE_TEST_MERCHANT_ORBS=1
+
 # The sellers the town's layout stands, by id, on one line: Windows Python ends each line it prints with a carriage
 # return, which would stay on every id but the last.
 town_sellers() {
@@ -523,6 +546,8 @@ trade_session() {
     local means=(--start-gold "$TRADE_TEST_GOLD")
     if [ "$seller" = blacksmith ]; then
         means=(--start-gold "$TRADE_TEST_SMITH_GOLD" --start-orbs "$TRADE_TEST_SMITH_ORBS" --start-armour "$TRADE_TEST_SMITH_ARMOUR")
+    elif [ "$seller" = merchant ]; then
+        means=(--start-gold "$TRADE_TEST_MERCHANT_GOLD" --start-orbs "$TRADE_TEST_MERCHANT_ORBS")
     fi
     run_session "$logs" 1 14 11 --no-enemies --start-at "$spot" "${means[@]}" --trade-drill || failed=1
 
@@ -536,10 +561,11 @@ trade_session() {
         gate "$seller $log" "$file" trade-check 'v["sellers"] + 0 >= 1 && v["prompt_frames"] + 0 >= 1 && v["opened"] + 0 == 1 && v["closed"] + 0 == 1 && v["seller"] == "'"$seller"'" && v["slots"] + 0 == v["slots_wanted"] + 0 && v["items"] + 0 >= 1 && v["window_fits"] + 0 == 1 && v["moved_while_trading"] + 0 <= 0.05 && v["drill_done"] + 0 == 1' \
             "no seller or prompt, the shop window not opening for this seller or closing once, its slots or offers missing, it being bigger than the game's window, or the player moving while it is open" || failed=1
         # The trade: it gets the seller's first three offers, the window then says it cannot pay for another, the host
-        # refuses it too, the gold and orbs left are what it started with less what it paid, the weapons in its hand and
-        # on its back are what those purchases leave, and the armour got is worn and shown on the HUD.
-        gate "$seller $log" "$file" trade-check 'v["bought"] + 0 >= 1 && v["gold_here"] + 0 == v["gold_start"] - v["spent"] && v["orbs_here"] + 0 == v["orbs_start"] - v["orbs_spent"] && v["bought"] + 0 == 3 && v["refused_by_window"] + 0 >= 1 && v["refused_by_host"] + 0 >= 1 && v["in_hand"] == v["expected_in_hand"] && v["on_back"] == v["expected_on_back"] && v["armour_here"] + 0 == v["expected_armour"] + 0 && v["armour_shown"] + 0 == v["armour_here"] + 0' \
-            "not three things got, the gold or orbs not matching what was paid, something it could not pay for not refused by the window or by the host, the weapons got not in hand and on the back, or the armour got not worn or not shown" || failed=1
+        # refuses it too, the gold and orbs left are what it started with less what it paid and plus what it was paid,
+        # the weapons in its hand and on its back are what those trades leave (none, at the merchant), the merchant
+        # alone pays, and the armour got is worn and shown on the HUD.
+        gate "$seller $log" "$file" trade-check 'v["bought"] + 0 >= 1 && v["gold_here"] + 0 == v["gold_start"] - v["spent"] + v["earned"] && (v["earned"] + 0 > 0) == ("'"$seller"'" == "merchant") && v["orbs_here"] + 0 == v["orbs_start"] - v["orbs_spent"] && v["bought"] + 0 == 3 && v["refused_by_window"] + 0 >= 1 && v["refused_by_host"] + 0 >= 1 && v["in_hand"] == v["expected_in_hand"] && v["on_back"] == v["expected_on_back"] && v["armour_here"] + 0 == v["expected_armour"] + 0 && v["armour_shown"] + 0 == v["armour_here"] + 0' \
+            "not three things got, the gold or orbs not matching what was paid and earned, a seller paying that should not or the merchant not paying, something it could not pay for not refused by the window or by the host, the weapons got not in hand and on the back, or the armour got not worn or not shown" || failed=1
         # The look: both players' figures on this machine wear the parts of the armour each has, but for the frames in
         # which it changes (two measured: the host arms a player as it joins, a frame before the figure's first of
         # its own), and this one's is the look of its tier, which is another than it came to the seller in when the
@@ -577,6 +603,66 @@ trade_session() {
     return "$failed"
 }
 
+# Three staffs in hand and the other three on the backs, so every element's bolt or volley, area spell and barrier is
+# cast in the session. Fewer and smaller waves than net-test: three casters, and bolts kill from afar.
+MAGIC_WEAPONS=(fire-staff water-staff earth-staff)
+MAGIC_BACK_WEAPONS=(wind-staff void-staff divine-staff)
+MAGIC_CLIENTS=2
+MAGIC_HOST_SECONDS=44
+MAGIC_CLIENT_SECONDS=38
+
+magic_test() {
+    build || return 1
+    local logs="$ROOT/_staging/magic-test" failed=0 log
+    local SESSION_WEAPONS=("${MAGIC_WEAPONS[@]}") SESSION_BACK_WEAPONS=("${MAGIC_BACK_WEAPONS[@]}") COOP_CLIENTS=$MAGIC_CLIENTS
+    run_session "$logs" "$MAGIC_CLIENTS" "$MAGIC_HOST_SECONDS" "$MAGIC_CLIENT_SECONDS" --wave-scale 2 --barrier-drill || failed=1
+
+    for log in $(session_logs); do
+        local file="$logs/$log.log"
+        grep -E '^\[(magic-check|magic-host|combat-check|lunge-check|guard-check|carry-check|bot-check)\]' "$file" | sed "s/^/$log: /"
+
+        # Bolts: this player throws them, as many to a cast as its skill has (one bolt, or a volley's three; a cast
+        # cut short by a dash throws fewer), some land, the others' are seen here, each ends in a burst, and none
+        # outlives its flight.
+        gate "$log" "$file" magic-check 'v["casts"] + 0 >= 1 && v["bolts_here"] + 0 >= 1 && v["bolts_per_cast_most"] + 0 == v["bolts_per_cast_wanted"] + 0 && v["bolts_landed"] + 0 >= 1 && v["bolts_seen_remote"] + 0 >= 1 && v["bolt_lingering_frames"] + 0 == 0 && v["bursts_most"] + 0 >= 1' \
+            "no bolts thrown or landed, a cast throwing more than its skill has or never all of them, the others' bolts unseen, or bolts outliving their flight" || failed=1
+        # The spell held on an area: drawn here in rounds of strikes, and the others' drawn here too.
+        gate "$log" "$file" magic-check 'v["area_rounds_here"] + 0 >= 2 && v["area_frames_here"] + 0 >= 1 && v["area_frames_remote"] + 0 >= 1 && v["strikes_most"] + 0 >= 1' \
+            "no spell held on an area here, no strikes drawn, or the others' spells unseen" || failed=1
+        # The barrier: shown here and on the others; this player's took the host's drill blows (it fell below full)
+        # and was seen coming back while it was down.
+        gate "$log" "$file" magic-check 'v["barrier_frames_here"] + 0 >= 1 && v["barrier_frames_remote"] + 0 >= 1 && v["barrier_least"] + 0 < v["barrier_full"] + 0 && v["barrier_rises"] + 0 >= 1' \
+            "no barrier shown here or on the others, this player's never taking a blow, or never coming back" || failed=1
+        # The staff's own thrust reaches as far as its lunge's range, like any weapon's.
+        gate "$log" "$file" lunge-check 'v["lunges_here"] + 0 >= 1 && v["reach_off_range"] ^ 2 < 0.0625' \
+            "no lunge with the staff, or its thrust reaching off its range" || failed=1
+        check_log_errors "$log" "$file" || failed=1
+    done
+
+    # On the host, where hits are decided: every player's bolts and area spells landed, and barriers took blows.
+    local host="$logs/host.log" field peers
+    for field in bolt_hits area_hits; do
+        peers=$(count_positive_peers "$host" magic-host "$field")
+        if [ "$peers" -ne $((MAGIC_CLIENTS + 1)) ]; then
+            echo "FAIL host: expected $field from all $((MAGIC_CLIENTS + 1)) players, got $peers ($(grep -E '^\[magic-host\]' "$host"))"
+            failed=1
+        fi
+    done
+    # The host deals every barrier a blow as it goes up: each player's barrier was drilled and took blows, and while
+    # a barrier holds the blow costs no HP.
+    for field in barrier_drills barrier_took; do
+        peers=$(count_positive_peers "$host" magic-host "$field")
+        if [ "$peers" -ne $((MAGIC_CLIENTS + 1)) ]; then
+            echo "FAIL host: expected $field for all $((MAGIC_CLIENTS + 1)) players, got $peers ($(grep -E '^\[magic-host\]' "$host"))"
+            failed=1
+        fi
+    done
+    gate host "$host" magic-host 'v["drill_hp_lost"] + 0 == 0' "a blow on a barrier that held cost its player HP" || failed=1
+
+    [ "$failed" -eq 0 ] && echo "magic-test passed" || echo "magic-test FAILED (logs: $logs)"
+    return "$failed"
+}
+
 trade_test() {
     build || return 1
     local logs="$ROOT/_staging/trade-test" failed=0 sellers seller
@@ -607,8 +693,6 @@ camera_test() {
     echo "camera-test passed"
 }
 
-# Captures need a real renderer (headless draws nothing), so this is the one AI-run launch with a window: placed
-# off-screen, and the game minimizes it without taking focus (--ai-playtest). A bot plays solo so there is combat.
 # The armour tiers side by side, or the outfits named (comma-separated), for choosing and checking how armour looks.
 armour_lineup() {
     local which=(--armour-lineup)
@@ -618,6 +702,27 @@ armour_lineup() {
     echo "armour-lineup: $ROOT/_staging/armour-lineup.png"
 }
 
+# One weapon held in its stance, its guard and each skill at the moment it lands, and carried on the back, for
+# checking how a weapon looks in the hands.
+weapon_lineup() {
+    [ $# -gt 0 ] || { echo "usage: ./dev.sh weapon-lineup <weapon id>"; return 1; }
+    screenshot --no-enemies --no-ui --at 1 --weapon-lineup "$1" || return 1
+    cp "$ROOT/_staging/screenshot.png" "$ROOT/_staging/weapon-lineup.png"
+    echo "weapon-lineup: $ROOT/_staging/weapon-lineup.png"
+}
+
+# The staffs casting: each of the elements named ("fire,void"; all six with none) holds its spell on an area with
+# what it throws beside it. With "barriers", every staff's figure inside its barrier instead.
+magic_lineup() {
+    local which=(--magic-lineup "${1:-all}")
+    [ "${1:-}" = barriers ] && which=(--magic-barriers)
+    screenshot --no-enemies --no-ui --at 1.2 "${which[@]}" || return 1
+    cp "$ROOT/_staging/screenshot.png" "$ROOT/_staging/magic-lineup.png"
+    echo "magic-lineup: $ROOT/_staging/magic-lineup.png"
+}
+
+# Captures need a real renderer (headless draws nothing), so this is the one AI-run launch with a window: placed
+# off-screen, and the game minimizes it without taking focus (--ai-playtest). A bot plays solo so there is combat.
 screenshot() {
     local args=(--bot)
     while [ $# -gt 0 ]; do
@@ -629,6 +734,9 @@ screenshot() {
             --zoom) args+=(--zoom "$2"); shift 2 ;;
             --armour-lineup) args+=(--armour-lineup); shift ;;
             --outfits) args+=(--outfits "$2"); shift 2 ;;
+            --weapon-lineup) args+=(--weapon-lineup "$2"); shift 2 ;;
+            --magic-lineup) args+=(--magic-lineup "$2"); shift 2 ;;
+            --magic-barriers) args+=(--magic-barriers); shift ;;
             --start-at) args+=(--start-at "$2"); shift 2 ;;
             --orb-chance) args+=(--orb-chance "$2"); shift 2 ;;
             --start-gold) args+=(--start-gold "$2"); shift 2 ;;
@@ -674,7 +782,7 @@ swing_survey() {
 # Runs every self-test even after a failure, so one report covers them all.
 smoke() {
     local failed=() name
-    for name in camera-test net-test pvp-test trade-test; do
+    for name in camera-test net-test pvp-test trade-test magic-test; do
         echo "== $name"
         "${name//-/_}" || failed+=("$name")
     done
@@ -682,7 +790,7 @@ smoke() {
         echo "smoke FAILED: ${failed[*]}"
         return 1
     fi
-    echo "smoke passed (camera-test, net-test, pvp-test, trade-test)"
+    echo "smoke passed (camera-test, net-test, pvp-test, trade-test, magic-test)"
 }
 
 case "${1:-help}" in
@@ -693,11 +801,14 @@ case "${1:-help}" in
     net-test) net_test ;;
     pvp-test) pvp_test ;;
     trade-test) trade_test ;;
+    magic-test) magic_test ;;
     camera-test) camera_test ;;
     smoke) smoke ;;
     playtest) shift; playtest "$@" ;;
     swing-survey) swing_survey ;;
     armour-lineup) shift; armour_lineup "$@" ;;
+    weapon-lineup) shift; weapon_lineup "$@" ;;
+    magic-lineup) shift; magic_lineup "$@" ;;
     level-fortresses) shift; python "$ROOT/Tools/level_fortresses.py" "$@" ;;
     level-audit) shift; python "$ROOT/Tools/level_audit.py" "$@" ;;
     screenshot) shift; screenshot "$@" ;;

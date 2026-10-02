@@ -3,7 +3,7 @@ using System.Numerics;
 
 namespace WarriorsOfEverdawn.Core.Combat;
 
-// Something a ranged attack looses: it flies straight across the ground at Speed until it hits a player or has gone
+// Something a ranged attack looses: it flies straight across the ground at Speed until it hits a body or has gone
 // MaxDistance.
 public sealed record ProjectileDefinition(float Speed, float MaxDistance, float Radius);
 
@@ -12,6 +12,11 @@ public static class Projectiles
     // Aimed at where the target stands as it is loosed, with no lead, so a target that keeps moving sideways can
     // outrun it at long range.
     public static readonly ProjectileDefinition Arrow = new(Speed: 16f, MaxDistance: 14f, Radius: 0.15f);
+
+    // First pass. A staff's bolt is one big slow ball; a volley is three small quick darts.
+    public static readonly ProjectileDefinition Bolt = new(Speed: 16f, MaxDistance: 12f, Radius: 0.35f);
+
+    public static readonly ProjectileDefinition Dart = new(Speed: 22f, MaxDistance: 12f, Radius: 0.2f);
 
     // Whether the projectile touches a body while travelling from one point to the next this step. The whole
     // segment is tested, so a fast projectile cannot step over a body between frames.

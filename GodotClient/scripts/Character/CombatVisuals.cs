@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using Godot;
 using WarriorsOfEverdawn.Core.Combat;
 
@@ -15,6 +16,20 @@ public static class CombatVisuals
     private static readonly Vector3 SheathPosition = new(0.20f, 0.55f, -0.36f);
     private static readonly Vector3 SheathRotation = new(Mathf.DegToRad(190f), 0f, Mathf.DegToRad(30f));
     private static readonly Vector3 PolePosition = new(0f, 0.25f, -0.36f);
+
+    // Everdawn's shield in the hand (item_visuals.json "basic-shield").
+    private static readonly Vector3 ShieldInHand = new(0f, 0f, 0.2f);
+
+    // Every staff is the same staff with its element alight at its head, a ball of it big enough to take in the
+    // model's own green gem and the claw that holds it (0.7 to 1.25 up the model, 0.3 out); like any pole it is
+    // carried across the back.
+    private static readonly WeaponLook Staff = new("res://assets/weapons/staff.glb", Vector3.Zero)
+    {
+        GlowAt = new Vector3(0.03f, 1f, 0f),
+        BackGrip = new Vector3(0f, 0.2f, 0f),
+        BackPosition = PolePosition,
+        BackRotation = new Vector3(Mathf.DegToRad(-10f), 0f, Mathf.DegToRad(30f)),
+    };
 
     private static readonly Dictionary<string, WeaponLook> LookByWeapon = new()
     {
@@ -51,10 +66,28 @@ public static class CombatVisuals
             BackPosition = PolePosition,
             BackRotation = new Vector3(Mathf.DegToRad(-10f), 0f, Mathf.DegToRad(30f)),
         },
+
+        // One weapon to the rules, two models to the eye: the sword in the right hand and the shield on the left
+        // arm. On the back the shield hangs flat between the shoulders with the sword sheathed across it.
+        [Weapons.SwordAndShield.Id] = new("res://assets/weapons/sword_1handed.glb", Vector3.Zero)
+        {
+            OneHanded = true,
+            BackPosition = SheathPosition,
+            BackRotation = SheathRotation,
+            OffHand = new OffHandLook("res://assets/weapons/shield_badge_color.glb")
+            {
+                HandPosition = ShieldInHand,
+                BackPosition = new Vector3(0f, 0.3f, -0.3f),
+                BackRotation = new Vector3(0f, Mathf.Pi, 0f),
+            },
+        },
     };
 
     private static readonly Dictionary<string, string> ClipBySkill = new()
     {
+        [Skills.SwordSlash.Id] = "melee/Melee_1H_Attack_Slice_Diagonal",
+        [Skills.SwordSpin.Id] = RigAnimations.SpinLoop,
+        [Skills.SwordLunge.Id] = RigAnimations.OneHandedStab,
         [Skills.Slice.Id] = "melee/Melee_2H_Attack_Slice",
         [Skills.Spin.Id] = RigAnimations.SpinLoop,
         [Skills.StaffHit.Id] = "melee/Melee_2H_Attack_Chop",
@@ -92,10 +125,17 @@ public static class CombatVisuals
     };
 
     public static WeaponLook LookFor(WeaponDefinition weapon) =>
-        LookByWeapon.TryGetValue(weapon.Kind, out var look) ? look : throw new KeyNotFoundException($"No model for weapon '{weapon.Kind}'");
+        weapon.Element is { } element ? Staff with { Glow = element }
+        : LookByWeapon.TryGetValue(weapon.Kind, out var look) ? look
+        : throw new KeyNotFoundException($"No model for weapon '{weapon.Kind}'");
 
+    // A spell is cast with its own clips whatever its element: one to throw, one looped to hold a spell on an area.
     public static string ClipFor(SkillDefinition skill) =>
-        ClipBySkill.TryGetValue(skill.Id, out var clip) ? clip : throw new KeyNotFoundException($"No clip for skill '{skill.Id}'");
+        skill.Projectile != null && skill.Element != null ? RigAnimations.MagicShoot
+        : skill.Area != null ? RigAnimations.MagicChannel
+        : ClipBySkill.TryGetValue(skill.Id, out var clip) ? clip
+        : Weapons.Staffs.Any(s => s.Lunge.Id == skill.Id) ? RigAnimations.Stab
+        : throw new KeyNotFoundException($"No clip for skill '{skill.Id}'");
 
     // Clips that turn the root bone (the Spin loop turns the whole body) cannot be layered on the upper body.
     public static bool IsFullBody(SkillDefinition skill) => ClipFor(skill) == RigAnimations.SpinLoop;
@@ -117,14 +157,37 @@ public sealed record EnemyLook(string Model, string Weapon)
 // A weapon's model and the point on it (in its own space) the hand holds (CharacterRig.HoldWeapon). Carried on the
 // back (CharacterRig.HoldOnBack), BackGrip is the point on it that goes to BackPosition, turned by BackRotation, all in
 // the chest bone's space. Scale draws it bigger or smaller than modelled, wherever it is; HandTurn turns it about its
-// own length in the hand, for a head that sticks out to one side.
+// own length in the hand, for a head that sticks out to one side. OneHanded leaves the other hand off the weapon;
+// OffHand is what that hand holds instead, which goes wherever the weapon goes. Glow lights an element on it.
 public sealed record WeaponLook(string Model, Vector3 Grip)
 {
+    public bool OneHanded { get; init; }
+
+    public OffHandLook? OffHand { get; init; }
+
+    // A magic staff: its element burns at this point on the model, in the model's own space.
+    public Element? Glow { get; init; }
+
+    public Vector3 GlowAt { get; init; }
+
     public float Scale { get; init; } = 1f;
 
     public float HandTurn { get; init; }
 
     public Vector3 BackGrip { get; init; }
+
+    public Vector3 BackPosition { get; init; }
+
+    public Vector3 BackRotation { get; init; }
+}
+
+// The piece a weapon puts in the left hand (a shield): where it sits in the hand slot, and where it hangs when the
+// weapon is on the back, in the chest bone's space.
+public sealed record OffHandLook(string Model)
+{
+    public Vector3 HandPosition { get; init; }
+
+    public Vector3 HandRotation { get; init; }
 
     public Vector3 BackPosition { get; init; }
 

@@ -16,8 +16,15 @@ public partial class NetSelfTest
     private const float ReviveHpDelay = 0.5f;
     private const float DriftWorthPrinting = 0.005f;
 
+    // Where a body lies is taken this many physics steps after it falls. Twice in some 100 downs a body moved about
+    // a quarter of a metre in the step after falling, standing still, against a wall of the fortress: it stops
+    // colliding with skeletons as it falls, and what they had pressed into the wall is pushed clear of it.
+    private const int SettleSteps = 2;
+
     private readonly Dictionary<string, float> _wentDownAt = new();
     private readonly Dictionary<string, Vector3> _fellAt = new();
+    private readonly Dictionary<string, Vector3> _liesAt = new();
+    private readonly Dictionary<string, ulong> _settledBy = new();
     private readonly Dictionary<string, bool> _wasDown = new();
     private readonly List<float> _downSeconds = new();
     private readonly List<(PlayerCharacter Player, float At)> _hpChecks = new();
@@ -28,6 +35,7 @@ public partial class NetSelfTest
     private int _hpAfterReviveMin = int.MaxValue;
     private float _reviveDistanceMax;
     private float _downDriftMax;
+    private float _downSettleMax;
     private int _attacksWhileDown;
     private int _hitsWhileDown;
 
@@ -52,7 +60,7 @@ public partial class NetSelfTest
         GD.Print($"[down-check] me={me} downs={_downs} revives={_revives} local_downs={_localDowns} "
             + $"down_seconds_min={shortest:F2} down_seconds_max={longest:F2} expected_seconds={PlayerRules.RespawnDelay:F2} "
             + $"hp_after_revive_min={hpAfterRevive} hp_max={PlayerRules.MaxHp} revive_distance_max={_reviveDistanceMax:F2} "
-            + $"down_drift_max={_downDriftMax:F3} attacks_while_down={_attacksWhileDown} hits_while_down={_hitsWhileDown}");
+            + $"down_drift_max={_downDriftMax:F3} down_settle_max={_downSettleMax:F3} settle_allowed={BodySize.Radius:F2} attacks_while_down={_attacksWhileDown} hits_while_down={_hitsWhileDown}");
     }
 
     private void MeasureDowns()
@@ -72,6 +80,7 @@ public partial class NetSelfTest
                 // player gets up, and none lands while it is down.
                 _hitSinceRevive[name] = 0;
                 _fellAt[name] = player.GlobalPosition;
+                _settledBy[name] = Engine.GetPhysicsFrames() + SettleSteps;
             }
             else if (!down && wasDown)
             {
@@ -90,11 +99,18 @@ public partial class NetSelfTest
             // after it, since frames outrun physics steps in headless runs.
             if (down && player.IsMultiplayerAuthority())
             {
-                var drift = player.GlobalPosition - _fellAt[name];
+                if (Engine.GetPhysicsFrames() <= _settledBy[name])
+                {
+                    _liesAt[name] = player.GlobalPosition;
+                    var settled = _liesAt[name] - _fellAt[name];
+                    _downSettleMax = Mathf.Max(_downSettleMax, new Vector2(settled.X, settled.Z).Length());
+                }
+
+                var drift = player.GlobalPosition - _liesAt[name];
                 float before = _downDriftMax;
                 _downDriftMax = Mathf.Max(_downDriftMax, new Vector2(drift.X, drift.Z).Length());
 
-                // Seen once (0.26 m) in some 70 downs and not again: what moved the body is printed as it happens.
+                // Nothing should move a body once it lies: what does is printed as it happens.
                 if (_downDriftMax > before + DriftWorthPrinting)
                 {
                     var touching = Enumerable.Range(0, player.GetSlideCollisionCount())

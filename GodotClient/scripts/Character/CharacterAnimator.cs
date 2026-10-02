@@ -6,7 +6,7 @@ using WarriorsOfEverdawn.Core.Locomotion;
 namespace WarriorsOfEverdawn.Character;
 
 // Legs play a directional locomotion clip at the rate that matches the ground speed, with the arms kept in the
-// two-handed stance; attacks layer on top at their own speed, a dash over those, and death over everything. The
+// two-handed stance while a weapon for both hands is held; attacks layer on top at their own speed, a dash over those, and death over everything. The
 // attack drives the upper body always and the lower body only while standing still, since some swings (Slice, Stab)
 // rotate through the hips. A dash drives the whole body unless it leaves the upper body to a thrust, or all of it
 // to a Spin that carries on through it.
@@ -75,8 +75,10 @@ public sealed class CharacterAnimator
 
     private readonly AnimationTree _tree;
     // Parked on a valid clip until the first attack; the layer weight is zero until then.
+    private readonly AnimationNodeAnimation _stanceArms = new() { Animation = RigAnimations.Idle };
     private readonly AnimationNodeAnimation _attackLower = new() { Animation = RigAnimations.Idle };
     private readonly AnimationNodeAnimation _attackUpper = new() { Animation = RigAnimations.Idle };
+    private WeaponStance _stance = WeaponStance.TwoHanded;
     private string _legState = IdleState;
     private float _stillness = 1f;
     private float _attackTime;
@@ -118,8 +120,18 @@ public sealed class CharacterAnimator
 
     public TorsoTwistModifier Twist { get; }
 
-    // False with empty hands: the arms then swing with the leg clip, and standing uses the unarmed idle.
-    public bool TwoHanded { get; set; } = true;
+    // How the arms are carried, standing and over the leg clips: both hands on a weapon for two; a weapon in one
+    // and a shield on the other held up in the stance KayKit calls unarmed, fists raised; with empty hands that same
+    // stance standing, and the arms swinging with the legs.
+    public WeaponStance Stance
+    {
+        get => _stance;
+        set
+        {
+            _stance = value;
+            _stanceArms.Animation = value == WeaponStance.OneHanded ? RigAnimations.UnarmedIdle : RigAnimations.Idle;
+        }
+    }
 
     public bool IsAttacking => _attackTime < _attackLength;
 
@@ -195,7 +207,7 @@ public sealed class CharacterAnimator
 
     public void Update(float delta, LegDirection? legs, float speed, float twist)
     {
-        string state = legs?.ToString() ?? (TwoHanded ? IdleState : UnarmedIdleState);
+        string state = legs?.ToString() ?? (Stance == WeaponStance.TwoHanded ? IdleState : UnarmedIdleState);
         if (state != _legState)
         {
             _tree.Set(LegsRequest, state);
@@ -213,9 +225,9 @@ public sealed class CharacterAnimator
                 * Mathf.Clamp((_attackLength - _attackTime) / AttackFadeOut, 0f, 1f);
         }
 
-        // The legs clips swing the arms as if empty-handed; over them the arms keep the stance, both hands on the
-        // weapon. Standing, the legs clip is the stance itself.
-        _tree.Set(StanceAmount, TwoHanded ? 1f - _stillness : 0f);
+        // The legs clips swing the arms as if empty-handed; over them armed arms keep their stance. Standing, the
+        // legs clip is the stance itself.
+        _tree.Set(StanceAmount, Stance == WeaponStance.Unarmed ? 0f : 1f - _stillness);
         AttackWeight = attackWeight;
         _tree.Set(UpperAmount, attackWeight);
         _tree.Set(LowerAmount, attackWeight * (_fullBodyAttack ? 1f : _stillness));
@@ -259,7 +271,7 @@ public sealed class CharacterAnimator
         root.AddNode("legs_speed", new AnimationNodeTimeScale());
         root.ConnectNode("legs_speed", 0, "legs");
 
-        AddLayer(root, "stance", new AnimationNodeAnimation { Animation = RigAnimations.Idle }, ArmBones, below: "legs_speed");
+        AddLayer(root, "stance", _stanceArms, ArmBones, below: "legs_speed");
         AddLayer(root, "attack_lower", _attackLower, LowerBones, below: "stance_mix");
         AddLayer(root, "attack_upper", _attackUpper, UpperBones, below: "attack_lower_mix");
 
@@ -298,4 +310,11 @@ public sealed class CharacterAnimator
         root.ConnectNode($"{layer}_mix", 0, below);
         root.ConnectNode($"{layer}_mix", 1, $"{layer}_speed");
     }
+}
+
+public enum WeaponStance
+{
+    Unarmed,
+    TwoHanded,
+    OneHanded,
 }

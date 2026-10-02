@@ -22,6 +22,9 @@ public partial class GroundWeapons : Node3D
     // Just clear of the ground, so the model does not fight with it for the same pixels.
     private const float RestHeight = 0.06f;
 
+    // How far to the side of a weapon its off-hand piece lies: clear of the sword's guard, with a gap.
+    private const float OffHandBeside = 0.8f;
+
     private readonly Dictionary<int, (GroundWeapon Item, Node3D Model)> _lying = new();
     private int _nextId;
 
@@ -117,20 +120,39 @@ public partial class GroundWeapons : Node3D
             return;
         }
 
+        var pivot = Lying(weapon, at, yaw);
+        pivot.Name = $"Weapon{id}";
+        AddChild(pivot);
+
+        var item = new GroundWeapon(id, weapon, at, yaw);
+        _lying[id] = (item, pivot);
+        Placed?.Invoke(item);
+    }
+
+    // The weapon as it lies on the ground at a spot, turned to a yaw.
+    public static Node3D Lying(WeaponDefinition weapon, Vector3 at, float yaw)
+    {
         var look = CombatVisuals.LookFor(weapon);
-        var model = Assets.InstantiateAtOrigin(look.Model);
-        var pivot = new Node3D { Name = $"Weapon{id}", Position = at + Vector3.Up * RestHeight };
+        var model = CharacterRig.Adorned(Assets.InstantiateAtOrigin(look.Model), look);
+        var pivot = new Node3D { Position = at + Vector3.Up * RestHeight };
 
         // Weapon models stand along +Y from wherever their grip is; laid on its side, the weapon rests on its middle.
         pivot.Rotation = new Vector3(Mathf.Pi / 2f, yaw, 0f);
         model.Scale = Vector3.One * look.Scale;
         model.Position = -MiddleOf(model) * look.Scale;
         pivot.AddChild(model);
-        AddChild(pivot);
 
-        var item = new GroundWeapon(id, weapon, at, yaw);
-        _lying[id] = (item, pivot);
-        Placed?.Invoke(item);
+        // What goes in the other hand lies beside the weapon, face up: a shield's face is its +Z, which laying the
+        // weapon down turns to the ground.
+        if (look.OffHand is { } piece)
+        {
+            var beside = Assets.InstantiateAtOrigin(piece.Model);
+            beside.Basis = Basis.FromEuler(new Vector3(0f, Mathf.Pi, 0f));
+            beside.Position = Vector3.Right * OffHandBeside - beside.Basis * MiddleOf(beside);
+            pivot.AddChild(beside);
+        }
+
+        return pivot;
     }
 
     [Rpc(MultiplayerApi.RpcMode.Authority, CallLocal = true, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]

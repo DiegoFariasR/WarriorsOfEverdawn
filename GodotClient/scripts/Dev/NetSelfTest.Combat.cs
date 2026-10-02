@@ -73,6 +73,7 @@ public partial class NetSelfTest
     {
         _enemyDamageByPeer[attacker] = _enemyDamageByPeer.GetValueOrDefault(attacker) + amount;
         _biggestHitBySkill[skill.Id] = Mathf.Max(_biggestHitBySkill.GetValueOrDefault(skill.Id), amount);
+        CountMagicHit(attacker, skill);
     }
 
     // Host only (the event fires where damage is applied).

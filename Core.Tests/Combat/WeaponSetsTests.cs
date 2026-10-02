@@ -61,16 +61,26 @@ public class WeaponSetsTests
     }
 
     [Fact]
-    public void Changing_the_weapon_in_an_empty_hand_takes_one_the_back_does_not_hold()
+    public void Changing_the_weapon_in_an_empty_hand_makes_no_weapon_out_of_nothing()
     {
         foreach (var stowed in Weapons.All)
         {
-            var sets = new WeaponSets(null, stowed).WithNextActive();
+            var emptyHanded = new WeaponSets(null, stowed);
 
-            Assert.NotNull(sets.Active);
-            Assert.NotSame(stowed, sets.Active);
-            Assert.Same(stowed, sets.Stowed);
+            Assert.Equal(emptyHanded, emptyHanded.WithNextActive());
         }
+
+        Assert.Equal(new WeaponSets(null, null), new WeaponSets(null, null).WithNextActive());
+    }
+
+    [Fact]
+    public void A_slot_lets_go_of_its_weapon_and_the_other_keeps_its_own()
+    {
+        var sets = new WeaponSets(Weapons.Scythe, Weapons.Spear);
+
+        Assert.Equal(new WeaponSets(null, Weapons.Spear), sets.Without(WeaponSlot.Hand));
+        Assert.Equal(new WeaponSets(Weapons.Scythe, null), sets.Without(WeaponSlot.Back));
+        Assert.Equal(sets.Without(WeaponSlot.Hand), sets.WithHandEmptied());
     }
 
     [Fact]

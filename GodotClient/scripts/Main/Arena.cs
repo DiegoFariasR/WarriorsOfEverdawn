@@ -65,6 +65,7 @@ public partial class Arena : Node3D
         }
 
         AddChild(new Arrows { Name = Arrows.NodeName });
+        AddChild(new Bolts { Name = Bolts.NodeName });
         AddChild(new GroundWeapons { Name = GroundWeapons.NodeName });
         AddChild(new Loot { Name = Loot.NodeName, OrbChance = _options.OrbChance });
         var market = new Market { Name = Market.NodeName };
@@ -89,7 +90,7 @@ public partial class Arena : Node3D
 
         if (_options.Bot)
         {
-            _selfTest = new NetSelfTest(_players, _hud) { Name = "NetSelfTest", TradeDrill = _options.TradeDrill };
+            _selfTest = new NetSelfTest(_players, _hud) { Name = "NetSelfTest", TradeDrill = _options.TradeDrill, BarrierDrill = _options.BarrierDrill };
             AddChild(_selfTest);
         }
 
@@ -101,7 +102,17 @@ public partial class Arena : Node3D
 
         if (_options.ArmourLineup is { } outfits)
         {
-            AddChild(new ArmourLineup(outfits) { Name = "ArmourLineup" });
+            AddChild(Lineup.OfArmour(outfits));
+        }
+
+        if (_options.WeaponLineup is { } shown)
+        {
+            AddChild(Lineup.OfWeapon(shown));
+        }
+
+        if (_options.MagicLineup is { } elements)
+        {
+            AddChild(Lineup.OfMagic(elements, _options.MagicBarriers));
         }
 
         if (_options.SwingSurvey)

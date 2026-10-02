@@ -73,7 +73,8 @@ public static class LootRules
         roll is >= 0f and < 1f ? roll : throw new ArgumentOutOfRangeException(nameof(roll), roll, "A roll is at least 0 and below 1");
 }
 
-// What a player has earned and not yet spent. Gold buys weapons, gold and orbs improve them; souls buy nothing yet.
+// What a player has earned and not yet spent. Gold buys weapons, gold and orbs improve them and armour, weapons and
+// orbs sell for gold; souls buy nothing yet.
 public sealed class Purse
 {
     public int Gold { get; private set; }
@@ -87,6 +88,13 @@ public sealed class Purse
     public void EarnSouls(int amount) => Souls += Earned(amount);
 
     public void EarnOrbs(int amount) => Orbs += Earned(amount);
+
+    public void Earn(Cost amount)
+    {
+        EarnGold(amount.Gold);
+        EarnSouls(amount.Souls);
+        EarnOrbs(amount.Orbs);
+    }
 
     public bool CanPay(Cost cost) => ShortOf(cost).IsNothing;
 

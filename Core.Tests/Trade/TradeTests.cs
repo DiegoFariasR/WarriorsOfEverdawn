@@ -117,7 +117,7 @@ public class TradeTests
             Assert.NotEmpty(items);
             Assert.True(items.Count <= TradeRules.Slots, seller.Id);
             Assert.Equal(items.Count, items.Select(i => i.Id).Distinct().Count());
-            Assert.All(items.Where(i => i.Unavailable == null), i => Assert.False(i.Cost.IsNothing, $"{seller.Id}: {i.Id}"));
+            Assert.All(items.Where(i => i.Unavailable == null), i => Assert.False(i.Cost.IsNothing && i.Pays.IsNothing, $"{seller.Id}: {i.Id}"));
             Assert.Same(seller, Sellers.ById(seller.Id));
             Assert.All(items, i => Assert.Equal(i, seller.Item(Anyone, i.Id)));
         }
@@ -131,13 +131,32 @@ public class TradeTests
     }
 
     [Fact]
-    public void The_weaponsmith_sells_every_weapon_plain_for_gold_alone()
+    public void The_weaponsmith_sells_every_weapon_of_steel_or_wood_plain_for_gold_alone()
     {
         var items = Sellers.Weaponsmith.ItemsFor(Anyone);
 
-        Assert.Equal(Weapons.All.OrderBy(w => w.Id), items.Select(i => i.Weapon!).OrderBy(w => w.Id));
+        Assert.Equal(Weapons.Arms.OrderBy(w => w.Id), items.Select(i => i.Weapon!).OrderBy(w => w.Id));
         Assert.All(items, i => Assert.Equal(new[] { Currency.Gold }, i.Cost.Parts.Select(p => p.Currency)));
         Assert.All(items, i => Assert.Null(i.Slot));
+    }
+
+    [Fact]
+    public void The_arcanist_sells_a_staff_for_every_element_plain_for_gold_alone()
+    {
+        var items = Sellers.Arcanist.ItemsFor(Anyone);
+
+        Assert.Equal(Weapons.Staffs, items.Select(i => i.Weapon!));
+        Assert.Equal(Elements.All, items.Select(i => i.Weapon!.Element!.Value));
+        Assert.All(items, i => Assert.Equal(new Cost(Gold: TradeRules.PlainWeaponPrice), i.Cost));
+        Assert.All(items, i => Assert.Null(i.Slot));
+    }
+
+    [Fact]
+    public void Between_them_the_weaponsmith_and_the_arcanist_sell_every_weapon_once()
+    {
+        var sold = Sellers.Weaponsmith.ItemsFor(Anyone).Concat(Sellers.Arcanist.ItemsFor(Anyone)).Select(i => i.Weapon!).ToList();
+
+        Assert.Equal(Weapons.All.OrderBy(w => w.Id), sold.OrderBy(w => w.Id));
     }
 
     [Fact]
@@ -288,6 +307,122 @@ public class TradeTests
         Assert.NotNull(best.Unavailable);
         Assert.Equal(Armours.AtTier(Armours.MaxTier), best.Armour);
         Assert.Equal(BuyOutcome.Unavailable, TradeRules.Buy(purse, best, 0f, down: false));
+    }
+
+    [Fact]
+    public void The_merchant_offers_gold_for_the_hand_the_back_and_an_orb_in_that_order()
+    {
+        var weapons = new WeaponSets(Weapons.Scythe, Weapons.AtLevel(Weapons.Spear, 4));
+
+        var offers = Sellers.Merchant.ItemsFor(new Buyer(weapons, ArmourTier: 0));
+
+        Assert.Equal(3, offers.Count);
+        Assert.Equal(new WeaponSlot?[] { WeaponSlot.Hand, WeaponSlot.Back, null }, offers.Select(o => o.Slot));
+        Assert.Equal(new[] { weapons.Active!.Name, weapons.Stowed!.Name }, offers.Take(2).Select(o => o.Name));
+        Assert.Equal(TradeRules.ResaleValue(weapons.Active), offers[0].Pays);
+        Assert.Equal(TradeRules.ResaleValue(weapons.Stowed), offers[1].Pays);
+        Assert.Same(TradeRules.OrbSale, offers[2]);
+        Assert.All(offers, o => Assert.True(o.IsSale && o.Weapon == null && o.Armour == null && o.Unavailable == null));
+        Assert.All(offers, o => Assert.Equal(new[] { Currency.Gold }, o.Pays.Parts.Select(p => p.Currency)));
+    }
+
+    [Fact]
+    public void A_weapon_sold_pays_its_gold_and_leaves_its_slot_empty()
+    {
+        var carried = new WeaponSets(Weapons.Scythe, Weapons.Spear);
+        var purse = PurseWith(gold: 7);
+
+        foreach (var slot in new[] { WeaponSlot.Back, WeaponSlot.Hand })
+        {
+            int before = purse.Gold;
+            var offer = TradeRules.Sale(carried, slot);
+
+            Assert.Equal(BuyOutcome.Bought, TradeRules.Buy(purse, offer, 0f, down: false));
+            Assert.Equal(before + TradeRules.ResaleValue(carried.In(slot)!).Gold, purse.Gold);
+            var (after, putDown) = TradeRules.After(carried, offer);
+            Assert.Equal(carried.Without(slot), after);
+            Assert.Null(putDown);
+            carried = after;
+        }
+
+        Assert.Equal(new WeaponSets(null, null), carried);
+    }
+
+    [Fact]
+    public void The_merchant_has_nothing_to_pay_for_an_empty_slot()
+    {
+        var purse = PurseWith(gold: 7);
+
+        var offers = Sellers.Merchant.ItemsFor(new Buyer(new WeaponSets(null, null), ArmourTier: 0));
+
+        Assert.All(offers.Take(2), o => Assert.NotNull(o.Unavailable));
+        Assert.All(offers.Take(2), o => Assert.Equal(BuyOutcome.Unavailable, TradeRules.Buy(purse, o, 0f, down: false)));
+        Assert.Equal(7, purse.Gold);
+    }
+
+    [Fact]
+    public void An_orb_sells_for_gold_and_only_from_a_purse_that_holds_one()
+    {
+        var purse = PurseWith(orbs: 1);
+
+        Assert.Equal(BuyOutcome.Bought, TradeRules.Buy(purse, TradeRules.OrbSale, 0f, down: false));
+        Assert.Equal((TradeRules.OrbPrice, 0), (purse.Gold, purse.Orbs));
+        Assert.Equal(BuyOutcome.CannotAfford, TradeRules.Buy(purse, TradeRules.OrbSale, 0f, down: false));
+        Assert.Equal((TradeRules.OrbPrice, 0), (purse.Gold, purse.Orbs));
+    }
+
+    [Fact]
+    public void Nobody_sells_from_out_of_reach_or_while_down()
+    {
+        var purse = PurseWith(orbs: 1);
+        var offer = TradeRules.Sale(WeaponSets.Default, WeaponSlot.Hand);
+
+        Assert.Equal(BuyOutcome.TooFar, TradeRules.Buy(purse, offer, TradeRules.Reach + 0.01f, down: false));
+        Assert.Equal(BuyOutcome.Down, TradeRules.Buy(purse, TradeRules.OrbSale, 0f, down: true));
+        Assert.Equal((0, 1), (purse.Gold, purse.Orbs));
+    }
+
+    [Fact]
+    public void A_better_weapon_sells_for_more_and_always_for_less_gold_than_it_took()
+    {
+        foreach (var plain in Weapons.All)
+        {
+            int last = 0;
+            for (int level = 0; level <= WeaponDefinition.MaxLevel; level++)
+            {
+                var weapon = Weapons.AtLevel(plain, level);
+                int pays = TradeRules.ResaleValue(weapon).Gold;
+
+                Assert.True(pays > last, $"{weapon.Id}");
+                Assert.True(pays < TradeRules.GoldPutInto(weapon), $"{weapon.Id}");
+                last = pays;
+            }
+        }
+
+        Assert.Equal(TradeRules.PlainWeaponPrice, TradeRules.GoldPutInto(Weapons.Scythe));
+        Assert.Equal(TradeRules.PlainWeaponPrice + TradeRules.ImprovementCost(1).Gold + TradeRules.ImprovementCost(2).Gold,
+            TradeRules.GoldPutInto(Weapons.AtLevel(Weapons.Scythe, 2)));
+    }
+
+    [Fact]
+    public void Buying_a_weapon_and_selling_it_back_loses_gold()
+    {
+        var purse = PurseWith(gold: TradeRules.PlainWeaponPrice);
+        var bought = Sellers.Weaponsmith.ItemsFor(Anyone)[0];
+
+        Assert.Equal(BuyOutcome.Bought, TradeRules.Buy(purse, bought, 0f, down: false));
+        var carried = TradeRules.After(new WeaponSets(null, null), bought).Sets;
+        Assert.Equal(BuyOutcome.Bought, TradeRules.Buy(purse, TradeRules.Sale(carried, WeaponSlot.Hand), 0f, down: false));
+
+        Assert.True(purse.Gold < TradeRules.PlainWeaponPrice);
+        Assert.False(purse.CanPay(bought.Cost));
+    }
+
+    [Fact]
+    public void A_trade_that_hands_nothing_over_leaves_what_is_carried_as_it_is()
+    {
+        Assert.Equal(WeaponSets.Default, TradeRules.After(WeaponSets.Default, TradeRules.OrbSale).Sets);
+        Assert.Equal(WeaponSets.Default, TradeRules.After(WeaponSets.Default, TradeRules.BetterArmour(0)).Sets);
     }
 
     [Fact]

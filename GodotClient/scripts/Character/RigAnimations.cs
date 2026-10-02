@@ -25,6 +25,7 @@ public static class RigAnimations
     public const string HitReact = "general/Hit_A";
     public const string SpinLoop = "melee/Melee_2H_Attack_Spinning";
     public const string Stab = "melee/Melee_2H_Attack_Stab";
+    public const string OneHandedStab = "melee/Melee_1H_Attack_Stab";
     public const string Guard = "melee/Melee_Blocking";
     public const string DashForward = "moveadv/Dodge_Forward";
     public const string DashBackward = "moveadv/Dodge_Backward";
@@ -39,6 +40,9 @@ public static class RigAnimations
     public const string BowDraw = "ranged/Ranged_Bow_Draw";
     public const string BowRelease = "ranged/Ranged_Bow_Release";
 
+    public const string MagicShoot = "ranged/Ranged_Magic_Shoot";
+    public const string MagicChannel = "ranged/Ranged_Magic_Spellcasting";
+
     private static readonly (string Name, string Path)[] Libraries =
     {
         ("move", "res://assets/animations/Rig_Medium_MovementBasic.glb"),
@@ -49,7 +53,7 @@ public static class RigAnimations
         ("ranged", "res://assets/animations/Rig_Medium_CombatRanged.glb"),
     };
 
-    private static readonly string[] LoopingClips = { Idle, UnarmedIdle, Run, StrafeLeft, StrafeRight, Backpedal, SkeletonIdle, SkeletonWalk, SpinLoop, Guard };
+    private static readonly string[] LoopingClips = { Idle, UnarmedIdle, Run, StrafeLeft, StrafeRight, Backpedal, SkeletonIdle, SkeletonWalk, SpinLoop, Guard, MagicChannel };
 
     // A clip ("library/name", as the mixers name them) straight from its library, for reading its tracks.
     public static Animation Load(string clip)
