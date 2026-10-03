@@ -36,8 +36,8 @@ public partial class StatusShow : Node3D
         {
             CallOuts++;
             var body = GetParent<Node3D>();
-            // Drawn through floors, so only over a body on the camera's subject's floor.
-            if (ArenaMap.In(GetTree()).OnSubjectsFloor(body.GlobalPosition))
+            // Drawn through floors, so only over a body on the camera's subject's floor; over a skeleton, only near it.
+            if (ArenaMap.In(GetTree()).ShowsOver(body))
             {
                 FloatingText.Spawn(body, $"{name}!", colour);
             }

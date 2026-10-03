@@ -81,7 +81,7 @@ public static class CharacterRig
         return hand;
     }
 
-    public static BoneAttachment3D AttachToBack(Node3D body, WeaponLook look)
+    public static BoneAttachment3D AttachToBack(Node3D body, WeaponLook? look)
     {
         var back = Attachment(body, "Back", BackBone);
         HoldOnBack(back, look);

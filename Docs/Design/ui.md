@@ -23,7 +23,7 @@ Ported from Everdawn's `EverdawnTheme` into `GodotClient/scripts/Theme/UiTheme.c
 | Seller names | Over each seller | Its name in gold, and above it "E - trade" while the player is in reach and free to trade; on the screen, one size in every camera (`SellerLabels`) |
 | Shop window | Centre, over a dimmed game, while trading | The one window every seller uses: heading and purse, twelve numbered slots, the chosen goods with price and what buying does, the Buy button, the keys ([trade.md](trade.md)) |
 | Mode notice | Top centre | The camera mode on start and on each switch, and the new weapon sets on each change (fades after 2.5 s) |
-| Overhead bars | Over every living skeleton and every other player who is up | A thin HP bar (48 x 5 px) with no frame and no number, small enough to leave the fight in view. Fill: red for skeletons and PvP opponents, blue for co-op allies (Everdawn's TeamPlayer). Removed when a skeleton dies, hidden while a player is down |
+| Overhead bars | Over every living skeleton within 12 m of the player (`ArenaMap.SkeletonOverheadReach`; its statuses and damage numbers too) and every other player who is up | A thin HP bar (48 x 5 px) with no frame and no number, small enough to leave the fight in view. Fill: red for skeletons and PvP opponents, blue for co-op allies (Everdawn's TeamPlayer). Removed when a skeleton dies, hidden while a player is down |
 
 All values are live: HP from the host-owned vitals, skeleton HP from the replicated enemy state, stats from `Core`, mana from the player's own pool.
 

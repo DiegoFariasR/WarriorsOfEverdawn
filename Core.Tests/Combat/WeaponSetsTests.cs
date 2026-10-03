@@ -8,6 +8,9 @@ namespace WarriorsOfEverdawn.Core.Tests.Combat;
 
 public class WeaponSetsTests
 {
+    // Both slots full: a greatsword in hand and a spear on the back.
+    private static readonly WeaponSets Carrying = new(Weapons.Greatsword, Weapons.Spear);
+
     [Fact]
     public void Swapping_puts_the_back_weapon_in_hand_and_back_again()
     {
@@ -88,7 +91,7 @@ public class WeaponSetsTests
     {
         foreach (var stowed in Weapons.All)
         {
-            var sets = WeaponSets.StartingWith(stowed).Swapped();
+            var sets = new WeaponSets(stowed == Weapons.Greatsword ? Weapons.Spear : Weapons.Greatsword, stowed);
             var inHand = new List<WeaponDefinition>();
             for (int i = 0; i < Weapons.All.Count - 1; i++)
             {
@@ -102,30 +105,31 @@ public class WeaponSetsTests
     }
 
     [Fact]
-    public void Starting_with_any_weapon_carries_a_different_one_on_the_back()
+    public void A_player_starts_with_one_weapon_in_hand_and_nothing_on_the_back()
     {
         foreach (var weapon in Weapons.All)
         {
             var sets = WeaponSets.StartingWith(weapon);
 
             Assert.Same(weapon, sets.Active);
-            Assert.NotSame(weapon, sets.Stowed);
+            Assert.Null(sets.Stowed);
         }
 
+        Assert.NotNull(WeaponSets.Default.Active);
         Assert.Equal(WeaponSets.Default, WeaponSets.StartingWith(WeaponSets.Default.Active!));
     }
 
     [Fact]
     public void A_weapon_bought_fills_the_hand_first_then_the_back_and_puts_nothing_down()
     {
-        var emptyHanded = WeaponSets.Default.WithHandEmptied();
-        var emptyBacked = new WeaponSets(WeaponSets.Default.Active, null);
+        var emptyHanded = new WeaponSets(null, Weapons.Spear);
+        var emptyBacked = new WeaponSets(Weapons.Greatsword, null);
 
         var (intoHand, fromHand) = emptyHanded.WithBought(Weapons.Scythe);
         var (ontoBack, fromBack) = emptyBacked.WithBought(Weapons.Scythe);
 
-        Assert.Equal(new WeaponSets(Weapons.Scythe, WeaponSets.Default.Stowed), intoHand);
-        Assert.Equal(new WeaponSets(WeaponSets.Default.Active, Weapons.Scythe), ontoBack);
+        Assert.Equal(new WeaponSets(Weapons.Scythe, Weapons.Spear), intoHand);
+        Assert.Equal(new WeaponSets(Weapons.Greatsword, Weapons.Scythe), ontoBack);
         Assert.Null(fromHand);
         Assert.Null(fromBack);
     }
@@ -133,20 +137,20 @@ public class WeaponSetsTests
     [Fact]
     public void A_weapon_bought_with_both_slots_full_takes_the_hand_and_the_one_it_held_is_put_down()
     {
-        var (sets, putDown) = WeaponSets.Default.WithBought(Weapons.Scythe);
+        var (sets, putDown) = Carrying.WithBought(Weapons.Scythe);
 
-        Assert.Equal(new WeaponSets(Weapons.Scythe, WeaponSets.Default.Stowed), sets);
-        Assert.Same(WeaponSets.Default.Active, putDown);
+        Assert.Equal(new WeaponSets(Weapons.Scythe, Carrying.Stowed), sets);
+        Assert.Same(Carrying.Active, putDown);
     }
 
     [Fact]
     public void A_weapon_already_carried_can_be_bought_again()
     {
-        var (sets, putDown) = WeaponSets.Default.WithBought(WeaponSets.Default.Stowed!);
+        var (sets, putDown) = Carrying.WithBought(Carrying.Stowed!);
 
-        Assert.Same(WeaponSets.Default.Stowed, sets.Active);
-        Assert.Same(WeaponSets.Default.Stowed, sets.Stowed);
-        Assert.Same(WeaponSets.Default.Active, putDown);
+        Assert.Same(Carrying.Stowed, sets.Active);
+        Assert.Same(Carrying.Stowed, sets.Stowed);
+        Assert.Same(Carrying.Active, putDown);
     }
 
     [Fact]
@@ -173,11 +177,11 @@ public class WeaponSetsTests
     [Fact]
     public void A_slot_is_read_and_filled_by_name()
     {
-        var sets = WeaponSets.Default.With(WeaponSlot.Back, Weapons.Scythe);
+        var sets = Carrying.With(WeaponSlot.Back, Weapons.Scythe);
 
-        Assert.Same(WeaponSets.Default.Active, sets.In(WeaponSlot.Hand));
+        Assert.Same(Carrying.Active, sets.In(WeaponSlot.Hand));
         Assert.Same(Weapons.Scythe, sets.In(WeaponSlot.Back));
-        Assert.Equal(new WeaponSets(Weapons.Scythe, WeaponSets.Default.Stowed), WeaponSets.Default.With(WeaponSlot.Hand, Weapons.Scythe));
+        Assert.Equal(new WeaponSets(Weapons.Scythe, Carrying.Stowed), Carrying.With(WeaponSlot.Hand, Weapons.Scythe));
     }
 
     [Fact]

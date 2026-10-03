@@ -21,6 +21,10 @@ public partial class ArenaMap
     // above they would cover its doorways, on the floor the player is on.
     private const float CutawayReach = 5f;
 
+    // What floats over a skeleton (its bar, its statuses, the numbers of what it takes) is drawn only this near the
+    // camera's subject: one further off is not in the fight yet, and its bar only crowds the view.
+    public const float SkeletonOverheadReach = 12f;
+
     // A group for what stands or lies on a floor and is hidden with it, besides players and skeletons: sellers, gold,
     // orbs, weapons on the ground.
     public const string OnAFloor = "on_a_floor";
@@ -123,6 +127,14 @@ public partial class ArenaMap
     // over everything, so one over a body on another floor would show through the floor between.
     public bool OnSubjectsFloor(Vector3 position) =>
         CameraSubject == null || !IsInstanceValid(CameraSubject) || Floors.SameLevel(CameraSubject.GlobalPosition.Y, position.Y);
+
+    // Whether what floats over this body is drawn: on the subject's floor, and for a skeleton within
+    // SkeletonOverheadReach of the subject.
+    public bool ShowsOver(Node3D body) =>
+        OnSubjectsFloor(body.GlobalPosition) && (body is not EnemyCharacter || NearSubject(body.GlobalPosition, SkeletonOverheadReach));
+
+    private bool NearSubject(Vector3 position, float within) =>
+        CameraSubject == null || !IsInstanceValid(CameraSubject) || Yaw.Flat(position - CameraSubject.GlobalPosition).Length() <= within;
 
     private static void Show(IReadOnlyList<MeshInstance3D> meshes, bool shown)
     {

@@ -13,14 +13,13 @@ public enum WeaponSlot
 // can be empty: a weapon dropped leaves its slot free until another is picked up.
 public sealed record WeaponSets(WeaponDefinition? Active, WeaponDefinition? Stowed)
 {
-    public static WeaponSets Default { get; } = new(Weapons.Greatsword, Weapons.Spear);
+    // A player starts with one weapon, in hand, and gold to buy more (Purse.StartingGold).
+    public static WeaponSets Default { get; } = new(Weapons.Greatsword, null);
 
     public bool HasFreeSlot => Active == null || Stowed == null;
 
-    // The sets as a player starting with this weapon in hand carries them: the default back weapon, unless that is
-    // the one in hand.
-    public static WeaponSets StartingWith(WeaponDefinition active) =>
-        new(active, active == Default.Stowed ? Default.Active : Default.Stowed);
+    // The sets as a player starting with this weapon in hand carries them: it alone, as the default.
+    public static WeaponSets StartingWith(WeaponDefinition active) => new(active, null);
 
     public WeaponDefinition? In(WeaponSlot slot) => slot == WeaponSlot.Hand ? Active : Stowed;
 

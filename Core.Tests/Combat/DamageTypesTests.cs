@@ -80,21 +80,21 @@ public class DamageTypesTests
     }
 
     [Fact]
-    public void Everdawns_signature_spells_are_held_by_the_staffs_of_their_own_elements()
+    public void Everdawns_signature_spells_are_held_by_the_wands_of_their_own_elements()
     {
-        Assert.Equal("ice-blizzard", Weapons.Staff(Element.Ice).Secondary.Id);
-        Assert.Equal("lightning-storm", Weapons.Staff(Element.Lightning).Secondary.Id);
-        Assert.Equal(DamageType.Ice, Weapons.Staff(Element.Ice).Secondary.Type);
-        Assert.Equal(DamageType.Lightning, Weapons.Staff(Element.Lightning).Secondary.Type);
+        Assert.Equal("ice-blizzard", Weapons.Wand(Element.Ice).Secondary.Id);
+        Assert.Equal("lightning-storm", Weapons.Wand(Element.Lightning).Secondary.Id);
+        Assert.Equal(DamageType.Ice, Weapons.Wand(Element.Ice).Secondary.Type);
+        Assert.Equal(DamageType.Lightning, Weapons.Wand(Element.Lightning).Secondary.Type);
     }
 
     [Fact]
-    public void A_staff_of_a_natural_element_and_the_staff_of_its_weaponised_form_hold_different_spells()
+    public void A_wand_of_a_natural_element_and_the_wand_of_its_weaponised_form_hold_different_spells()
     {
         foreach (var (natural, weaponised) in new[] { (Element.Water, Element.Ice), (Element.Wind, Element.Lightning) })
         {
-            var mild = Weapons.Staff(natural).Secondary;
-            var sharp = Weapons.Staff(weaponised).Secondary;
+            var mild = Weapons.Wand(natural).Secondary;
+            var sharp = Weapons.Wand(weaponised).Secondary;
 
             Assert.NotEqual(mild.Name, sharp.Name);
             Assert.True(mild.ManaCost < sharp.ManaCost, $"{mild.Name} costs {mild.ManaCost}, {sharp.Name} {sharp.ManaCost}");

@@ -21,7 +21,7 @@ A skill has one type of its own (`SkillDefinition.Type`, which every skill has t
 | Greatsword, scythe, sword and shield, claws | Slash |
 | Quarterstaff, warhammer | Blunt |
 | Spear, bow | Pierce |
-| A staff's or a wand's bolt or volley, a staff's held spell, a wand's burst | Its element's: one of the eight |
+| A staff's or a wand's bolt or volley, a wand's held spell, a staff's burst | Its element's: one of the eight |
 | A staff's or a wand's poke | Blunt |
 | Skeleton Minion, Skeleton Warrior | Slash |
 | Skeleton Archer | Pierce |
@@ -65,7 +65,7 @@ Every body, skeleton or player, carries six bars (`StatusBars`), as in Everdawn:
 - **Decay**, a second: cold 15, stun 20, bleed 10, illumination and corruption 10, burn half (15 at least).
 - **Casting builds on the caster**: starting a skill adds 20 illumination to the caster for what of it is divine, and 20 corruption for what is void (by the share, on an enchanted weapon: 8). A held spell counts once, as it starts. So a divine caster that keeps casting is blessed in about four casts and a void caster defiled; a foe's void blow takes the blessing off, and a divine one the corruption.
 - **Burns and wounds bite past any guard or barrier.** A player's armour takes its share of each as of any blow.
-- **Buildups** (`Skills`, first pass): a swing 20, each turn of a Spin 6, a lunge 30, a bolt 30, each dart of a volley 15, each cycle of a held spell 8, a wand's burst 30. Of an enchanted blow each part builds its share: 60% on the weapon's bar, 40% on the element's. That is what an enchantment adds.
+- **Buildups** (`Skills`, first pass): a swing 20, each turn of a Spin 6, a lunge 30, a bolt 30, each dart of a volley 15, each cycle of a held spell 8, a staff's burst 30. Of an enchanted blow each part builds its share: 60% on the weapon's bar, 40% on the element's. That is what an enchantment adds.
 - **A skeleton's own blows build nothing yet** (`Buildup` 0): a minion's slash that left players bleeding 5% of their HP a second would near double what it deals. So players take statuses from other players only (PvP), and from their own casting.
 - The host keeps the bars, as it keeps HP, and sends each body's statuses as one number (`StatusMask`); a player's own machine obeys it ([multiplayer.md](multiplayer.md)).
 

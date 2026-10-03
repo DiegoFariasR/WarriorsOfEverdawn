@@ -53,7 +53,7 @@ public sealed record GoldDrop(int Min, int Max)
 public static class LootRules
 {
     // Centre of a player to something on the ground: walking this close picks it up, with no button.
-    public const float PickupRadius = 1.5f;
+    public const float PickupRadius = 2f;
 
     // It lies this long before it can be picked up, so it is seen to fall even under a player's feet.
     public const float SettleTime = 0.4f;
@@ -93,6 +93,9 @@ public static class LootRules
 // orbs sell for gold; souls buy nothing yet.
 public sealed class Purse
 {
+    // What every player has to spend as a session starts, with one weapon in hand (WeaponSets.Default).
+    public const int StartingGold = 100;
+
     public int Gold { get; private set; }
 
     public int Souls { get; private set; }

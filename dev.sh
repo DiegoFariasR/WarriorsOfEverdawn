@@ -18,9 +18,9 @@ Build and test:
 Godot self-tests (headless):
   net-test          Co-op host + $COOP_CLIENTS bot clients, one per weapon; asserts movement, combat, visuals and HUD reach every peer
   pvp-test          PvP host + 1 bot client, no skeletons; asserts players hit and damage each other
-  magic-test        Host + $MAGIC_CLIENTS bot clients, $MAGIC_STAFFS with magic staffs, one with wands and one with enchanted weapons;
+  magic-test        Host + $MAGIC_CLIENTS bot clients, $MAGIC_WANDS with wands, one with staffs and one with enchanted weapons;
                     asserts bolts and volleys are thrown, land and are seen by the others, area spells are drawn, a
-                    wand's ball bursts, barriers take blows and come back, and every weapon of an element shows it
+                    staff's ball bursts, barriers take blows and come back, and every weapon of an element shows it
   trade-test        For each seller, a host + 1 bot client beside it with gold and orbs; asserts each opens the
                     shop window, gets what it can pay for (or sells what it carries), is refused after, and ends
                     with the right weapons in hand and the cost taken or the pay given
@@ -51,7 +51,7 @@ Screenshots (real renderer; off-screen, minimized, unfocused window):
                     [Outfit,Outfit,...] shows those outfits instead (characters of the kit's parts catalogue)
   weapon-lineup <id>  The knight holding that weapon in its stance, its guard and each skill as it lands, and
                     carrying it on the back; saves _staging/weapon-lineup.png
-  magic-lineup      The staffs casting: each holds its spell on an area, what it throws beside it. With nothing
+  magic-lineup      The wands casting: each holds its spell on an area, what it throws beside it. With nothing
                     named, all eight in two pictures: _staging/magic-lineup-1.png and -2.png. [fire,water,...]
                     shows those in _staging/magic-lineup.png; [barriers] each inside its barrier
 
@@ -342,8 +342,8 @@ co_op_session() {
             "weapon trails missing or lingering" || failed=1
         gate "$log" "$file" flash-check 'v["enemy_flashes"] + 0 >= 1 && v["player_flashes"] + 0 >= 1 && v["lingering_frames"] + 0 == 0' \
             "hit flashes missing or lingering" || failed=1
-        gate "$log" "$file" ui-check 'v["hp_mismatch_frames"] + 0 == 0 && v["bar_mismatch_frames"] + 0 == 0 && v["mana_mismatch_frames"] + 0 == 0 && v["max_enemy_bars"] + 0 >= 1 && v["max_player_bars"] + 0 >= 1' \
-            "HUD or overhead bars not showing the real values" || failed=1
+        gate "$log" "$file" ui-check 'v["hp_mismatch_frames"] + 0 == 0 && v["bar_mismatch_frames"] + 0 == 0 && v["mana_mismatch_frames"] + 0 == 0 && v["max_enemy_bars"] + 0 >= 1 && v["max_player_bars"] + 0 >= 1 && v["skeleton_bar_frames"] + 0 >= 1 && v["far_skeleton_bar_frames"] + 0 == 0' \
+            "HUD or overhead bars not showing the real values, no bar drawn over a skeleton near the player, or one drawn over a skeleton too far off" || failed=1
 
         # Archers' arrows reach every machine, each drawn where it flies (the arrow model once carried an offset that drew
         # it 9.85 away), and every machine clears them once they have flown their distance.
@@ -379,7 +379,7 @@ co_op_session() {
         # up, and what it shows on the ground matches what it was told, a model for each thing lying and no other (the
         # playtest's leak check leaves them out for that); every player has earned gold, orbs and souls, and the HUD
         # shows what it has.
-        gate "$log" "$file" loot-check 'v["piles_seen"] + 0 >= 1 && v["piles_taken_seen"] + 0 >= 1 && v["piles_on_ground"] + 0 == v["piles_seen"] - v["piles_taken_seen"] && v["orbs_seen"] + 0 >= 1 && v["orbs_taken_seen"] + 0 >= 1 && v["orbs_on_ground"] + 0 == v["orbs_seen"] - v["orbs_taken_seen"] && v["gold_here"] + 0 >= 1 && v["orbs_here"] + 0 >= 1 && v["souls_here"] + 0 >= 1 && v["purse_mismatch_frames"] + 0 == 0 && v["loot_model_mismatch_frames"] + 0 == 0' \
+        gate "$log" "$file" loot-check 'v["piles_seen"] + 0 >= 1 && v["piles_taken_seen"] + 0 >= 1 && v["piles_on_ground"] + 0 == v["piles_seen"] - v["piles_taken_seen"] && v["orbs_seen"] + 0 >= 1 && v["orbs_taken_seen"] + 0 >= 1 && v["orbs_on_ground"] + 0 == v["orbs_seen"] - v["orbs_taken_seen"] && v["gold_here"] + 0 > v["gold_start"] + 0 && v["orbs_here"] + 0 >= 1 && v["souls_here"] + 0 >= 1 && v["purse_mismatch_frames"] + 0 == 0 && v["loot_model_mismatch_frames"] + 0 == 0' \
             "no gold or no orb dropped or picked up, models not matching what lies on the ground, none earned, or the HUD showing other amounts" || failed=1
 
         # A dash thrown with the attack button carries a thrust: every bot lunges, every machine sees it, the thrust's hit
@@ -434,9 +434,9 @@ co_op_session() {
     gate host "$logs/host.log" guard-check 'v["blocks"] + 0 >= 1 && v["parries"] + 0 >= 1 && v["enemies_parried"] + 0 >= 1' \
         "guards never blocked or parried, or a parry left the skeleton swinging" || failed=1
 
-    # The host decides loot, and its player is there from the first monster: it has exactly the gold collected (never
-    # more than fell) and one soul for every monster it saw die.
-    gate host "$logs/host.log" loot-check 'v["gold_here"] + 0 == v["gold_collected"] + 0 && v["gold_collected"] + 0 <= v["gold_dropped"] + 0 && v["orbs_here"] + 0 == v["orbs_collected"] + 0 && v["souls_here"] + 0 == v["deaths_since_here"] + 0' \
+    # The host decides loot, and its player is there from the first monster: it has exactly the gold it started with
+    # and the gold collected (never more than fell), and one soul for every monster it saw die.
+    gate host "$logs/host.log" loot-check 'v["gold_here"] + 0 == v["gold_start"] + v["gold_collected"] && v["gold_collected"] + 0 <= v["gold_dropped"] + 0 && v["orbs_here"] + 0 == v["orbs_collected"] + 0 && v["souls_here"] + 0 == v["deaths_since_here"] + 0' \
         "the host's player has other gold than was collected, or other souls than monsters died" || failed=1
 
     # The host decides arrow hits; bots keep moving, but arrows still find them (8 of 11 in the first run).
@@ -707,13 +707,13 @@ trade_session() {
     return "$failed"
 }
 
-# Four staffs in hand and the other four on the backs, so every element's bolt or volley, area spell and barrier is
-# cast in the session; a wand, whose ball bursts; and a sixth player with an enchanted, improved bow in hand, whose
-# arrows fly as the bolts do, and an enchanted greatsword on the back. Waves tripled: with five casters, doubled ones left the wand's ball nothing to burst
-# on about one run in seven. In order: the staffs, the wand, the rest.
-MAGIC_WEAPONS=(fire-staff water-staff earth-staff ice-staff fire-wand bow~ice+2)
-MAGIC_BACK_WEAPONS=(wind-staff void-staff divine-staff lightning-staff lightning-wand greatsword~wind)
-MAGIC_STAFFS=4
+# Four wands in hand and the other four on the backs, so every element's bolt or volley, area spell and barrier is
+# cast in the session; a staff, whose ball bursts; and a sixth player with an enchanted, improved bow in hand, whose
+# arrows fly as the bolts do, and an enchanted greatsword on the back. Waves tripled: with five casters, doubled ones
+# left the ball nothing to burst on about one run in seven. In order: the wands, the staff, the rest.
+MAGIC_WEAPONS=(fire-wand water-wand earth-wand ice-wand fire-staff bow~ice+2)
+MAGIC_BACK_WEAPONS=(wind-wand void-wand divine-wand lightning-wand lightning-staff greatsword~wind)
+MAGIC_WANDS=4
 MAGIC_CASTERS=5
 MAGIC_CLIENTS=5
 MAGIC_HOST_SECONDS=44
@@ -740,17 +740,17 @@ magic_test() {
                 "no barrier shown here, this player's never taking a blow, or never coming back" || failed=1
         fi
 
-        if [ "$player" -lt "$MAGIC_STAFFS" ]; then
-            # The spell held on an area: drawn here in rounds of strikes.
+        if [ "$player" -lt "$MAGIC_WANDS" ]; then
+            # The wand's spell held on an area: drawn here in rounds of strikes.
             gate "$log" "$file" magic-check 'v["area_rounds_here"] + 0 >= 2 && v["area_frames_here"] + 0 >= 1 && v["strikes_most"] + 0 >= 1' \
                 "no spell held on an area here, or no strikes drawn" || failed=1
         elif [ "$player" -lt "$MAGIC_CASTERS" ]; then
-            # The wand's ball: thrown, burst, and some burst caught a body.
+            # The staff's ball: thrown, burst, and some burst caught a body.
             gate "$log" "$file" magic-check 'v["blasts_here"] + 0 >= 1 && v["blast_caught_most"] + 0 >= 1' \
                 "no ball burst here, or no burst caught a body" || failed=1
         else
-            # No wand here: the wand's bursts are seen from afar.
-            gate "$log" "$file" magic-check 'v["blasts_seen_remote"] + 0 >= 1' "the wand's bursts unseen here" || failed=1
+            # No staff here: the staff's bursts are seen from afar.
+            gate "$log" "$file" magic-check 'v["blasts_seen_remote"] + 0 >= 1' "the staff's bursts unseen here" || failed=1
         fi
 
         # What the others cast is seen here: their bolts, each ending in a burst and none outliving its flight, their
@@ -768,10 +768,10 @@ magic_test() {
         player=$((player + 1))
     done
 
-    # On the host, where hits are decided: every caster's bolts landed, every staff's area spell, the wand's bursts,
+    # On the host, where hits are decided: every caster's bolts landed, every wand's area spell, the staff's bursts,
     # and the enchanted weapons' blows as part magic.
     local host="$logs/host.log" field peers wanted
-    for field in bolt_hits:$MAGIC_CASTERS area_hits:$MAGIC_STAFFS blast_hits:$((MAGIC_CASTERS - MAGIC_STAFFS)) barrier_drills:$MAGIC_CASTERS barrier_took:$MAGIC_CASTERS; do
+    for field in bolt_hits:$MAGIC_CASTERS area_hits:$MAGIC_WANDS blast_hits:$((MAGIC_CASTERS - MAGIC_WANDS)) barrier_drills:$MAGIC_CASTERS barrier_took:$MAGIC_CASTERS; do
         wanted=${field#*:}
         field=${field%:*}
         peers=$(count_positive_peers "$host" magic-host "$field")
@@ -942,7 +942,7 @@ weapon_lineup() {
     echo "weapon-lineup: $ROOT/_staging/weapon-lineup.png"
 }
 
-# The staffs casting: each of the elements named ("fire,void") holds its spell on an area with what it throws beside
+# The wands casting: each of the elements named ("fire,void") holds its spell on an area with what it throws beside
 # it. With "barriers", every staff's figure inside its barrier instead. All eight casting are wider than the field
 # between the fortresses can frame, so with none named they are taken four at a time.
 magic_lineup() {

@@ -9,9 +9,9 @@ using WarriorsOfEverdawn.Util;
 
 namespace WarriorsOfEverdawn.Main;
 
-// An HP bar over every living skeleton and every other player who is up: a thin bar with no frame and no number,
-// small enough to leave the fight in view. The fill tells them apart: red for skeletons and PvP opponents, blue for
-// co-op allies. Screen-space, placed each frame from the character's position.
+// An HP bar over every living skeleton near the player (ArenaMap.ShowsOver) and every other player who is up: a thin
+// bar with no frame and no number, small enough to leave the fight in view. The fill tells them apart: red for
+// skeletons and PvP opponents, blue for co-op allies. Screen-space, placed each frame from the character's position.
 public partial class OverheadBars : Control
 {
     private const float EnemyHeight = 1.95f;
@@ -33,8 +33,9 @@ public partial class OverheadBars : Control
     // Statuses named over bars right now, all bars together.
     public int StatusesNamed => _bars.Values.Sum(entry => entry.StatusesNamed);
 
-    public IEnumerable<(Node3D Target, int Shown)> Shown =>
-        _bars.Where(pair => IsInstanceValid(pair.Key)).Select(pair => (pair.Key, (int)pair.Value.Bar.Value));
+    // Every bar, with the HP it shows and whether it is drawn now.
+    public IEnumerable<(Node3D Target, int Shown, bool Drawn)> Shown =>
+        _bars.Where(pair => IsInstanceValid(pair.Key)).Select(pair => (pair.Key, (int)pair.Value.Bar.Value, pair.Value.Bar.Visible));
 
     public override void _Ready()
     {
@@ -69,7 +70,7 @@ public partial class OverheadBars : Control
             entry.Bar.Value = target.Hp;
 
             var overhead = Overhead.Point(Camera, target.Node.GlobalPosition, target.Height, Girth);
-            entry.Bar.Visible = target.Node.Visible && map.OnSubjectsFloor(target.Node.GlobalPosition) && !Camera.IsPositionBehind(overhead);
+            entry.Bar.Visible = target.Node.Visible && map.ShowsOver(target.Node) && !Camera.IsPositionBehind(overhead);
             entry.Bar.Position = Camera.UnprojectPosition(overhead) - BarSize / 2f;
         }
     }

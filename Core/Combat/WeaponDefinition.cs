@@ -100,11 +100,11 @@ public static class Weapons
     // Weapons of steel and wood: what the weaponsmith sells.
     public static IReadOnlyList<WeaponDefinition> Arms { get; } = new[] { Greatsword, Quarterstaff, Spear, Scythe, SwordAndShield, Bow, Claws, Warhammer };
 
-    // A magic staff for each element: a bolt or a volley, a spell held on an area, and the barrier.
+    // A magic staff for each element: a bolt or a volley, a ball that bursts, and the barrier.
     public static IReadOnlyList<WeaponDefinition> Staffs { get; } = Elements.All.Select(StaffFor).ToList();
 
     // A wand and book for each element, one weapon as a sword and shield are: the staff's bolt or volley and its
-    // barrier, and in place of the spell held on an area a ball thrown to burst.
+    // barrier, and in place of the staff's ball a spell held on an area.
     public static IReadOnlyList<WeaponDefinition> Wands { get; } = Elements.All.Select(WandFor).ToList();
 
     // The plain makes. Also the order the weapon key cycles through.
@@ -121,7 +121,7 @@ public static class Weapons
     private static WeaponDefinition WandFor(Element element)
     {
         var skills = Skills.WandFor(element);
-        return new WeaponDefinition($"{Elements.IdOf(element)}-wand", $"{element} wand", skills.Primary, skills.Burst, skills.Lunge, Barrier)
+        return new WeaponDefinition($"{Elements.IdOf(element)}-wand", $"{element} wand", skills.Primary, skills.Channel, skills.Lunge, Barrier)
         {
             Element = element,
         };
@@ -130,7 +130,7 @@ public static class Weapons
     private static WeaponDefinition StaffFor(Element element)
     {
         var skills = Skills.StaffOf(element);
-        return new WeaponDefinition($"{Elements.IdOf(element)}-staff", $"{element} staff", skills.Primary, skills.Channel, skills.Lunge, Barrier)
+        return new WeaponDefinition($"{Elements.IdOf(element)}-staff", $"{element} staff", skills.Primary, skills.Burst, skills.Lunge, Barrier)
         {
             Element = element,
         };

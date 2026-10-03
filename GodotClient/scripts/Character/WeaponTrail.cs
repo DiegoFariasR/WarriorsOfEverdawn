@@ -5,7 +5,9 @@ namespace WarriorsOfEverdawn.Character;
 
 // Ribbon behind a held weapon: while recording, each frame samples an edge (from partway out towards the striking
 // point to the point itself) and the mesh joins the edges sampled in the last Lifetime seconds, fading with age. Adapted from Everdawn's
-// WeaponTrail; edges expire by age rather than one per frame, so the trail looks the same at any frame rate.
+// WeaponTrail; edges expire by age rather than one per frame, so the trail looks the same at any frame rate. An
+// enchanted weapon's trail is of its element: in the colour the element leads with, with the element's shader over
+// it as over the weapon (ElementLooks.Enchantment).
 public partial class WeaponTrail : MeshInstance3D
 {
     private const int MaxEdges = 32;
@@ -13,6 +15,10 @@ public partial class WeaponTrail : MeshInstance3D
     private const float FollowThrough = 0.08f;
     private const float Lifetime = 0.15f;
     private const float MinEdgeDistance = 0.04f;
+
+    // Along the ribbon an edge's texture coordinate is the moment it was laid, so the element's pattern stays where
+    // the blade put it instead of sliding along the trail as it ages.
+    private const float UvPerSecond = 6f;
 
     // The trail starts this far out towards the striking point, so it follows the blade rather than the grip.
     private const float BaseFraction = 0.4f;
@@ -23,6 +29,8 @@ public partial class WeaponTrail : MeshInstance3D
     private readonly ArrayMesh _mesh = new();
     private readonly BoneAttachment3D _hand;
     private readonly StandardMaterial3D _material;
+    private readonly Color _plainTint;
+    private Element? _element;
     private Vector3[] _points = System.Array.Empty<Vector3>();
     private int _edgeCount;
     private float _clock;
@@ -30,6 +38,7 @@ public partial class WeaponTrail : MeshInstance3D
     public WeaponTrail(BoneAttachment3D hand, Color tint)
     {
         _hand = hand;
+        _plainTint = tint;
         _material = new StandardMaterial3D
         {
             Transparency = BaseMaterial3D.TransparencyEnum.Alpha,
@@ -50,6 +59,18 @@ public partial class WeaponTrail : MeshInstance3D
     }
 
     public bool Recording { get; set; }
+
+    // The enchantment of the weapon in hand, if any.
+    public Element? Element
+    {
+        get => _element;
+        set
+        {
+            _element = value;
+            _material.AlbedoColor = value is { } element ? ElementLooks.For(element).Primary : _plainTint;
+            MaterialOverlay = value is { } enchantment ? ElementLooks.Enchantment(enchantment) : null;
+        }
+    }
 
     // Seconds a trail outlives the last edge it recorded.
     public static float FadeTime => Lifetime;
@@ -159,6 +180,7 @@ public partial class WeaponTrail : MeshInstance3D
 
         var vertices = new Vector3[_edgeCount * 2];
         var colors = new Color[_edgeCount * 2];
+        var uvs = new Vector2[_edgeCount * 2];
         var indices = new int[(_edgeCount - 1) * 6];
         for (int i = 0; i < _edgeCount; i++)
         {
@@ -169,6 +191,8 @@ public partial class WeaponTrail : MeshInstance3D
             vertices[i * 2 + 1] = _tips[i];
             colors[i * 2] = new Color(1f, 1f, 1f, alpha * 0.15f);
             colors[i * 2 + 1] = new Color(1f, 1f, 1f, alpha * 0.7f);
+            uvs[i * 2] = new Vector2(_born[i] * UvPerSecond, 0f);
+            uvs[i * 2 + 1] = new Vector2(_born[i] * UvPerSecond, 1f);
         }
 
         for (int i = 0; i < _edgeCount - 1; i++)
@@ -186,6 +210,7 @@ public partial class WeaponTrail : MeshInstance3D
         arrays.Resize((int)Godot.Mesh.ArrayType.Max);
         arrays[(int)Godot.Mesh.ArrayType.Vertex] = vertices;
         arrays[(int)Godot.Mesh.ArrayType.Color] = colors;
+        arrays[(int)Godot.Mesh.ArrayType.TexUV] = uvs;
         arrays[(int)Godot.Mesh.ArrayType.Index] = indices;
         _mesh.AddSurfaceFromArrays(Godot.Mesh.PrimitiveType.Triangles, arrays);
         _mesh.SurfaceSetMaterial(0, _material);

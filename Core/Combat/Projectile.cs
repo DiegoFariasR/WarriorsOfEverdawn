@@ -11,15 +11,15 @@ public static class Projectiles
 {
     // Aimed at where the target stands as it is loosed, with no lead, so a target that keeps moving sideways can
     // outrun it at long range.
-    public static readonly ProjectileDefinition Arrow = new(Speed: 16f, MaxDistance: 14f, Radius: 0.15f);
+    public static readonly ProjectileDefinition Arrow = new(Speed: 17.5f, MaxDistance: 14f, Radius: 0.15f);
 
     // First pass. A staff's bolt is one big slow ball; a volley is three small quick darts.
-    public static readonly ProjectileDefinition Bolt = new(Speed: 16f, MaxDistance: 12f, Radius: 0.35f);
+    public static readonly ProjectileDefinition Bolt = new(Speed: 17.5f, MaxDistance: 12f, Radius: 0.35f);
 
-    public static readonly ProjectileDefinition Dart = new(Speed: 22f, MaxDistance: 12f, Radius: 0.2f);
+    public static readonly ProjectileDefinition Dart = new(Speed: 24f, MaxDistance: 12f, Radius: 0.2f);
 
-    // What a wand's burst is thrown as: bigger and slower than a bolt, since it is what bursts.
-    public static readonly ProjectileDefinition Ball = new(Speed: 13f, MaxDistance: 12f, Radius: 0.45f);
+    // What a staff's burst is thrown as: bigger and slower than a bolt, since it is what bursts.
+    public static readonly ProjectileDefinition Ball = new(Speed: 14.5f, MaxDistance: 12f, Radius: 0.45f);
 
     // Whether the projectile touches a body while travelling from one point to the next this step. The whole
     // segment is tested, so a fast projectile cannot step over a body between frames.

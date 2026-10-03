@@ -89,9 +89,10 @@ public sealed class HumanControls : IPlayerControls
 
     public bool Suspended { get; set; }
 
-    // Input as Input.GetVector gives it: x right, y down (so W is -y).
+    // Input as Input.GetVector gives it: x right, y down (so W is -y). Read across the screen: up it is where the
+    // character faces in a turning mode, and the mode's own up (CameraModes.UpYaw) in the others.
     public static Vector3 MoveFor(CameraMode mode, Vector2 input, float facing) =>
-        mode.FollowsFacing() ? Yaw.FromFacing(-input.Y, input.X, facing) : new Vector3(input.X, 0f, input.Y);
+        Yaw.FromFacing(-input.Y, input.X, mode.FollowsFacing() ? facing : mode.UpYaw());
 
     public void Update(PlayerCharacter player, double delta)
     {
@@ -142,7 +143,7 @@ public sealed class HumanControls : IPlayerControls
 
         if (_usingPad)
         {
-            AimYaw = aimStick.Length() > StickDeadzone ? Yaw.Of(new Vector3(aimStick.X, 0f, aimStick.Y)) : null;
+            AimYaw = aimStick.Length() > StickDeadzone ? Yaw.Of(MoveFor(_camera.Mode, aimStick, 0f)) : null;
             return;
         }
 
@@ -460,7 +461,7 @@ public sealed class BotControls : IPlayerControls
         var toEnemy = enemy == null ? Vector3.Zero : Yaw.Flat(enemy.GlobalPosition - player.GlobalPosition);
         float distance = toEnemy.Length();
 
-        // A staff engages from as far as its bolts fly: its bot turns to the hostile and throws at it while it is
+        // A staff or wand engages from as far as its bolts fly: its bot turns to the hostile and throws at it while it is
         // still coming, where a bot with steel in hand has nothing to do until it is close.
         float engage = weapon.Primary.Projectile != null ? weapon.Primary.Range : EngageRadius;
         if (enemy == null || distance > engage)
@@ -492,7 +493,7 @@ public sealed class BotControls : IPlayerControls
             return;
         }
 
-        // A staff's spell lands on a spot ahead, so its bot keeps the hostile there and not at arm's length; a wand's
+        // A wand's spell lands on a spot ahead, so its bot keeps the hostile there and not at arm's length; a staff's
         // bot, with nothing to hold on a spot, keeps the same distance. One whose spell is centred on itself goes in.
         float orbit = weapon.Secondary.Area is { } area ? (area.Distance > 0f ? area.Distance : OrbitDistance)
             : weapon.Primary.Projectile != null ? RangedOrbit
@@ -537,7 +538,7 @@ public sealed class BotControls : IPlayerControls
         // A spell lands on its area and nowhere short of it or past it, so there is no starting one early.
         int inSpinReach = Hostiles(player).Count(h =>
             h.GlobalPosition.DistanceTo(player.GlobalPosition) - BodySize.Radius <= spin.Range + (KeepsAway(h) || spin.Area != null ? 0f : SpinLead));
-        // A staff's bot throws for a moment every so often even with a hostile in its spell's reach, as a player
+        // A wand's bot throws for a moment every so often even with a hostile in its spell's reach, as a player
         // would with one close enough not to miss: throwing only from afar, some bots landed a bolt or two a session.
         bool throwsNow = weapon.Primary.Projectile != null && _time % ThrowEvery < ThrowFor;
         if (inSpinReach >= 1 && !throwsNow && (player.IsChanneling || player.CanUse(PlayerCharacter.Secondary)))
@@ -556,7 +557,7 @@ public sealed class BotControls : IPlayerControls
             // the air, as it does with no hostile about: the reach checks read every swing, hit or not, and a bot
             // that prefers its Spin would otherwise swing a handful of times a session.
             bool inPrimaryRange = distance - BodySize.Radius <= weapon.Primary.Range;
-            // Not a thrown primary: bolts are what a staff is for while the hostile is still coming.
+            // Not a thrown primary: bolts are what a staff or wand is for while the hostile is still coming.
             bool savesForSpin = weapon.Primary.Projectile == null && weapon.Primary.Range > spin.Range && player.CanUse(PlayerCharacter.Secondary);
             bool swings = inPrimaryRange ? !savesForSpin : _time % AttackInterval < 0.1f;
             SkillHeld = !inPrimaryRange && SpinDrill(player) ? PlayerCharacter.Secondary : swings ? PlayerCharacter.Primary : null;

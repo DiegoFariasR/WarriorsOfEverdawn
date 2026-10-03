@@ -12,7 +12,7 @@ namespace WarriorsOfEverdawn.Dev;
 
 // Attached with --wall-check. Everything that flies is loosed at the back wall of the enemy fortress's courtyard,
 // from five away and from as close as a body can stand, where it leaves the hand already inside the wall: a
-// staff's bolt and a volley's dart, a wand's ball, a bow's arrow and a skeleton's arrow. Each must end at the
+// staff's bolt and a volley's dart, a staff's ball, a bow's arrow and a skeleton's arrow. Each must end at the
 // wall's face, not past it. Then the line of sight magic goes by is read across the wall and along it. Prints
 // [wall-check] lines and quits (exit 1 on failure).
 public partial class WallSelfTest : Node
@@ -125,7 +125,7 @@ public partial class WallSelfTest : Node
         {
             ("bolt", Weapons.Staff(Element.Fire).Primary),
             ("dart", Weapons.Staff(Element.Water).Primary),
-            ("ball", Weapons.Wand(Element.Fire).Secondary),
+            ("ball", Weapons.Staff(Element.Fire).Secondary),
             ("bow-arrow", Weapons.Bow.Primary),
         })
         {

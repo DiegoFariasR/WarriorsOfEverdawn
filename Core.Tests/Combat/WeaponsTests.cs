@@ -23,9 +23,9 @@ public class WeaponsTests
     }
 
     [Fact]
-    public void Every_secondary_but_a_wands_and_the_bows_is_held_cycle_after_cycle_and_slows_its_caster()
+    public void Every_secondary_but_a_staffs_and_the_bows_is_held_cycle_after_cycle_and_slows_its_caster()
     {
-        foreach (var weapon in Weapons.All.Where(w => !Weapons.IsWand(w) && w != Weapons.Bow))
+        foreach (var weapon in Weapons.All.Where(w => !Weapons.Staffs.Contains(w) && w != Weapons.Bow))
         {
             Assert.True(weapon.Secondary.Channeled, weapon.Id);
             Assert.NotNull(weapon.Secondary.SweepEnd);

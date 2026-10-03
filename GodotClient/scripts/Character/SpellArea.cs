@@ -5,7 +5,7 @@ using WarriorsOfEverdawn.Core.Combat;
 
 namespace WarriorsOfEverdawn.Character;
 
-// The spell a staff holds on an area, as every machine draws it: a ring on the ground round the area for as long as
+// The spell a wand holds on an area, as every machine draws it: a ring on the ground round the area for as long as
 // the spell is held, and a round of strikes inside it each cycle, in the element's own shape, each landing as the
 // element's area spell lands in Everdawn (EverdawnKit.Magic: lightning's jagged flash and the impacts). Looks only:
 // what the spell hits is the caster's machine's business (PlayerCharacter.AdvanceSwing).

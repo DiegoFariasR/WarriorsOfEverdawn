@@ -83,17 +83,17 @@ public sealed record SkillDefinition(string Id, int Damage, float Range, float H
     public IEnumerable<DamageType> Types => Parts.Select(part => part.Type);
 }
 
-// What a magic staff casts: its bolt or volley, the spell held on an area, and the thrust its dash carries.
-public sealed record StaffSkills(SkillDefinition Primary, SkillDefinition Channel, SkillDefinition Lunge);
+// What a magic staff casts: its bolt or volley, a ball that bursts, and the thrust its dash carries.
+public sealed record StaffSkills(SkillDefinition Primary, SkillDefinition Burst, SkillDefinition Lunge);
 
-// What a wand and its book cast: the same bolt or volley as the staff of their element, a ball that bursts, and the
-// thrust a dash carries.
-public sealed record WandSkills(SkillDefinition Primary, SkillDefinition Burst, SkillDefinition Lunge);
+// What a wand and its book cast: the same bolt or volley as the staff of their element, the spell held on an area,
+// and the thrust a dash carries.
+public sealed record WandSkills(SkillDefinition Primary, SkillDefinition Channel, SkillDefinition Lunge);
 
 public static class Skills
 {
     // What a hit builds on its target's bars, first pass, by how often the skill lands: a swing, each turn of a
-    // Spin, the thrust a dash carries, a bolt, each dart of a volley, each cycle of a held spell, a wand's burst.
+    // Spin, the thrust a dash carries, a bolt, each dart of a volley, each cycle of a held spell, a staff's burst.
     // Everdawn's are 35 to 50 a cast with three turns between casts; here a throw comes every second.
     private const int SwingBuildup = 20;
     private const int SpinBuildup = 6;
@@ -313,9 +313,9 @@ public static class Skills
         Projectile = Projectiles.Arrow,
     };
 
-    // Staffs, first pass, after Everdawn's spells. Fire, earth and divine throw one Bolt; the other five a Volley
-    // of three darts of a third the damage each, loosed 0.12 s of clip time apart, as in Everdawn. Every staff holds a spell
-    // on an area: its damage lands on everything in the area once a cycle, a cycle being one loop of the casting
+    // Staffs and wands, first pass, after Everdawn's spells. Fire, earth and divine throw one Bolt; the other five a
+    // Volley of three darts of a third the damage each, loosed 0.12 s of clip time apart, as in Everdawn; a staff and
+    // a wand of an element throw the same. Every wand holds a spell on an area: its damage lands on everything in the area once a cycle, a cycle being one loop of the casting
     // clip (Ranged_Magic_Spellcasting, 0.667 s), paid for in mana as it starts, as a Spin's revolution is. The area
     // lies ahead of the caster, but for the Divine Nova, which bursts round it. Six of the held spells are
     // Everdawn's signature spells; it has none for water or wind, so the Geyser and the Cyclone are this game's
@@ -340,24 +340,27 @@ public static class Skills
     private const int StaffPokeDamage = 24;
     private const float StaffPokeRange = 2.1f;
 
-    private static readonly Dictionary<Element, StaffSkills> Staffs = new()
+    private static readonly Dictionary<Element, ElementSpells> Spells = new()
     {
-        [Element.Fire] = StaffOf(Element.Fire, volley: false, "inferno", "Inferno", damage: 10, manaCost: 6, new AreaDefinition(AreaAhead, Radius: 2.5f)),
-        [Element.Water] = StaffOf(Element.Water, volley: true, "geyser", "Geyser", damage: 6, manaCost: 4, new AreaDefinition(AreaAhead, Radius: 3f)),
-        [Element.Ice] = StaffOf(Element.Ice, volley: true, "blizzard", "Blizzard", damage: 6, manaCost: 5, new AreaDefinition(AreaAhead, Radius: 3.5f)),
-        [Element.Wind] = StaffOf(Element.Wind, volley: true, "cyclone", "Cyclone", damage: 6, manaCost: 4, new AreaDefinition(AreaAhead, Radius: 4f)),
-        [Element.Lightning] = StaffOf(Element.Lightning, volley: true, "storm", "Lightning Storm", damage: 8, manaCost: 5, new AreaDefinition(AreaAhead, Radius: 3f)),
-        [Element.Earth] = StaffOf(Element.Earth, volley: false, "quake", "Earthquake", damage: 8, manaCost: 5, new AreaDefinition(AreaAhead, Radius: 3f)),
-        [Element.Divine] = StaffOf(Element.Divine, volley: false, "nova", "Divine Nova", damage: 8, manaCost: 5, new AreaDefinition(Distance: 0f, Radius: 3.5f)),
-        [Element.Void] = StaffOf(Element.Void, volley: true, "corrosion", "Void Corrosion", damage: 7, manaCost: 4, new AreaDefinition(AreaAhead, Radius: 3f)),
+        [Element.Fire] = SpellsOf(Element.Fire, volley: false, "inferno", "Inferno", damage: 10, manaCost: 6, new AreaDefinition(AreaAhead, Radius: 2.5f)),
+        [Element.Water] = SpellsOf(Element.Water, volley: true, "geyser", "Geyser", damage: 6, manaCost: 4, new AreaDefinition(AreaAhead, Radius: 3f)),
+        [Element.Ice] = SpellsOf(Element.Ice, volley: true, "blizzard", "Blizzard", damage: 6, manaCost: 5, new AreaDefinition(AreaAhead, Radius: 3.5f)),
+        [Element.Wind] = SpellsOf(Element.Wind, volley: true, "cyclone", "Cyclone", damage: 6, manaCost: 4, new AreaDefinition(AreaAhead, Radius: 4f)),
+        [Element.Lightning] = SpellsOf(Element.Lightning, volley: true, "storm", "Lightning Storm", damage: 8, manaCost: 5, new AreaDefinition(AreaAhead, Radius: 3f)),
+        [Element.Earth] = SpellsOf(Element.Earth, volley: false, "quake", "Earthquake", damage: 8, manaCost: 5, new AreaDefinition(AreaAhead, Radius: 3f)),
+        [Element.Divine] = SpellsOf(Element.Divine, volley: false, "nova", "Divine Nova", damage: 8, manaCost: 5, new AreaDefinition(Distance: 0f, Radius: 3.5f)),
+        [Element.Void] = SpellsOf(Element.Void, volley: true, "corrosion", "Void Corrosion", damage: 7, manaCost: 4, new AreaDefinition(AreaAhead, Radius: 3f)),
     };
+
+    private static readonly Dictionary<Element, StaffSkills> Staffs = Elements.All.ToDictionary(element => element, MakeStaff);
+
+    private static readonly Dictionary<Element, WandSkills> Wands = Elements.All.ToDictionary(element => element, MakeWand);
 
     public static StaffSkills StaffOf(Element element) => Staffs[element];
 
-    // Wands, first pass. The secondary is not held: one cast throws one ball, which bursts where it ends and deals
-    // its damage to everything within the burst. It costs mana by the cast and cannot be thrown again at once.
-    // Thrown with the same clip as a bolt. The same numbers for every element: what an element's burst does of its
-    // own is not decided.
+    // A staff's secondary is not held: one cast throws one ball, which bursts where it ends and deals its damage to
+    // everything within the burst. It costs mana by the cast and cannot be thrown again at once. Thrown with the same
+    // clip as a bolt. The same numbers for every element: what an element's burst does of its own is not decided.
     private const int BurstDamage = 25;
     private const float BurstRadius = 2.5f;
     private const int BurstManaCost = 12;
@@ -367,11 +370,12 @@ public static class Skills
     private const int WandPokeDamage = 16;
     private const float WandPokeRange = 1.65f;
 
-    private static readonly Dictionary<Element, WandSkills> Wands = Elements.All.ToDictionary(element => element, WandOf);
-
     public static WandSkills WandFor(Element element) => Wands[element];
 
-    private static WandSkills WandOf(Element element)
+    private static WandSkills MakeWand(Element element) =>
+        new(Spells[element].Primary, Spells[element].Channel, LungeOf($"{Elements.IdOf(element)}-wand-lunge", DamageType.Blunt, WandPokeDamage, WandPokeRange, OneHandedStabExtended));
+
+    private static StaffSkills MakeStaff(Element element)
     {
         string id = Elements.IdOf(element);
         var burst = new SkillDefinition($"{id}-burst", BurstDamage, Projectiles.Ball.MaxDistance, ThrustHalfArc, CastReleased)
@@ -385,10 +389,11 @@ public static class Skills
             Cooldown = BurstCooldown,
             Element = element,
         };
-        return new WandSkills(Staffs[element].Primary, burst, LungeOf($"{id}-wand-lunge", DamageType.Blunt, WandPokeDamage, WandPokeRange, OneHandedStabExtended));
+        return new StaffSkills(Spells[element].Primary, burst, LungeOf($"{id}-staff-lunge", DamageType.Blunt, StaffPokeDamage, StaffPokeRange));
     }
 
-    private static StaffSkills StaffOf(Element element, bool volley, string channelId, string channelName, int damage, int manaCost, AreaDefinition area)
+    // An element's bolt or volley, which its staff and its wand both throw, and the spell its wand holds on an area.
+    private static ElementSpells SpellsOf(Element element, bool volley, string channelId, string channelName, int damage, int manaCost, AreaDefinition area)
     {
         string id = Elements.IdOf(element);
         var projectile = volley ? Projectiles.Dart : Projectiles.Bolt;
@@ -418,8 +423,10 @@ public static class Skills
             Area = area,
             Element = element,
         };
-        return new StaffSkills(primary, channel, LungeOf($"{id}-staff-lunge", DamageType.Blunt, StaffPokeDamage, StaffPokeRange));
+        return new ElementSpells(primary, channel);
     }
+
+    private sealed record ElementSpells(SkillDefinition Primary, SkillDefinition Channel);
 
     private static SkillDefinition LungeOf(string id, DamageType type, int damage, float range, float extended = StabExtended) =>
         new(id, damage, range, ThrustHalfArc, HitTime: extended * LungeOpens)

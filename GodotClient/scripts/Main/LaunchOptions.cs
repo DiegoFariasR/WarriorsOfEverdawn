@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using WarriorsOfEverdawn.Core.Combat;
+using WarriorsOfEverdawn.Core.Loot;
 
 namespace WarriorsOfEverdawn.Main;
 
@@ -113,8 +114,11 @@ public sealed record LaunchOptions
     // of its own, so a short session is sure to see some.
     public float? OrbChance { get; init; }
 
-    // Host only, for trying the sellers: every player starts with this much gold, and this many orbs.
-    public int StartGold { get; init; }
+    // Host only, for trying the sellers: every player starts with this much gold in place of Purse.StartingGold, and
+    // this many orbs.
+    public int? StartGold { get; init; }
+
+    public int GoldAtStart => StartGold ?? Purse.StartingGold;
 
     public int StartOrbs { get; init; }
 

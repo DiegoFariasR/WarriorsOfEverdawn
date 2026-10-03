@@ -41,7 +41,7 @@ public partial class Lineup : Node3D
     // How far in front of the row the weapon lies.
     private const float GroundInFront = 3.5f;
 
-    // Staffs casting: room between them for each one's area, shown smaller than it is so several fit a frame, and
+    // Wands casting: room between them for each one's area, shown smaller than it is so several fit a frame, and
     // a camera high enough to see the ground the spells land on.
     private const float SpellApart = 4.4f;
     private const float SpellEyeHeight = 5f;
@@ -170,11 +170,7 @@ public partial class Lineup : Node3D
     public static Lineup OfWeapon(WeaponDefinition weapon)
     {
         var look = CombatVisuals.LookFor(weapon);
-        void Armed(Node3D body)
-        {
-            CharacterRig.AttachToHand(body, look);
-            CharacterRig.AttachOffHand(body, look);
-        }
+        void Armed(Node3D body) => Lineup.Armed(body, look);
 
         return new Lineup(
             new Figure[]
@@ -193,8 +189,9 @@ public partial class Lineup : Node3D
         };
     }
 
-    // The staffs of the elements named (all with none named; more than six run wider than the field can frame). Casting: each holds its spell on an area in front
-    // of it, with what it throws hanging at its side. With barrier, each stands inside its barrier instead.
+    // The wands of the elements named (all with none named; more than six run wider than the field can frame).
+    // Casting: each holds its spell on an area in front of it, with what it throws hanging at its side. With barrier,
+    // each staff stands inside its barrier instead.
     public static Lineup OfMagic(IReadOnlyList<Element> elements, bool barrier)
     {
         var shown = elements.Count > 0 ? elements : Elements.All;
@@ -209,9 +206,9 @@ public partial class Lineup : Node3D
 
     private static Figure Casting(Element element)
     {
-        var staff = Weapons.Staff(element);
-        var look = CombatVisuals.LookFor(staff);
-        return new Figure($"{staff.Primary.Name}\n{staff.Secondary.Name}", body => CharacterRig.AttachToHand(body, look), RigAnimations.MagicChannel)
+        var wand = Weapons.Wand(element);
+        var look = CombatVisuals.LookFor(wand);
+        return new Figure($"{wand.Primary.Name}\n{wand.Secondary.Name}", body => Armed(body, look), RigAnimations.MagicChannel)
         {
             Staged = body =>
             {
@@ -219,7 +216,7 @@ public partial class Lineup : Node3D
                 body.AddChild(area);
                 area.Hold(element, ShownArea, SpellCycle);
                 area.MoveTo(body.GlobalPosition + Vector3.Back * ShownArea.Distance);
-                var thrown = Bolts.Thrown(staff.Primary, Vector3.Right);
+                var thrown = Bolts.Thrown(wand.Primary, Vector3.Right);
                 thrown.Position = new Vector3(-1.1f, 1.3f, 0.3f);
                 body.AddChild(thrown);
 
@@ -231,6 +228,13 @@ public partial class Lineup : Node3D
                 circles.Throw(Yaw.Of(Vector3.Back), lastLeaves: LineupLasts);
             },
         };
+    }
+
+    // Whatever the weapon holds in both hands: a wand and its book, a sword and its shield.
+    private static void Armed(Node3D body, WeaponLook look)
+    {
+        CharacterRig.AttachToHand(body, look);
+        CharacterRig.AttachOffHand(body, look);
     }
 
     private static Figure Shielded(Element element)

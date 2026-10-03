@@ -9,8 +9,6 @@ namespace WarriorsOfEverdawn.Core.Tests.Combat;
 
 public class StaffsTests
 {
-    private static readonly AreaDefinition Ahead = new(Distance: 4f, Radius: 2f);
-
     [Fact]
     public void There_is_a_staff_for_each_of_six_elements_and_two_astral_types()
     {
@@ -87,23 +85,26 @@ public class StaffsTests
     }
 
     [Fact]
-    public void Every_staff_holds_a_paid_spell_of_its_element_on_an_area()
+    public void A_staffs_secondary_is_one_ball_thrown_for_mana_that_bursts_and_not_a_spell_held()
     {
         foreach (var staff in Weapons.Staffs)
         {
-            var spell = staff.Secondary;
+            var burst = staff.Secondary;
 
-            Assert.True(spell.Channeled, staff.Id);
-            Assert.NotNull(spell.Area);
-            Assert.Null(spell.Projectile);
-            Assert.Equal(staff.Element, spell.Element);
-            Assert.True(spell.ManaCost > 0, staff.Id);
-            Assert.True(spell.Area!.Radius > 0f && spell.Area.Distance >= 0f, staff.Id);
-            Assert.Equal(spell.Area.Reach, spell.Range);
+            Assert.False(burst.Channeled, staff.Id);
+            Assert.Null(burst.Area);
+            Assert.NotNull(burst.Projectile);
+            Assert.Equal(1, burst.Projectiles);
+            Assert.True(burst.BlastRadius > burst.Projectile!.Radius, staff.Id);
+            Assert.True(burst.ManaCost > 0, staff.Id);
+            Assert.True(burst.Cooldown > 0f, staff.Id);
+            Assert.Equal(staff.Element, burst.Element);
+            Assert.Equal(burst.Projectile.MaxDistance, burst.Range);
+            Assert.False(string.IsNullOrWhiteSpace(burst.Name));
         }
 
-        Assert.Equal(Weapons.Staffs.Count, Weapons.Staffs.Select(s => s.Secondary.Name).Distinct().Count());
-        Assert.Equal(0f, Weapons.Staff(Element.Divine).Secondary.Area!.Distance);
+        Assert.Equal("Fireball", Weapons.Staff(Element.Fire).Secondary.Name);
+        Assert.Equal(Weapons.Staffs.Count, Weapons.Staffs.Select(s => s.Secondary.Id).Distinct().Count());
     }
 
     [Fact]
@@ -137,48 +138,15 @@ public class StaffsTests
     }
 
     [Fact]
-    public void An_area_ahead_covers_what_stands_round_its_spot_and_not_the_caster()
-    {
-        var caster = new Vector2(3f, -2f);
-        float aim = 0.7f;
-        var spot = SkillArea.Centre(caster, aim, Ahead);
-
-        Assert.Equal(Ahead.Distance, Vector2.Distance(caster, spot), 4);
-        Assert.Equal(caster + Ground.Forward(aim) * Ahead.Distance, spot);
-        Assert.True(SkillArea.Covers(caster, aim, Ahead, spot, 0f));
-        Assert.True(SkillArea.Covers(caster, aim, Ahead, spot + new Vector2(Ahead.Radius, 0f), 0f));
-        Assert.False(SkillArea.Covers(caster, aim, Ahead, spot + new Vector2(Ahead.Radius + 0.01f, 0f), 0f));
-        Assert.False(SkillArea.Covers(caster, aim, Ahead, caster, 0f));
-    }
-
-    [Fact]
-    public void A_body_touching_an_area_is_in_it()
-    {
-        var edge = SkillArea.Centre(Vector2.Zero, 0f, Ahead) + new Vector2(Ahead.Radius + BodySize.Radius, 0f);
-
-        Assert.True(SkillArea.Covers(Vector2.Zero, 0f, Ahead, edge, BodySize.Radius));
-        Assert.False(SkillArea.Covers(Vector2.Zero, 0f, Ahead, edge + new Vector2(0.01f, 0f), BodySize.Radius));
-    }
-
-    [Fact]
-    public void An_area_round_the_caster_catches_what_stands_behind_it()
-    {
-        var nova = Weapons.Staff(Element.Divine).Secondary;
-        var behind = -Ground.Forward(0f) * (nova.Area!.Radius - 0.1f);
-
-        Assert.True(SkillHits.Catches(Vector2.Zero, 0f, nova, behind, 0f));
-        Assert.False(SkillHits.Catches(Vector2.Zero, 0f, nova, behind * 2f, 0f));
-    }
-
-    [Fact]
     public void A_skill_catches_by_its_area_or_its_arc_and_a_thrown_one_catches_nothing_itself()
     {
         var staff = Weapons.Staff(Element.Fire);
-        var inArea = SkillArea.Centre(Vector2.Zero, 0f, staff.Secondary.Area!);
+        var held = Weapons.Wand(Element.Fire).Secondary;
+        var inArea = SkillArea.Centre(Vector2.Zero, 0f, held.Area!);
         var close = Ground.Forward(0f) * 1f;
 
-        Assert.True(SkillHits.Catches(Vector2.Zero, 0f, staff.Secondary, inArea, 0f));
-        Assert.False(SkillHits.Catches(Vector2.Zero, 0f, staff.Secondary, close, 0f));
+        Assert.True(SkillHits.Catches(Vector2.Zero, 0f, held, inArea, 0f));
+        Assert.False(SkillHits.Catches(Vector2.Zero, 0f, held, close, 0f));
         Assert.False(SkillHits.Catches(Vector2.Zero, 0f, staff.Primary, close, BodySize.Radius));
         Assert.True(SkillHits.Catches(Vector2.Zero, 0f, Weapons.Greatsword.Primary, close, BodySize.Radius));
         Assert.Equal(
@@ -267,7 +235,30 @@ public class StaffsTests
             Assert.True(better.Primary.Damage > staff.Primary.Damage, staff.Id);
             Assert.True(better.Secondary.Damage > staff.Secondary.Damage, staff.Id);
             Assert.Equal(staff.Primary.Projectiles, better.Primary.Projectiles);
-            Assert.Equal(staff.Secondary.Area, better.Secondary.Area);
+            Assert.Equal(staff.Secondary.BlastRadius, better.Secondary.BlastRadius);
         }
     }
+
+    [Fact]
+    public void Only_a_staffs_ball_bursts()
+    {
+        var bursting = Weapons.All.SelectMany(w => w.Skills).Where(s => s.BlastRadius > 0f).Distinct().ToList();
+
+        Assert.Equal(Weapons.Staffs.Select(s => s.Secondary), bursting);
+        Assert.All(Weapons.Staffs, s => Assert.Equal(0f, s.Primary.BlastRadius));
+    }
+
+    [Fact]
+    public void A_burst_catches_every_body_it_touches_and_none_beyond()
+    {
+        var at = new Vector2(4f, -1f);
+        const float Radius = 2.5f;
+
+        Assert.True(Projectiles.Blasts(at, Radius, at, 0f));
+        Assert.True(Projectiles.Blasts(at, Radius, at + new Vector2(Radius, 0f), 0f));
+        Assert.False(Projectiles.Blasts(at, Radius, at + new Vector2(Radius + 0.01f, 0f), 0f));
+        Assert.True(Projectiles.Blasts(at, Radius, at + new Vector2(0f, Radius + BodySize.Radius), BodySize.Radius));
+        Assert.False(Projectiles.Blasts(at, Radius, at + new Vector2(0f, Radius + BodySize.Radius + 0.01f), BodySize.Radius));
+    }
+
 }

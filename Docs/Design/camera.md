@@ -4,11 +4,12 @@ Four camera modes, cycled with **C** (controller: **Back**). Each player picks t
 
 | Mode | Camera | Move (WASD / left stick) | Aim and turning |
 |---|---|---|---|
-| 1 Angled | Above and behind at a fixed 56 deg tilt, world-aligned, **orthographic** (an isometric game's view, without the quarter turn) | Across the screen (W is up) | Mouse cursor, or right stick |
+| 1 Angled | Above and behind at a fixed 56 deg tilt, looking along the field's diagonal from the south-east (an isometric game's quarter turn: the enemy fortress is up and to the right), **orthographic** | Across the screen (W is up the screen, north-west) | Mouse cursor, or right stick |
 | 2 Top-down | Straight down, world-aligned, **orthographic** | Across the screen | Mouse cursor, or right stick |
 | 3 Behind | 7.5 behind the character, turning with it (WoW view) | Relative to facing: W forward, S backpedal, A/D strafe | Mouse turns (cursor hidden); vertical mouse tilts the camera between 5 and 60 deg; right stick turns |
 | 4 Top-down, turns with you | Straight down, **orthographic**, the character's facing is always up on screen | Relative to facing | Mouse turns (cursor hidden); right stick turns |
 
+- In the two modes that do not turn, movement and the right stick are read across the screen from the mode's up (`CameraModes.UpYaw`): north from straight above, the diagonal in Angled.
 - Slice is left mouse, RT or X; Spin is right mouse, Y or RB; dash is Space or B, towards the held movement direction. The same in every mode.
 - **The three modes that look down are orthographic** (`CameraModes.IsOrthographic`): no perspective, so a thing is the same size on screen wherever it stands, the far side of the view as large as the near, and walls stand straight instead of leaning away from the middle. Behind keeps its perspective. Each shows, at the player, what the same camera showed with perspective: 17.6 of the field from top to bottom in Angled and 18.7 from straight above, at the normal zoom. There is no horizon in them: what is in view is a patch of ground of that size, and nothing beyond it.
 - **Zoom:** mouse wheel (controller: D-pad up/down) scales what the view takes in, in every mode, from half to double, 12% per notch: the camera's distance in Behind, the size of the view in the orthographic modes, whose cameras stay where they are (moving one would change nothing but the haze and the far blur, which are measured from the camera). One zoom level is shared by all modes.
@@ -40,14 +41,12 @@ Whatever is written or drawn over a thing in the world (a seller's name and prom
 
 ## To tune by eye
 
-- Angled offset (0, 16, 10); top-down height 20; behind distance 7.5 at a default tilt of 22 deg. In the orthographic modes the first two set the size of the view, not what is seen from where.
+- Angled offset 16 up and 10 back along its view, which looks 45 deg off north (`CameraModes.AngledYaw`; the other diagonal is -45); top-down height 20; behind distance 7.5 at a default tilt of 22 deg. In the orthographic modes the first two set the size of the view, not what is seen from where.
 - Mouse turn 0.005 rad per pixel, tilt 0.004 rad per pixel, stick turn 3 rad/s, camera follow rate 12/s.
 - Character turn rate 540 deg/s (`Core/Locomotion/Turning.cs`).
 - Zoom range 0.5-2x, 1.12x per wheel notch.
 
 ## Open questions
-
-- A quarter turn for the angled mode, the classic isometric diagonal: today it looks along the field, fortress to fortress.
 
 - Camera collision in mode 3 once the arena has walls.
 - Click-to-move, in the turning modes and in the others once there are obstacles.

@@ -94,7 +94,7 @@ public partial class Arena : Node3D
 
         if (_options.Bot)
         {
-            _selfTest = new NetSelfTest(_hud) { Name = "NetSelfTest", TradeDrill = _options.TradeDrill, BarrierDrill = _options.BarrierDrill, StatusDrill = _options.StatusDrill };
+            _selfTest = new NetSelfTest(_hud) { Name = "NetSelfTest", GoldAtStart = _options.GoldAtStart, TradeDrill = _options.TradeDrill, BarrierDrill = _options.BarrierDrill, StatusDrill = _options.StatusDrill };
             AddChild(_selfTest);
         }
 
@@ -307,7 +307,7 @@ public partial class Arena : Node3D
 
         if (Multiplayer.IsServer())
         {
-            player.Vitals.EarnGold(_options.StartGold);
+            player.Vitals.EarnGold(_options.GoldAtStart);
             player.Vitals.EarnOrbs(_options.StartOrbs);
             player.Vitals.Wear(Armours.AtTier(_options.StartArmour));
         }

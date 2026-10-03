@@ -8,13 +8,13 @@ using WarriorsOfEverdawn.Util;
 
 namespace WarriorsOfEverdawn.Dev;
 
-// [magic-check]: this machine's player throws its staff's bolts, as many to a full cast as the skill has and never
+// [magic-check]: this machine's player throws its wand's or staff's bolts, as many to a full cast as the skill has and never
 // more, and every
 // machine sees the others'; each bolt is gone by the time it could have flown its distance, and the burst it ends in
-// by a moment after; the spell held on an area is drawn, here and for the others, a round of strikes each cycle;
+// by a moment after; a wand's spell held on an area is drawn, here and for the others, a round of strikes each cycle;
 // barriers show on every machine, and this machine's is seen to take blows (it falls below full) and to come back
-// while it is down; a wand's ball bursts where it ends, here and on the others' machines; every weapon of an
-// element shows it, a staff at its head and an enchanted weapon all over it,
+// while it is down; a staff's ball bursts where it ends, here and on the others' machines; every weapon of an
+// element shows it, a staff or wand at its head and an enchanted weapon all over it,
 // and no plain weapon does. On the host, [magic-host]: the hits each player's bolts and area spells landed, the
 // blows of enchanted weapons that came as part magic, what
 // each player's barrier took, and with --barrier-drill the blows the host dealt each barrier as it went up (whether
@@ -116,8 +116,8 @@ public partial class NetSelfTest
             return;
         }
 
-        // By skill: the staff on the bot's back is cast for a moment at a time, and a volley cut short by the swap
-        // back says nothing about the staff it holds for the rest of the session.
+        // By skill: the weapon on the bot's back is cast for a moment at a time, and a volley cut short by the swap
+        // back says nothing about the weapon it holds for the rest of the session.
         _boltsHere++;
         _boltsThisCast++;
         _boltsPerCastMost[skill.Id] = Mathf.Max(_boltsPerCastMost.GetValueOrDefault(skill.Id), _boltsThisCast);

@@ -10,9 +10,12 @@ namespace WarriorsOfEverdawn.Core.Tests.Trade;
 
 public class TradeTests
 {
+    // Both slots full: a greatsword in hand and a spear on the back.
+    private static readonly WeaponSets Carrying = new(Weapons.Greatsword, Weapons.Spear);
+
     private static readonly TradeItem Thing = new("thing", "Thing", new Cost(Gold: 30), Weapons.Scythe);
 
-    private static readonly Buyer Anyone = new(WeaponSets.Default, ArmourTier: 0);
+    private static readonly Buyer Anyone = new(Carrying, ArmourTier: 0);
 
     private static Purse PurseWith(int gold = 0, int souls = 0, int orbs = 0)
     {
@@ -342,7 +345,7 @@ public class TradeTests
     [Fact]
     public void An_improvement_replaces_the_weapon_in_its_slot_and_puts_nothing_down()
     {
-        var buyer = WeaponSets.Default;
+        var buyer = Carrying;
         var better = Weapons.AtLevel(buyer.Stowed!, 1);
 
         var (sets, putDown) = TradeRules.Receive(buyer, better, WeaponSlot.Back);
@@ -354,7 +357,7 @@ public class TradeTests
     [Fact]
     public void A_weapon_bought_is_received_as_a_bought_weapon_is()
     {
-        Assert.Equal(WeaponSets.Default.WithBought(Weapons.Scythe), TradeRules.Receive(WeaponSets.Default, Weapons.Scythe, slot: null));
+        Assert.Equal(Carrying.WithBought(Weapons.Scythe), TradeRules.Receive(Carrying, Weapons.Scythe, slot: null));
     }
 
     [Fact]
@@ -492,7 +495,7 @@ public class TradeTests
     public void Nobody_sells_from_out_of_reach_or_while_down()
     {
         var purse = PurseWith(orbs: 1);
-        var offer = TradeRules.Sale(WeaponSets.Default, WeaponSlot.Hand);
+        var offer = TradeRules.Sale(Carrying, WeaponSlot.Hand);
 
         Assert.Equal(BuyOutcome.TooFar, TradeRules.Buy(purse, offer, TradeRules.Reach + 0.01f, down: false));
         Assert.Equal(BuyOutcome.Down, TradeRules.Buy(purse, TradeRules.OrbSale, 0f, down: true));
@@ -538,8 +541,8 @@ public class TradeTests
     [Fact]
     public void A_trade_that_hands_nothing_over_leaves_what_is_carried_as_it_is()
     {
-        Assert.Equal(WeaponSets.Default, TradeRules.After(WeaponSets.Default, TradeRules.OrbSale).Sets);
-        Assert.Equal(WeaponSets.Default, TradeRules.After(WeaponSets.Default, TradeRules.BetterArmour(0)).Sets);
+        Assert.Equal(Carrying, TradeRules.After(Carrying, TradeRules.OrbSale).Sets);
+        Assert.Equal(Carrying, TradeRules.After(Carrying, TradeRules.BetterArmour(0)).Sets);
     }
 
     [Fact]

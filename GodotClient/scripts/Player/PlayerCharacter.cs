@@ -99,10 +99,12 @@ public partial class PlayerCharacter : CharacterBody3D
     // The weapon sets, chosen on the player's own machine and replicated; every machine shows the weapon in hand and
     // the one on the back that they name. Empty for an empty slot.
     [Export]
-    public string WeaponId { get; set; } = WeaponSets.Default.Active!.Id;
+    public string WeaponId { get; set; } = IdOf(WeaponSets.Default.Active);
 
     [Export]
-    public string StowedWeaponId { get; set; } = WeaponSets.Default.Stowed!.Id;
+    public string StowedWeaponId { get; set; } = IdOf(WeaponSets.Default.Stowed);
+
+    private static string IdOf(WeaponDefinition? weapon) => weapon?.Id ?? "";
 
     public long PeerId { get; private set; }
 
@@ -246,7 +248,7 @@ public partial class PlayerCharacter : CharacterBody3D
         var body = ArmourLook.Build(Look, player._armourShown);
         player._model.AddChild(body);
         var look = CombatVisuals.LookFor(WeaponSets.Default.Active!);
-        var backLook = CombatVisuals.LookFor(WeaponSets.Default.Stowed!);
+        var backLook = WeaponSets.Default.Stowed is { } stowed ? CombatVisuals.LookFor(stowed) : null;
         player._hand = CharacterRig.AttachToHand(body, look);
         player._offHand = CharacterRig.AttachOffHand(body, look);
         player._back = CharacterRig.AttachToBack(body, backLook);
@@ -480,8 +482,8 @@ public partial class PlayerCharacter : CharacterBody3D
     // On the owner: the weapon sets it carries from now on. The synchronizer takes them to the other machines.
     public void Carry(WeaponSets sets)
     {
-        WeaponId = sets.Active?.Id ?? "";
-        StowedWeaponId = sets.Stowed?.Id ?? "";
+        WeaponId = IdOf(sets.Active);
+        StowedWeaponId = IdOf(sets.Stowed);
         ShowWeapons();
     }
 
@@ -539,7 +541,7 @@ public partial class PlayerCharacter : CharacterBody3D
     // Brings the weapons shown in hand and on the back in line with WeaponId and StowedWeaponId.
     private void ShowWeapons()
     {
-        if (WeaponId == (_weapon?.Id ?? "") && StowedWeaponId == (_stowed?.Id ?? ""))
+        if (WeaponId == IdOf(_weapon) && StowedWeaponId == IdOf(_stowed))
         {
             return;
         }
@@ -568,6 +570,7 @@ public partial class PlayerCharacter : CharacterBody3D
             CharacterRig.HoldWeapon(_hand, handLook);
             CharacterRig.HoldOffHand(_offHand, handLook);
             Trail.Retarget();
+            Trail.Element = handLook?.Enchant;
         }
 
         if (onBack != _stowed)

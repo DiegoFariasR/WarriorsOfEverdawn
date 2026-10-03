@@ -27,7 +27,8 @@ public partial class ArenaCamera : Camera3D
     private const float MaxZoom = 2f;
     private const float ZoomStep = 1.12f;
 
-    private static readonly Vector3 AngledOffset = new(0f, 16f, 10f);
+    // Above and behind the player as the angled view looks (CameraModes.AngledYaw).
+    private static readonly Vector3 AngledOffset = Vector3.Up * 16f - Yaw.Forward(CameraModes.AngledYaw) * 10f;
 
     // The angled camera stands this many times further off along its view than its offset says. Without
     // perspective that makes nothing smaller; it keeps what is tall near the bottom of the view (the fortress's

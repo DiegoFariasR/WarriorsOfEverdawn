@@ -488,8 +488,9 @@ public partial class EnemyCharacter : CharacterBody3D
         }
     }
 
-    // What floats over this skeleton is drawn through floors, so only while it is on the camera's subject's floor.
-    private bool SeenFloating => ArenaMap.In(GetTree()).OnSubjectsFloor(GlobalPosition);
+    // What floats over this skeleton is drawn through floors, so only while it is on the camera's subject's floor,
+    // and only near the subject (ArenaMap.ShowsOver).
+    private bool SeenFloating => ArenaMap.In(GetTree()).ShowsOver(this);
 
     [Rpc(MultiplayerApi.RpcMode.Authority, CallLocal = true, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
     private void ShowParried()

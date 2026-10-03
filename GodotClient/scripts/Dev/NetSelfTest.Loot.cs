@@ -9,8 +9,8 @@ namespace WarriorsOfEverdawn.Dev;
 
 // [loot-check]: monsters leave gold, and now and then a magic orb, that every machine sees fall and be picked up, with
 // a model shown for each thing on the ground and no other; every player earns it and a soul per monster; and the HUD
-// shows what the player has. On the host, where it is decided, what was collected is exactly what its player has, and
-// its souls are the monsters it saw die.
+// shows what the player has. On the host, where it is decided, what was collected is exactly what its player has on
+// top of what it started with, and its souls are the monsters it saw die.
 public partial class NetSelfTest
 {
     private readonly Dictionary<LootKind, int> _lootDropped = new();
@@ -21,6 +21,9 @@ public partial class NetSelfTest
     private int _deathsSinceHere;
     private int _purseMismatchFrames;
     private int _lootModelMismatchFrames;
+
+    // What every player started the session with, before anything was collected.
+    public int GoldAtStart { get; init; }
 
     private void TrackLoot()
     {
@@ -62,7 +65,7 @@ public partial class NetSelfTest
         int OnGround(LootKind kind) => _loot?.OnGround.Count(l => l.Kind == kind) ?? -1;
         GD.Print($"[loot-check] me={me} piles_seen={_lootDropped.GetValueOrDefault(LootKind.Gold)} piles_taken_seen={_lootTaken.GetValueOrDefault(LootKind.Gold)} "
             + $"piles_on_ground={OnGround(LootKind.Gold)} gold_dropped={_goldDropped} gold_collected={_lootCollected.GetValueOrDefault(LootKind.Gold)} "
-            + $"gold_here={local?.Vitals.Gold} orbs_seen={_lootDropped.GetValueOrDefault(LootKind.Orb)} orbs_taken_seen={_lootTaken.GetValueOrDefault(LootKind.Orb)} "
+            + $"gold_start={GoldAtStart} gold_here={local?.Vitals.Gold} orbs_seen={_lootDropped.GetValueOrDefault(LootKind.Orb)} orbs_taken_seen={_lootTaken.GetValueOrDefault(LootKind.Orb)} "
             + $"orbs_on_ground={OnGround(LootKind.Orb)} orbs_collected={_lootCollected.GetValueOrDefault(LootKind.Orb)} orbs_here={local?.Vitals.Orbs} "
             + $"souls_here={local?.Vitals.Souls} deaths_since_here={_deathsSinceHere} purse_mismatch_frames={_purseMismatchFrames} "
             + $"loot_model_mismatch_frames={_lootModelMismatchFrames}");
