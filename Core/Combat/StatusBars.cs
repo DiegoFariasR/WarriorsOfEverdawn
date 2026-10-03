@@ -33,6 +33,8 @@ public static class StatusRules
     // two blows.
     public const float LostTurn = 2f;
 
+    public const Statuses Losing = Statuses.Frozen | Statuses.Stunned;
+
     public const int BarMost = 100;
 
     public const int ChilledAt = 30;
@@ -81,6 +83,13 @@ public static class StatusRules
     public const int CorruptedVoidResistance = -20;
     public const int DefiledDivineResistance = 10;
     public const int ForsakenDivineResistance = 20;
+
+    // Read from the statuses alone, so every machine tells it from a body's replicated statuses as the host does
+    // from its bars: frozen or stunned, it neither moves nor acts.
+    public static bool IsLost(this Statuses statuses) => (statuses & Losing) != Statuses.None;
+
+    // The share of its run and attack speed a body keeps.
+    public static float SpeedShare(this Statuses statuses) => statuses.HasFlag(Statuses.Chilled) ? ChilledSpeed : 1f;
 }
 
 // A bite of a burn or a wound, for whoever keeps the body's HP to deal.
@@ -128,8 +137,7 @@ public sealed class StatusBars
         }
     }
 
-    // The share of its run and attack speed the body keeps.
-    public float Speed => Active.HasFlag(Statuses.Chilled) ? StatusRules.ChilledSpeed : 1f;
+    public float Speed => Active.SpeedShare();
 
     // What the body's own damage of this type is multiplied by.
     public float Dealt(DamageType type)

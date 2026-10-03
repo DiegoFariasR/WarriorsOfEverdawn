@@ -32,18 +32,14 @@ public partial class StatusShow : Node3D
             return;
         }
 
-        var gained = now & ~_shown;
-        foreach (var lost in new[] { Statuses.Frozen, Statuses.Stunned })
+        foreach (var (name, colour) in StatusLooks.Of(now & ~_shown & StatusRules.Losing))
         {
-            if (gained.HasFlag(lost))
+            CallOuts++;
+            var body = GetParent<Node3D>();
+            // Drawn through floors, so only over a body on the camera's subject's floor.
+            if (ArenaMap.In(GetTree()).OnSubjectsFloor(body.GlobalPosition))
             {
-                CallOuts++;
-                var body = GetParent<Node3D>();
-                // Drawn through floors, so only over a body on the camera's subject's floor.
-                if (ArenaMap.In(GetTree()).OnSubjectsFloor(body.GlobalPosition))
-                {
-                    FloatingText.Spawn(body, $"{StatusLooks.NameOf(lost)}!", StatusLooks.ColourOf(lost));
-                }
+                FloatingText.Spawn(body, $"{name}!", colour);
             }
         }
 

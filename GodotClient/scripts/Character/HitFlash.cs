@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using EverdawnKit.Magic;
 using Godot;
 using WarriorsOfEverdawn.Util;
 
@@ -13,7 +14,6 @@ public partial class HitFlash : Node
 {
     public const float Duration = 0.25f;
 
-    private const string ShaderPath = "res://assets/shaders/elemental_fire.gdshader";
     private const float PeakDissolve = 0.56f;
     private const float FadeIn = 0.055f;
     private const float FadeOut = 0.07f;
@@ -21,6 +21,7 @@ public partial class HitFlash : Node
     private const string Dissolve = "shader_parameter/dissolve";
 
     private static readonly Color Tint = new(1f, 0.3f, 0.3f);
+    private static readonly string ShaderPath = MagicLooks.For(MagicElement.Fire).Shader;
 
     private readonly ShaderMaterial _material;
     private readonly Node3D _body;

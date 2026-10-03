@@ -4,6 +4,7 @@ using WarriorsOfEverdawn.Core.Combat;
 using WarriorsOfEverdawn.Core.Locomotion;
 using WarriorsOfEverdawn.Enemy;
 using WarriorsOfEverdawn.Player;
+using WarriorsOfEverdawn.Util;
 
 namespace WarriorsOfEverdawn.Dev;
 
@@ -67,7 +68,7 @@ public partial class NetSelfTest
         {
             _guardFrames++;
             float limit = MoveSpeed.Run * weapon.Guard.MoveSpeedFactor;
-            _guardSpeedShareMax = Mathf.Max(_guardSpeedShareMax, new Vector2(local.NetVelocity.X, local.NetVelocity.Z).Length() / limit);
+            _guardSpeedShareMax = Mathf.Max(_guardSpeedShareMax, Yaw.Flat(local.NetVelocity).Length() / limit);
         }
 
         _wasGuarding = true;

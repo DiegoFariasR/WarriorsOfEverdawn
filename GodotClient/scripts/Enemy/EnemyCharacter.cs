@@ -52,6 +52,10 @@ public partial class EnemyCharacter : CharacterBody3D
     private float _cooldown;
     private readonly Stagger _stagger = new();
 
+    // Host only: where it rose, which it goes back to once it has lost every player, and whether it is after one.
+    private Vector3 _post;
+    private bool _engaged;
+
     // Host only: the bars its hits have built (Docs/Design/damage-types.md).
     private readonly StatusBars _status = new();
     private StatusShow _statusShow = null!;
@@ -110,6 +114,11 @@ public partial class EnemyCharacter : CharacterBody3D
     // One of the crypt's guards, not of a wave (EnemyDirector).
     public bool IsGuard => Name.ToString().StartsWith(EnemyDirector.GuardPrefix, StringComparison.Ordinal);
 
+    // The dead among them too, for the CorpseTime they lie before they are freed.
+    public static IEnumerable<EnemyCharacter> All(SceneTree tree) => tree.GetNodesInGroup(Group).OfType<EnemyCharacter>();
+
+    public static IEnumerable<EnemyCharacter> Standing(SceneTree tree) => All(tree).Where(e => !e.IsDead);
+
     public static EnemyCharacter Create(string name, EnemyDefinition definition, Vector3 position, float yaw)
     {
         var look = CombatVisuals.LookFor(definition);
@@ -127,6 +136,7 @@ public partial class EnemyCharacter : CharacterBody3D
             FloorSnapLength = Gravity.FloorSnap,
             FloorMaxAngle = Gravity.SteepestFloor,
             _health = new Health(definition.MaxHp),
+            _post = position,
             _shownYaw = yaw,
             _attackClip = CombatVisuals.ClipFor(definition.Attack),
             _attackFollowUp = followUp == null ? null : new StringName(followUp),
@@ -140,7 +150,7 @@ public partial class EnemyCharacter : CharacterBody3D
         var hand = look.LeftHand
             ? CharacterRig.AttachToLeftHand(body, look.Weapon, look.WeaponRotation)
             : CharacterRig.AttachToHand(body, look.Weapon);
-        enemy.Skeleton = body.GetNode<Skeleton3D>(RigAnimations.SkeletonPath);
+        enemy.Skeleton = CharacterBody.SkeletonOf(body);
         enemy.Trail = new WeaponTrail(hand, TrailTint) { Name = "Trail" };
         enemy.AddChild(enemy.Trail);
         enemy.Flash = new HitFlash(body) { Name = "HitFlash" };
@@ -148,15 +158,11 @@ public partial class EnemyCharacter : CharacterBody3D
         enemy._statusShow = new StatusShow { Name = "StatusShow" };
         enemy.AddChild(enemy._statusShow);
 
-        // Libraries go in before the player enters the tree; playing first would crash (Everdawn godot-pitfalls.md).
-        enemy._animation = new AnimationPlayer { Name = "AnimationPlayer" };
-        RigAnimations.AddTo(enemy._animation);
-        body.AddChild(enemy._animation);
-        var skeleton = body.GetNode<Skeleton3D>(RigAnimations.SkeletonPath);
+        enemy._animation = RigAnimations.AddPlayerTo(body);
         var walk = enemy._animation.GetAnimation(RigAnimations.SkeletonWalk);
         enemy._attackLength = (float)enemy._animation.GetAnimation(enemy._attackClip).Length
             + (followUp == null ? 0f : (float)enemy._animation.GetAnimation(followUp).Length);
-        enemy._walkPlayback = definition.MoveSpeed / ClipMotion.GroundSpeed(skeleton, RigAnimations.SkeletonWalk, walk, Vector3.Back);
+        enemy._walkPlayback = definition.MoveSpeed / ClipMotion.GroundSpeed(enemy.Skeleton, RigAnimations.SkeletonWalk, walk, Vector3.Back);
 
         enemy.AddChild(CreateSynchronizer());
         return enemy;
@@ -179,7 +185,7 @@ public partial class EnemyCharacter : CharacterBody3D
         }
         else
         {
-            GlobalPosition = GlobalPosition.Lerp(NetPosition, 1f - Mathf.Exp(-FollowRate * dt));
+            GlobalPosition = GlobalPosition.Lerp(NetPosition, Easing.Share(FollowRate, dt));
             _shownYaw = Yaw.Approach(_shownYaw, NetYaw, FollowRate, dt);
         }
 
@@ -263,7 +269,8 @@ public partial class EnemyCharacter : CharacterBody3D
 
     private Vector3 Decide(float delta)
     {
-        var decision = EnemyBrain.Decide(Definition, Yaw.ToGround(GlobalPosition), LivingPlayers().ToList(), _cooldown <= 0f);
+        var decision = EnemyBrain.Decide(Definition, Yaw.ToGround(GlobalPosition), Yaw.ToGround(_post), LivingPlayers().ToList(), _cooldown <= 0f, _engaged);
+        _engaged = decision.Action is not (EnemyAction.Idle or EnemyAction.Return);
         if (decision.Action == EnemyAction.Idle)
         {
             return Vector3.Zero;
@@ -275,15 +282,9 @@ public partial class EnemyCharacter : CharacterBody3D
         switch (decision.Action)
         {
             case EnemyAction.Chase:
-                // Round the walls, not through them: it faces the way it walks.
-                var way = ArenaMap.In(GetTree()).StepToward(this, GlobalPosition + toTarget);
-                if (way == Vector3.Zero)
-                {
-                    return Vector3.Zero;
-                }
-
-                NetYaw = Yaw.Approach(NetYaw, Yaw.Of(way), TurnRate, delta);
-                return way * Definition.MoveSpeed * _status.Speed;
+                return WalkTo(GlobalPosition + toTarget, delta);
+            case EnemyAction.Return:
+                return WalkTo(_post, delta);
             case EnemyAction.Attack:
                 NetYaw = targetYaw;
                 _attackElapsed = 0f;
@@ -300,6 +301,19 @@ public partial class EnemyCharacter : CharacterBody3D
                 NetYaw = Yaw.Approach(NetYaw, targetYaw, TurnRate, delta);
                 return Vector3.Zero;
         }
+    }
+
+    // Round the walls, not through them: it faces the way it walks.
+    private Vector3 WalkTo(Vector3 to, float delta)
+    {
+        var way = ArenaMap.In(GetTree()).StepToward(this, to);
+        if (way == Vector3.Zero)
+        {
+            return Vector3.Zero;
+        }
+
+        NetYaw = Yaw.Approach(NetYaw, Yaw.Of(way), TurnRate, delta);
+        return way * Definition.MoveSpeed * _status.Speed;
     }
 
     // Host view of player positions decides enemy hits (Docs/Design/multiplayer.md, "Who owns what"). NetPosition is
@@ -328,9 +342,9 @@ public partial class EnemyCharacter : CharacterBody3D
             var me = Yaw.ToGround(GlobalPosition);
             var map = ArenaMap.In(GetTree());
             bool parried = false;
-            foreach (var player in GetTree().GetNodesInGroup(PlayerCharacter.Group).OfType<PlayerCharacter>())
+            foreach (var player in PlayerCharacter.All(GetTree()))
             {
-                if (!player.IsDowned && !map.IsSafe(player.NetPosition) && Floors.SameLevel(GlobalPosition.Y, player.NetPosition.Y)
+                if (MayStrike(player, player.NetPosition, GlobalPosition.Y, map)
                     && MeleeArc.Hits(me, NetYaw, Definition.Attack, Yaw.ToGround(player.NetPosition), BodySize.Radius))
                 {
                     parried |= player.Vitals.TakeAttack(AttackDamage(), GlobalPosition, DamageTypes.MaskOf(Definition.Attack.Types)) == GuardOutcome.Parried;
@@ -357,15 +371,19 @@ public partial class EnemyCharacter : CharacterBody3D
     // What its blow deals as it is now: less while it is dizzy.
     private int AttackDamage() => (int)MathF.Round(Definition.Attack.Damage * _status.Dealt(Definition.Attack.Type));
 
-    // The players a skeleton may go for: up, not inside the allied town, and on its own floor. The crypt's dead keep
-    // to the crypt, and the waves to the ground.
+    // The players a skeleton may go for. The crypt's dead keep to the crypt, and the waves to the ground.
     private IEnumerable<EnemyTarget> LivingPlayers()
     {
         var map = ArenaMap.In(GetTree());
-        return GetTree().GetNodesInGroup(PlayerCharacter.Group).OfType<PlayerCharacter>()
-            .Where(p => !p.IsDowned && !map.IsSafe(p.GlobalPosition) && Floors.SameLevel(GlobalPosition.Y, p.GlobalPosition.Y))
+        return PlayerCharacter.All(GetTree())
+            .Where(p => MayStrike(p, p.GlobalPosition, GlobalPosition.Y, map))
             .Select(p => new EnemyTarget(p.PeerId, Yaw.ToGround(p.GlobalPosition)));
     }
+
+    // A player a skeleton's blow or arrow may strike: up, not inside the allied town, and on the floor that `y` is
+    // on. `at` is where the caller takes the player to be: its latest reported position, or where it stands here.
+    public static bool MayStrike(PlayerCharacter player, Vector3 at, float y, ArenaMap map) =>
+        !player.IsDowned && !map.IsSafe(at) && Floors.SameLevel(y, at.Y);
 
     private void Animate(float delta)
     {
@@ -385,7 +403,7 @@ public partial class EnemyCharacter : CharacterBody3D
         // Frozen or stunned, it holds the pose it was caught in; as it comes out of it, whatever it was doing is
         // over here too.
         _statusShow.Reflect(Statuses);
-        bool lost = (Statuses & (Statuses.Frozen | Statuses.Stunned)) != Statuses.None;
+        bool lost = Statuses.IsLost();
         _animation.SpeedScale = lost ? 0f : 1f;
         if (lost)
         {
@@ -492,6 +510,8 @@ public partial class EnemyCharacter : CharacterBody3D
         Died?.Invoke(this);
         if (IsMultiplayerAuthority())
         {
+            // Dead, it asks the map its way no more: kept, the map would hold a step for every skeleton that ever walked.
+            ArenaMap.In(GetTree()).Forget(this);
             GetTree().CreateTimer(CorpseTime).Timeout += () =>
             {
                 if (IsInstanceValid(this))
@@ -516,8 +536,7 @@ public partial class EnemyCharacter : CharacterBody3D
             return;
         }
 
-        long sender = Multiplayer.GetRemoteSenderId();
-        long attackerId = sender == 0 ? Multiplayer.GetUniqueId() : sender;
+        long attackerId = Multiplayer.Sender();
         var attacker = PlayerCharacter.Find(GetTree(), attackerId);
         if (attacker == null)
         {
@@ -559,15 +578,9 @@ public partial class EnemyCharacter : CharacterBody3D
 
     private static MultiplayerSynchronizer CreateSynchronizer()
     {
-        var config = new SceneReplicationConfig();
-        foreach (var property in new[] { PropertyName.NetPosition, PropertyName.NetYaw, PropertyName.NetMoving, PropertyName.Hp, PropertyName.StatusMask })
-        {
-            var path = new NodePath($".:{property}");
-            config.AddProperty(path);
-            config.PropertySetSpawn(path, true);
-            config.PropertySetReplicationMode(path, SceneReplicationConfig.ReplicationMode.Always);
-        }
-
+        var config = new SceneReplicationConfig().Sending(
+            SceneReplicationConfig.ReplicationMode.Always,
+            PropertyName.NetPosition, PropertyName.NetYaw, PropertyName.NetMoving, PropertyName.Hp, PropertyName.StatusMask);
         return new MultiplayerSynchronizer { Name = "Sync", ReplicationConfig = config, ReplicationInterval = SyncInterval };
     }
 }

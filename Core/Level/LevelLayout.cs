@@ -9,7 +9,9 @@ namespace WarriorsOfEverdawn.Core.Level;
 // Solid pieces block movement; the rest is walked through. A solid blocks as its whole box does, with FollowsMesh as
 // its mesh does (a doorway is walked through), or as a Ramp from the top of its box at its -Z end down to the bottom
 // at its +Z end, as the kit's stairs rise (a flight of stairs is walked up). Level is the floor it stands on (Floors.FloorUnder).
-public sealed record LayoutPlacement(string Asset, Vector3 Position, Quaternion Rotation, Vector3 Scale, bool Solid, bool FollowsMesh = false, bool Ramp = false)
+// View is which cameras draw it; it blocks the same whichever does.
+public sealed record LayoutPlacement(string Asset, Vector3 Position, Quaternion Rotation, Vector3 Scale, bool Solid, bool FollowsMesh = false, bool Ramp = false,
+    LayoutView View = LayoutView.All)
 {
     public int Level => Floors.FloorUnder(Position.Y);
 }
@@ -30,6 +32,19 @@ public sealed record LayoutArea(string Name, Vector2 Min, Vector2 Max, int Level
     public Vector2 Centre => (Min + Max) / 2f;
 
     public bool Contains(Vector2 point) => point.X >= Min.X && point.X <= Max.X && point.Y >= Min.Y && point.Y <= Max.Y;
+
+    // How far the point is from the area: 0 inside it or on its edge.
+    public float DistanceTo(Vector2 point) => Vector2.Distance(point, Vector2.Clamp(point, Min, Max));
+}
+
+// Which cameras draw a piece: every one, only those looking straight down (Overhead), or the others (Around). A
+// doorway's arch is drawn Around: seen from straight above it would hide the way through under it, so there two wall
+// ends are drawn in its place, Overhead.
+public enum LayoutView
+{
+    All,
+    Overhead,
+    Around,
 }
 
 // A level layout written by Tools/level_fortresses.py (format: Docs/Design/level-layouts.md, after Everdawn's
@@ -122,7 +137,20 @@ public sealed record LevelLayout(
             ReadVector3(p.GetProperty("scale")),
             solid,
             FollowsMesh: shape == MeshShape,
-            Ramp: shape == RampShape);
+            Ramp: shape == RampShape,
+            View: ReadView(p, asset, sourceName));
+    }
+
+    private static LayoutView ReadView(JsonElement p, string asset, string sourceName)
+    {
+        string? view = p.TryGetProperty("view", out var viewValue) ? viewValue.GetString() : null;
+        return view switch
+        {
+            null => LayoutView.All,
+            "overhead" => LayoutView.Overhead,
+            "around" => LayoutView.Around,
+            _ => throw new FormatException($"{sourceName}: placement of '{asset}' has view '{view}'; a view is \"overhead\" or \"around\""),
+        };
     }
 
     private static List<T> ReadList<T>(JsonElement root, string name, Func<JsonElement, T> read) =>

@@ -19,6 +19,9 @@ public static class UiTheme
     public static readonly Color DamageHarm = new(1.000f, 0.333f, 0.133f);
     public static readonly Color StatusFallen = new(0.800f, 0.300f, 0.300f);
 
+    // This game's own, for souls wherever they are counted.
+    public static readonly Color SoulText = new(0.72f, 0.9f, 1f);
+
     private static FontVariation? _words;
     private static FontFile? _numbers;
 

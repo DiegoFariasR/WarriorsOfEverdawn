@@ -67,3 +67,33 @@ Rule of thumb: a `needs-clarification` entry with NO `## Phases` block is a sing
 When the `/refactor` agent can't land a `ready` item (verification regression that doesn't revert cleanly, or scope blows past one budget unit), it MUST either (a) propose a phase split inline in the entry and continue, or (b) reclassify the entry as `needs-clarification` with a concrete `**Blocker:**` question that a human can answer in 1-3 sentences. Silent skipping is not allowed; vague "needs review" reclassifications are not allowed.
 
 <!-- Open entries go below this line, numbered from 1. -->
+
+## 11. Agent and skill docs predate the eight self-tests and the newer Core folders
+
+**Type:** Subagent improvement
+
+**Status:** scheduled-human-session (the edits are under `.claude/`, which only the user can direct; the exact replacement text is in the 2026-10-03 auto-maintain report)
+
+**Why.** Written before magic, trade, wall, parts and floors tests and the kit landed:
+- `.claude/agents/godot-engineer.md:30` and `:47` route client changes to three self-tests ("`./dev.sh smoke` runs all three"); `:28` and `.claude/skills/close-chat/SKILL.md:35` say checks go only in `NetSelfTest` / `CameraSelfTest`; `:16` leaves out the design docs holding the newer tests' "Verified by" paragraphs; `.claude/agents/README.md:10` says "runs all three".
+- `.claude/skills/smoke/SKILL.md` (`:3`, `:4`, `:11`, `:15`, `:16`, `:20`, `:21`, `:28`) describes three tests, two clients and a one-minute run; `.claude/tools-index.md` has no floors-test rows and wrong client counts (`:13`, `:44`, `:47`, `:48`).
+- `.claude/skills/auto-maintain/SKILL.md:17` and `.claude/agents/core-engineer.md:15`, `:46` do not guard the numbers in `Core/Trade/`, `Core/Loot/` and `Core/Level/`, which trade-test and floors-test read live; `:20` says nothing of the `GodotClient/kit/` submodule; `core-engineer.md:46` still names head scale, now the kit's `HeadSizing`.
+- `.claude/agents/polish-engineer.md:97`, `:110`, `:120` run smoke only for client changes, though `/refactor` and `/auto-maintain` also run it for `Core/` changes, whose constants only the live gates check.
+
+**Proposal.** Apply the replacement text from the report in one session, then `./dev.sh lint-agents`.
+
+**Risk.** Lists of self-tests in prose go stale again when a ninth lands.
+
+## 12. /commit insists on `main` and says the repository has no remote
+
+**Type:** Subagent improvement
+
+**Status:** needs-clarification
+
+**Blocker:** Should `/commit` commit on the current branch (as this repository works now, on topic branches pushed to `origin`), and should it push, or stay main-only and local? It also needs to stop on uncommitted edits inside the `GodotClient/kit` submodule; once answered, the `.claude/` edit is yours to direct.
+
+**Why.** `.claude/skills/commit/SKILL.md:3`, `:11`, `:22` say the repository is local with no remote, and `:30` aborts unless on `main`. The repository has `origin` on GitHub, works on `combat-weapons-guard-dash` (all commits after the first), so `/commit` aborts every time; its `git add -A` (`:40`) also leaves out edits made inside the kit submodule without saying so.
+
+**Proposal.** The report carries replacement text for the conservative reading (commit on the current branch, never push, abort on kit edits).
+
+**Risk.** Committing on the wrong branch, if the branch check goes.

@@ -65,7 +65,7 @@ public partial class SwingSurvey : Node
             AddChild(body);
             var look = CombatVisuals.LookFor(weapon);
             var hand = CharacterRig.AttachToHand(body, look);
-            var skeleton = body.GetNode<Skeleton3D>(RigAnimations.SkeletonPath);
+            var skeleton = CharacterBody.SkeletonOf(body);
             var toBody = body.GlobalTransform.AffineInverse() * skeleton.GlobalTransform;
             var points = CharacterRig.WeaponPoints(hand);
             foreach (var skill in new[] { weapon.Primary, weapon.Secondary, weapon.Lunge })
@@ -91,7 +91,7 @@ public partial class SwingSurvey : Node
             var body = CharacterBody.Build(CombatVisuals.LookFor(enemy).Figure);
             body.Visible = false;
             AddChild(body);
-            var skeleton = body.GetNode<Skeleton3D>(RigAnimations.SkeletonPath);
+            var skeleton = CharacterBody.SkeletonOf(body);
             var first = RigAnimations.Load(CombatVisuals.ClipFor(enemy.Attack));
             var release = RigAnimations.Load(followUp);
             double step = release.Length / Samples;

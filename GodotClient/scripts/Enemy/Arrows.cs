@@ -2,9 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using Godot;
-using WarriorsOfEverdawn.Character;
 using WarriorsOfEverdawn.Core.Combat;
-using WarriorsOfEverdawn.Core.Level;
 using WarriorsOfEverdawn.Main;
 using WarriorsOfEverdawn.Player;
 using WarriorsOfEverdawn.Util;
@@ -22,7 +20,7 @@ public partial class Arrows : Node
     public const float Height = 1.2f;
     public const float Leaves = 0.5f;
 
-    private readonly Dictionary<int, Flight> _flights = new();
+    private readonly Dictionary<int, ArrowFlight> _flights = new();
     private int _nextId;
 
     // On every machine, as an arrow starts flying.
@@ -34,10 +32,8 @@ public partial class Arrows : Node
     // Host only: the player an arrow hit and the damage it took.
     public static event Action<PlayerCharacter, int>? HitPlayer;
 
-    public int InFlight => _flights.Count;
-
     // How long the oldest arrow in flight has been flying; 0 with none.
-    public float OldestFlight => _flights.Values.Select(f => f.Age).DefaultIfEmpty(0f).Max();
+    public float OldestFlight => Flight.Oldest(_flights.Values);
 
     public static Arrows In(SceneTree tree) => tree.CurrentScene.GetNode<Arrows>(NodeName);
 
@@ -45,7 +41,7 @@ public partial class Arrows : Node
     // hits, by the state its archer loosed it in, and `chest` the archer's middle at the height arrows fly at.
     public void Loose(SkillDefinition attack, int damage, Vector3 chest, Vector3 direction)
     {
-        var level = new Vector3(direction.X, 0f, direction.Z);
+        var level = Yaw.Flat(direction);
         if (attack.Projectile == null || level.LengthSquared() < 1e-6f)
         {
             GD.PushError($"[Arrows] {attack.Id} looses no projectile, or has nowhere to aim ({direction}); no arrow");
@@ -60,31 +56,24 @@ public partial class Arrows : Node
         var space = GetViewport().World3D.DirectSpaceState;
         foreach (var (id, flight) in _flights.ToList())
         {
-            var projectile = flight.Attack.Projectile!;
-            var before = flight.Position;
-            flight.Age += (float)delta;
-            flight.Travelled = Mathf.Min(flight.Travelled + projectile.Speed * (float)delta, projectile.MaxDistance);
+            var step = flight.Advance(space, (float)delta);
 
             // The world stops it, the same on every machine, before any body further along the step is looked at.
-            // Its first step is looked at from the archer's chest: an archer against a wall has its bow hand in
-            // the wall, and a line that starts inside a wall meets nothing.
-            var wall = Walls.Hit(space, flight.Leaving ?? before, flight.Position);
-            flight.Leaving = null;
-            if (wall is { } stopped)
+            if (step.Wall is { } stopped)
             {
-                flight.Travelled = Mathf.Max(0f, (stopped - flight.From).Dot(flight.Direction));
+                flight.StopAt(stopped);
                 Remove(id);
                 continue;
             }
 
-            flight.Node.GlobalPosition = flight.Position;
+            flight.Node.GlobalPosition = step.After;
 
             // The latest position each player reported, as for skeletons' swings (Docs/Design/multiplayer.md).
             if (Multiplayer.IsServer())
             {
                 var map = ArenaMap.In(GetTree());
-                var victim = GetTree().GetNodesInGroup(PlayerCharacter.Group).OfType<PlayerCharacter>()
-                    .FirstOrDefault(p => !p.IsDowned && !map.IsSafe(p.NetPosition) && Floors.SameLevel(flight.Position.Y - Height, p.NetPosition.Y) && Projectiles.Hits(Yaw.ToGround(before), Yaw.ToGround(flight.Position), Yaw.ToGround(p.NetPosition), BodySize.Radius, projectile));
+                var victim = PlayerCharacter.All(GetTree())
+                    .FirstOrDefault(p => EnemyCharacter.MayStrike(p, p.NetPosition, step.After.Y - Height, map) && Projectiles.Hits(Yaw.ToGround(step.Before), Yaw.ToGround(step.After), Yaw.ToGround(p.NetPosition), BodySize.Radius, flight.Projectile));
                 if (victim != null)
                 {
                     // Guarded against where it was loosed from; a parry stops it like a block, with no one to stagger.
@@ -96,7 +85,7 @@ public partial class Arrows : Node
             }
 
             // Every machine ends a miss on its own at the same distance.
-            if (flight.Travelled >= projectile.MaxDistance)
+            if (flight.AtFullDistance)
             {
                 Remove(id);
             }
@@ -118,13 +107,10 @@ public partial class Arrows : Node
             return;
         }
 
-        var node = Assets.InstantiateAtOrigin(CombatVisuals.ArrowModel);
-
-        // The model's point is its -Y end.
-        var along = -direction;
-        node.Basis = new Basis(along.Cross(Vector3.Up), along, Vector3.Up);
+        // Without the toon look a player's arrow wears: whether a skeleton's should is not decided.
+        var node = Flight.Arrow(direction, toonLook: false);
         AddChild(node);
-        _flights[id] = new Flight(attack, damage, chest, from, direction, node);
+        _flights[id] = new ArrowFlight(attack, damage, chest, from, direction, node);
         node.GlobalPosition = from;
         Loosed?.Invoke();
     }
@@ -142,35 +128,17 @@ public partial class Arrows : Node
         }
     }
 
-    private sealed class Flight
+    private sealed class ArrowFlight : Flight
     {
-        public Flight(SkillDefinition attack, int damage, Vector3 chest, Vector3 from, Vector3 direction, Node3D node)
+        public ArrowFlight(SkillDefinition attack, int damage, Vector3 chest, Vector3 from, Vector3 direction, Node3D node)
+            : base(attack.Projectile!, chest, from, direction, node)
         {
             Attack = attack;
             Damage = damage;
-            Leaving = chest;
-            From = from;
-            Direction = direction;
-            Node = node;
         }
 
         public SkillDefinition Attack { get; }
 
         public int Damage { get; }
-
-        public Vector3 From { get; }
-
-        public Vector3 Direction { get; }
-
-        public Node3D Node { get; }
-
-        // The archer's chest, until its first step has been looked at for walls.
-        public Vector3? Leaving { get; set; }
-
-        public float Travelled { get; set; }
-
-        public float Age { get; set; }
-
-        public Vector3 Position => From + Direction * Travelled;
     }
 }

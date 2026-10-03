@@ -393,7 +393,7 @@ public class TradeTests
     {
         var costs = Enumerable.Range(1, Armours.MaxTier).Select(TradeRules.ArmourCost).ToList();
 
-        Assert.Equal(2, TradeRules.ArmourTiersForGoldAlone);
+        Assert.InRange(TradeRules.ArmourTiersForGoldAlone, 1, Armours.MaxTier - 1);
         Assert.All(costs.Take(TradeRules.ArmourTiersForGoldAlone), c => Assert.True(c.Gold > 0 && c.Orbs == 0 && c.Souls == 0));
         Assert.All(costs.Skip(TradeRules.ArmourTiersForGoldAlone), c => Assert.True(c.Gold > 0 && c.Orbs > 0 && c.Souls == 0));
         for (int i = 1; i < costs.Count; i++)

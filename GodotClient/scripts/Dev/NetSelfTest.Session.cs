@@ -36,7 +36,7 @@ public partial class NetSelfTest
     private int _fewestOrphans;
     private float _untilNodeSample;
     private int _waves;
-    private bool _skeletonsUp;
+    private bool _waveUp;
     private int _corpseLingering;
     private int _textLingering;
 
@@ -79,9 +79,10 @@ public partial class NetSelfTest
 
     private void MeasureSession(float delta)
     {
-        var skeletons = GetTree().GetNodesInGroup(EnemyCharacter.Group).OfType<EnemyCharacter>().ToList();
-        bool up = skeletons.Any(e => !e.IsDead);
-        if (up && !_skeletonsUp)
+        var skeletons = EnemyCharacter.All(GetTree()).ToList();
+        // The crypt's guards are no part of any wave, and stand all session where the bots never go.
+        bool up = skeletons.Any(e => !e.IsDead && !e.IsGuard);
+        if (up && !_waveUp)
         {
             _waves++;
             if (_fewest != null)
@@ -93,7 +94,7 @@ public partial class NetSelfTest
             _fewest = null;
         }
 
-        _skeletonsUp = up;
+        _waveUp = up;
         _untilNodeSample -= delta;
         if (_waves > 0 && _untilNodeSample <= 0f && EveryPlayerCarriesBoth())
         {
@@ -125,7 +126,7 @@ public partial class NetSelfTest
     }
 
     private bool EveryPlayerCarriesBoth() =>
-        _players.GetChildren().OfType<PlayerCharacter>().All(p => p.Weapon != null && p.StowedWeapon != null);
+        PlayerCharacter.All(GetTree()).All(p => p.Weapon != null && p.StowedWeapon != null);
 
     // Damage numbers are the only Label3D nodes placed straight under the scene.
     private IEnumerable<Label3D> DamageNumbers() => GetTree().CurrentScene.GetChildren().OfType<Label3D>();

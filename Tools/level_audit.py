@@ -28,6 +28,7 @@ STRUCTURE = ("wall", "pillar", "floor", "stairs")
 BODY_RADIUS = 0.5
 BODY_HEIGHT = 2.2
 SHAPES = (None, "mesh", "ramp")
+VIEWS = (None, "overhead", "around")
 # Half the ground's size (ArenaMap.Floors.cs, GroundHalf): east-west and north-south.
 GROUND_HALF = (35.0, 40.0)
 # Touching boxes are not an overlap.
@@ -97,6 +98,8 @@ def audit(path, verbose):
         x, _, z = p["position"]
         if abs(x) > GROUND_HALF[0] or abs(z) > GROUND_HALF[1]:
             errors.append(f"{p['asset']} at ({x}, {z}) lies off the ground")
+        if p.get("view") not in VIEWS:
+            errors.append(f"{p['asset']} at ({x}, {z}): view {p['view']!r}, expected \"overhead\", \"around\" or none")
         if p.get("solid"):
             rect = lc.footprint_rect(assets[p["asset"]], p["position"], lc.yaw_of(p["rotation"]), p["scale"])
             span = lc.height_span(assets[p["asset"]], p["position"][1], p["scale"])

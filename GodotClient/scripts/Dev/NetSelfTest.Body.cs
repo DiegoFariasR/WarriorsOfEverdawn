@@ -58,12 +58,10 @@ public partial class NetSelfTest
         float withoutTwist = _twistedSamples > 0 ? _untwistedErrorSum / _twistedSamples : float.NaN;
         GD.Print($"[anim-check] me={me} torso_vs_aim_mean_deg={Mathf.RadToDeg(mean):F1} torso_vs_aim_max_deg={Mathf.RadToDeg(_torsoErrorMax):F1} samples={_torsoSamples} "
             + $"twist_samples={_twistedSamples} with_twist_deg={Mathf.RadToDeg(withTwist):F1} without_twist_deg={Mathf.RadToDeg(withoutTwist):F1} signed_by_legs={byLegs}");
-        float swingRate = _swingRates.Count > 0 ? _swingRates.OrderBy(r => r).ElementAt(_swingRates.Count / 2) : float.NaN;
-        GD.Print($"[speed-check] me={me} ground_speed={_groundSpeeds} swing_playback_rate={swingRate:F2} expected={LocalPlayer()?.AttackSpeed:F2} samples={_swingRates.Count}");
+        GD.Print($"[speed-check] me={me} ground_speed={_groundSpeeds} swing_playback_rate={Median(_swingRates):F2} expected={LocalPlayer()?.AttackSpeed:F2} samples={_swingRates.Count}");
         GD.Print($"[head-check] me={me} head_expected={CharacterBody.HeadScale:F3} headgear_expected={CharacterBody.HeadgearScale:F3} "
             + $"player_head={_playerHead:F3} enemy_head={_enemyHead:F3} enemy_headgear={_enemyHeadgear:F3}");
-        float handsApart = _handsApartRunning.Count > 0 ? _handsApartRunning.OrderBy(d => d).ElementAt(_handsApartRunning.Count / 2) : float.NaN;
-        GD.Print($"[carry-check] me={me} hands_apart_running={handsApart:F2} samples={_handsApartRunning.Count} "
+        GD.Print($"[carry-check] me={me} hands_apart_running={Median(_handsApartRunning):F2} samples={_handsApartRunning.Count} "
             + $"hands_apart_running_one_handed={Median(_handsApartRunningOneHanded):F2} one_handed_samples={_handsApartRunningOneHanded.Count} "
             + $"hands_apart_standing={Median(_handsApartStanding):F2} hands_apart_standing_unarmed={Median(_handsApartUnarmed):F2} unarmed_samples={_handsApartUnarmed.Count}");
         GD.Print($"[turn-check] me={me} max_turn_deg_s={Mathf.RadToDeg(_maxTurnRate):F0} limit_deg_s={Mathf.RadToDeg(Turning.MaxRate):F0} frames_at_limit={_turnLimitedFrames}");
@@ -127,8 +125,6 @@ public partial class NetSelfTest
             : _handsApartUnarmed;
         samples.Add(left.DistanceTo(right));
     }
-
-    private static float Median(List<float> values) => values.Count > 0 ? values.OrderBy(v => v).ElementAt(values.Count / 2) : float.NaN;
 
     // Clip seconds per real second while a swing plays. Frames where the clip restarts or sits clamped at its end
     // are skipped, so only steady playback counts.
@@ -207,7 +203,7 @@ public partial class NetSelfTest
     // Enemies come and go, so the latest one wearing headgear is measured.
     private void MeasureEnemyHelmet()
     {
-        foreach (var enemy in GetTree().GetNodesInGroup(EnemyCharacter.Group).OfType<EnemyCharacter>())
+        foreach (var enemy in EnemyCharacter.All(GetTree()))
         {
             MeasureHeads(enemy.Skeleton, out float head, out float headgear);
             _enemyHead = head;

@@ -29,7 +29,6 @@ public partial class WallSelfTest : Node
     private const int SettleSteps = 5;
     private const float GivenUpAfter = 3f;
 
-    private readonly Node3D _players;
     private readonly Queue<(string Name, Action<Vector3> Loose, float From)> _cases = new();
     private Bolts _bolts = null!;
     private Arrows _arrows = null!;
@@ -42,17 +41,6 @@ public partial class WallSelfTest : Node
     private float _flyingFor;
     private Vector3? _ended;
     private int _nextId = 9000;
-
-    public WallSelfTest(Node3D players)
-    {
-        _players = players;
-    }
-
-    // Godot needs a parameterless constructor to instantiate script classes itself.
-    public WallSelfTest()
-        : this(null!)
-    {
-    }
 
     public override void _Ready()
     {
@@ -68,7 +56,7 @@ public partial class WallSelfTest : Node
 
     public override void _PhysicsProcess(double delta)
     {
-        var player = _players.GetChildren().OfType<PlayerCharacter>().FirstOrDefault(p => p.IsMultiplayerAuthority());
+        var player = PlayerCharacter.Local(GetTree());
         if (player == null || ++_steps < SettleSteps)
         {
             return;

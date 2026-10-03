@@ -20,21 +20,19 @@ public partial class NetSelfTest : Node
     // What net-check prints for an empty slot.
     private const string NoWeapon = "none";
 
-    private readonly Node3D _players;
     private readonly Hud _hud;
     private readonly Dictionary<string, Observation> _seen = new();
     private float _sinceSample;
     private float _time;
 
-    public NetSelfTest(Node3D players, Hud hud)
+    public NetSelfTest(Hud hud)
     {
-        _players = players;
         _hud = hud;
     }
 
     // Godot needs a parameterless constructor to instantiate script classes itself.
     public NetSelfTest()
-        : this(null!, null!)
+        : this(null!)
     {
     }
 
@@ -78,7 +76,7 @@ public partial class NetSelfTest : Node
 
     public override void _PhysicsProcess(double delta)
     {
-        foreach (var player in _players.GetChildren().OfType<PlayerCharacter>())
+        foreach (var player in PlayerCharacter.All(GetTree()))
         {
             if (!_seen.ContainsKey(player.Name))
             {
@@ -98,7 +96,7 @@ public partial class NetSelfTest : Node
         }
 
         _sinceSample = 0f;
-        foreach (var player in _players.GetChildren().OfType<PlayerCharacter>())
+        foreach (var player in PlayerCharacter.All(GetTree()))
         {
             var seen = _seen[player.Name];
             var position = player.GlobalPosition;
@@ -194,8 +192,13 @@ public partial class NetSelfTest : Node
         TrackCasts(player);
     }
 
-    private PlayerCharacter? LocalPlayer() =>
-        _players.GetChildren().OfType<PlayerCharacter>().FirstOrDefault(p => p.IsMultiplayerAuthority());
+    private PlayerCharacter? LocalPlayer() => PlayerCharacter.Local(GetTree());
+
+    // NaN with no samples, or none taken at all.
+    private static float Median(IReadOnlyCollection<float>? values) =>
+        values is { Count: > 0 } ? values.OrderBy(v => v).ElementAt(values.Count / 2) : float.NaN;
+
+    private static string PerPeer(Dictionary<long, int> counts) => string.Join(",", counts.OrderBy(c => c.Key).Select(c => $"{c.Key}:{c.Value}"));
 
     private sealed class Observation
     {
@@ -206,9 +209,9 @@ public partial class NetSelfTest : Node
         public int Attacks { get; set; }
 
         // The weapons this machine last showed the player holding and carrying; players who leave keep theirs.
-        public string Weapon { get; set; } = "none";
+        public string Weapon { get; set; } = NoWeapon;
 
-        public string Back { get; set; } = "none";
+        public string Back { get; set; } = NoWeapon;
 
         // Changes to either weapon this machine saw after it first saw the player.
         public int WeaponChanges { get; set; }

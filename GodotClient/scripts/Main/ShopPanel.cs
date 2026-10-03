@@ -12,12 +12,12 @@ using WarriorsOfEverdawn.Theme;
 namespace WarriorsOfEverdawn.Main;
 
 // The window for trading with a seller, the same for every seller: who they are and what they trade, what the player
-// carries to pay with, nine numbered slots in rows of three (filled or empty), and beside them what the chosen one
+// carries to pay with, numbered slots in rows (TradeRules.Slots, filled or empty), and beside them what the chosen one
 // is, what it costs, what having it would do, and the button that gets it. Mouse, keys or controller: click a slot,
-// press its number or walk to it with the arrows; E, Enter or the button buys (or sells, at a seller who pays);
-// Esc closes. What a seller offers can depend on what the player carries (the blacksmith works on the player's own
-// weapons, the merchant pays for them), so the slots are read afresh as that changes. It only asks: Market carries
-// the request to the host. Design: Docs/Design/trade.md.
+// press its number (the first nine) or walk to it with the arrows; E, Enter or the button buys (or sells, at a seller
+// who pays); Esc closes. What a seller offers can depend on what the player carries (the blacksmith works on the
+// player's own weapons, the merchant pays for them), so the slots are read afresh as that changes. It only asks:
+// Market carries the request to the host. Design: Docs/Design/trade.md.
 public partial class ShopPanel : Control
 {
     private const float SlotWidth = 150f;
@@ -25,10 +25,10 @@ public partial class ShopPanel : Control
     private const float DetailWidth = 290f;
     private const string EmptySlot = "-";
 
-    private static readonly Color SoulText = new(0.72f, 0.9f, 1f);
     private static readonly Color Dim = new(1f, 1f, 1f, 0.35f);
 
     private readonly Slot[] _slots = new Slot[TradeRules.Slots];
+    private readonly bool?[] _shownChosen = new bool?[TradeRules.Slots];
     private readonly Label[] _purse = new Label[3];
     private IReadOnlyList<TradeItem> _items = Array.Empty<TradeItem>();
     private Control _window = null!;
@@ -392,7 +392,7 @@ public partial class ShopPanel : Control
         return parts.Count != 1 ? UiTheme.GoldHi : parts[0].Currency switch
         {
             Currency.Gold => UiTheme.GoldHi,
-            Currency.Souls => SoulText,
+            Currency.Souls => UiTheme.SoulText,
             _ => MagicOrb.ColourNow(),
         };
     }
@@ -434,9 +434,7 @@ public partial class ShopPanel : Control
             bool chosen = i == Chosen && item != null;
             bool had = item is { Unavailable: null };
             _slots[i].Button.Disabled = item == null;
-            _slots[i].Button.AddThemeStyleboxOverride("normal", chosen ? ChosenBox : SlotBox);
-            _slots[i].Button.AddThemeStyleboxOverride("hover", chosen ? ChosenBox : HoverBox);
-            _slots[i].Button.AddThemeStyleboxOverride("pressed", ChosenBox);
+            ShowChosen(i, chosen);
             _slots[i].Content.Modulate = had ? Colors.White : Dim;
             _slots[i].Name.Text = item?.Label ?? item?.Name ?? EmptySlot;
             _slots[i].Price.Text = !had ? "" : item!.IsSale ? $"+{CostText(item.Pays)}" : CostText(item.Cost, "\n+ ");
@@ -459,6 +457,19 @@ public partial class ShopPanel : Control
         _effect.Text = canBeHad ? EffectOf(shown, buyer) : "";
         _buy.Text = $"{VerbOf(shown)}  -  E";
         _buy.Disabled = !canBeHad || !shortOf.IsNothing;
+    }
+
+    // Set only as the choice moves: setting a box, even the one it has, lays the button out again.
+    private void ShowChosen(int slot, bool chosen)
+    {
+        if (_shownChosen[slot] == chosen)
+        {
+            return;
+        }
+
+        _shownChosen[slot] = chosen;
+        _slots[slot].Button.AddThemeStyleboxOverride("normal", chosen ? ChosenBox : SlotBox);
+        _slots[slot].Button.AddThemeStyleboxOverride("hover", chosen ? ChosenBox : HoverBox);
     }
 
     private Control BuildWindow()
@@ -497,7 +508,7 @@ public partial class ShopPanel : Control
         // What the player has to pay with, as the player frame shows it.
         var purse = new HBoxContainer { SizeFlagsVertical = SizeFlags.ShrinkCenter };
         purse.AddThemeConstantOverride("separation", 18);
-        var colours = new[] { UiTheme.GoldHi, SoulText, Colors.White };
+        var colours = new[] { UiTheme.GoldHi, UiTheme.SoulText, Colors.White };
         string[] names = { "Gold", "Souls", "Orbs" };
         for (int i = 0; i < names.Length; i++)
         {
@@ -525,6 +536,7 @@ public partial class ShopPanel : Control
             // Keys are handled by the window as a whole, so no slot keeps the keyboard's focus to itself.
             var button = new Button { CustomMinimumSize = new Vector2(SlotWidth, SlotHeight), FocusMode = FocusModeEnum.None, Disabled = true };
             button.AddThemeStyleboxOverride("disabled", SlotBox);
+            button.AddThemeStyleboxOverride("pressed", ChosenBox);
             button.Pressed += () => Choose(slot);
 
             var content = new VBoxContainer { MouseFilter = MouseFilterEnum.Ignore };

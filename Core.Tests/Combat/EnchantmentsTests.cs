@@ -42,11 +42,11 @@ public class EnchantmentsTests
         {
             Assert.Equal(Element.Void, after.Element);
             Assert.Equal(Weapons.EnchantedShare, after.MagicShare);
+            Assert.True(after.MagicShare is > 0f and < 1f, after.Id);
             Assert.Equal(before, after with { Element = null, MagicShare = before.MagicShare });
         }
 
         Assert.All(plain.Skills, s => Assert.Null(s.Element));
-        Assert.True(Weapons.EnchantedShare is > 0f and < 1f);
     }
 
     [Fact]

@@ -3,6 +3,7 @@ using Godot;
 using WarriorsOfEverdawn.Core.Combat;
 using WarriorsOfEverdawn.Enemy;
 using WarriorsOfEverdawn.Player;
+using WarriorsOfEverdawn.Util;
 
 namespace WarriorsOfEverdawn.Dev;
 
@@ -44,7 +45,7 @@ public partial class NetSelfTest
         // How far the middle of each arrow's mesh is drawn from where the arrow is.
         foreach (var arrow in arrows.GetChildren().OfType<Node3D>())
         {
-            foreach (var mesh in arrow.FindChildren("*", nameof(MeshInstance3D), recursive: true, owned: false).OfType<MeshInstance3D>())
+            foreach (var mesh in arrow.Meshes())
             {
                 var drawn = mesh.GlobalTransform * mesh.GetAabb().GetCenter();
                 _arrowDrawnOff = Mathf.Max(_arrowDrawnOff, drawn.DistanceTo(arrow.GlobalPosition));

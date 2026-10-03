@@ -161,7 +161,7 @@ public partial class NetSelfTest
     // in front, as a skeleton would deal it.
     private void DrillBarriers(float delta)
     {
-        foreach (var player in _players.GetChildren().OfType<PlayerCharacter>())
+        foreach (var player in PlayerCharacter.All(GetTree()))
         {
             long peer = player.PeerId;
             bool up = player.IsGuarding && !player.IsDowned && player.Weapon?.Guard.Barrier != null;
@@ -199,7 +199,7 @@ public partial class NetSelfTest
         _boltLingering += bolts.OldestFlight > longest + BoltMargin ? 1 : 0;
         _burstsMost = Mathf.Max(_burstsMost, bolts.BurstsShowing);
 
-        foreach (var player in _players.GetChildren().OfType<PlayerCharacter>())
+        foreach (var player in PlayerCharacter.All(GetTree()))
         {
             bool mine = player.IsMultiplayerAuthority();
             _strikesMost = Mathf.Max(_strikesMost, player.SpellArea.StrikesAlive);
@@ -255,6 +255,4 @@ public partial class NetSelfTest
                 + $"barrier_drills={PerPeer(_drillsByPeer)} drill_blow={DrillBlow} drill_hp_lost={_drillHpLost}");
         }
     }
-
-    private static string PerPeer(Dictionary<long, int> counts) => string.Join(",", counts.OrderBy(c => c.Key).Select(c => $"{c.Key}:{c.Value}"));
 }

@@ -5,6 +5,7 @@ using WarriorsOfEverdawn.Character;
 using WarriorsOfEverdawn.Core.Combat;
 using WarriorsOfEverdawn.Enemy;
 using WarriorsOfEverdawn.Player;
+using WarriorsOfEverdawn.Util;
 
 namespace WarriorsOfEverdawn.Dev;
 
@@ -37,12 +38,7 @@ public partial class NetSelfTest
             + $"tip_reach_max={_trailTipReach:F2} "
             + $"lingering_frames={_trailLingering} enemy_trail_seen={(_enemyTrailSeen ? 1 : 0)}");
         var weapon = LocalPlayer()?.Weapon ?? Weapons.Default;
-        var reachBySkill = new[] { weapon.Primary, weapon.Secondary }.Select(s =>
-        {
-            var reaches = _tipReachAtHit.GetValueOrDefault(s.Id);
-            float median = reaches is { Count: > 0 } ? reaches.OrderBy(r => r).ElementAt(reaches.Count / 2) : float.NaN;
-            return $"{s.Id}={median:F2}/{s.Range:F2}";
-        });
+        var reachBySkill = new[] { weapon.Primary, weapon.Secondary }.Select(s => $"{s.Id}={Median(_tipReachAtHit.GetValueOrDefault(s.Id)):F2}/{s.Range:F2}");
         GD.Print($"[reach-check] me={me} weapon={weapon.Id} {string.Join(" ", reachBySkill)}");
     }
 
@@ -57,8 +53,7 @@ public partial class NetSelfTest
             _trailMaxEdges = Mathf.Max(_trailMaxEdges, trail.EdgeCount);
             if (trail.EdgeCount > 0)
             {
-                var reach = trail.LatestTip - local.GlobalPosition;
-                _trailTipReach = Mathf.Max(_trailTipReach, new Vector2(reach.X, reach.Z).Length());
+                _trailTipReach = Mathf.Max(_trailTipReach, Yaw.Flat(trail.LatestTip - local.GlobalPosition).Length());
             }
 
             _sinceTrailStopped = trail.Recording ? 0f : _sinceTrailStopped + delta;
@@ -68,6 +63,6 @@ public partial class NetSelfTest
             }
         }
 
-        _enemyTrailSeen |= GetTree().GetNodesInGroup(EnemyCharacter.Group).OfType<EnemyCharacter>().Any(e => e.Trail.EdgeCount >= 2);
+        _enemyTrailSeen |= EnemyCharacter.All(GetTree()).Any(e => e.Trail.EdgeCount >= 2);
     }
 }

@@ -78,6 +78,30 @@ public class LegDirectionSelectorTests
         }
     }
 
+    [Theory]
+    [InlineData(InsideHysteresisBand, LegDirection.Left)]
+    [InlineData(-InsideHysteresisBand, LegDirection.Right)]
+    [InlineData(MathF.PI, LegDirection.Backward)]
+    [InlineData(-MathF.PI, LegDirection.Backward)]
+    public void Nearest_ignores_the_hysteresis_band(float moveYawFromAim, LegDirection expected)
+    {
+        Assert.Equal(expected, LegDirectionSelector.Nearest(moveYawFromAim));
+    }
+
+    [Fact]
+    public void Nearest_is_the_quadrant_whose_centre_is_within_half_a_quadrant()
+    {
+        const int Steps = 720;
+        for (int i = 0; i < Steps; i++)
+        {
+            float angle = Angles.Wrap(i * MathF.Tau / Steps);
+
+            var nearest = LegDirectionSelector.Nearest(angle);
+
+            Assert.InRange(MathF.Abs(Angles.Wrap(angle - LegDirectionSelector.CentreOf(nearest))), 0f, LegDirectionSelector.QuadrantHalfWidth + Precision);
+        }
+    }
+
     [Fact]
     public void A_slowing_swing_sets_its_share_of_run_speed_in_every_direction()
     {

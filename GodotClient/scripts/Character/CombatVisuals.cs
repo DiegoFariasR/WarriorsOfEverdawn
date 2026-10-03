@@ -268,6 +268,8 @@ public sealed record WeaponLook(string Model, Vector3 Grip)
 {
     public bool OneHanded { get; init; }
 
+    public WeaponStance Stance => OneHanded ? WeaponStance.OneHanded : WeaponStance.TwoHanded;
+
     public OffHandLook? OffHand { get; init; }
 
     // An enchanted weapon: this element plays over the whole of it, and of what its other hand holds.

@@ -38,8 +38,8 @@ public partial class NetSelfTest
             _manaMismatches++;
         }
 
-        var skeletons = GetTree().GetNodesInGroup(EnemyCharacter.Group).OfType<EnemyCharacter>().Where(e => !e.IsDead).ToList();
-        var others = _players.GetChildren().OfType<PlayerCharacter>().Where(p => !p.IsMultiplayerAuthority() && !p.IsDowned).ToList();
+        var skeletons = EnemyCharacter.Standing(GetTree()).ToList();
+        var others = PlayerCharacter.All(GetTree()).Where(p => !p.IsMultiplayerAuthority() && !p.IsDowned).ToList();
         var shown = _hud.Bars.Shown.ToList();
         _maxEnemyBars = Mathf.Max(_maxEnemyBars, shown.Count(s => s.Target is EnemyCharacter));
         _maxPlayerBars = Mathf.Max(_maxPlayerBars, shown.Count(s => s.Target is PlayerCharacter));

@@ -148,7 +148,7 @@ public class LootTests
     [Fact]
     public void There_is_a_model_for_every_number_of_coins_a_pile_shows()
     {
-        string props = Path.Combine(RepoRoot(), "GodotClient", "assets", "props");
+        string props = Repo.PathTo("GodotClient", "assets", "props");
 
         Assert.True(File.Exists(Path.Combine(props, "Money_Coins_Stack_Single.glb")));
         Assert.All(Enumerable.Range(2, LootRules.MostCoinsShown - 1), coins =>
@@ -165,18 +165,5 @@ public class LootTests
             // Rare next to gold, which every monster always leaves.
             Assert.True(enemy.OrbChance < 0.5f, enemy.Id);
         }
-    }
-
-    private static string RepoRoot()
-    {
-        for (var dir = new DirectoryInfo(AppContext.BaseDirectory); dir != null; dir = dir.Parent)
-        {
-            if (File.Exists(Path.Combine(dir.FullName, "WarriorsOfEverdawn.slnx")))
-            {
-                return dir.FullName;
-            }
-        }
-
-        throw new DirectoryNotFoundException($"No WarriorsOfEverdawn.slnx above {AppContext.BaseDirectory}");
     }
 }

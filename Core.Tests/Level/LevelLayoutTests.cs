@@ -110,6 +110,17 @@ public class LevelLayoutTests
     }
 
     [Fact]
+    public void A_placement_is_drawn_for_every_camera_unless_its_view_names_some_and_an_unknown_view_fails_loudly()
+    {
+        string View(string view) => Minimal.Replace("\"solid\": true", $"\"solid\": true, \"view\": \"{view}\"");
+
+        Assert.Equal(LayoutView.All, LevelLayout.Parse(Minimal, "minimal").Placements[0].View);
+        Assert.Equal(LayoutView.Overhead, LevelLayout.Parse(View("overhead"), "overhead").Placements[0].View);
+        Assert.Equal(LayoutView.Around, LevelLayout.Parse(View("around"), "around").Placements[0].View);
+        Assert.Throws<FormatException>(() => LevelLayout.Parse(View("sideways"), "unknown-view"));
+    }
+
+    [Fact]
     public void A_ramp_is_a_solid_shape_and_an_area_may_name_its_level()
     {
         string ramp = Minimal.Replace("\"solid\": true", "\"solid\": true, \"shape\": \"ramp\"")
@@ -144,6 +155,18 @@ public class LevelLayoutTests
         Assert.True(area.Contains(area.Max));
         Assert.False(area.Contains(new Vector2(area.Max.X + 0.01f, 3f)));
         Assert.False(area.Contains(new Vector2(0f, area.Min.Y - 0.01f)));
+    }
+
+    [Fact]
+    public void An_area_is_no_distance_from_a_point_within_it_and_the_nearest_edge_or_corner_away_from_one_outside()
+    {
+        var area = new LayoutArea("cover", new Vector2(-2f, 1f), new Vector2(3f, 5f));
+
+        Assert.Equal(0f, area.DistanceTo(area.Centre));
+        Assert.Equal(0f, area.DistanceTo(area.Max));
+        Assert.Equal(1.5f, area.DistanceTo(new Vector2(area.Max.X + 1.5f, 3f)), precision: 5);
+        Assert.Equal(2f, area.DistanceTo(new Vector2(0f, area.Min.Y - 2f)), precision: 5);
+        Assert.Equal(5f, area.DistanceTo(area.Max + new Vector2(3f, 4f)), precision: 5);
     }
 
     [Fact]
@@ -247,20 +270,7 @@ public class LevelLayoutTests
 
     private static LevelLayout Load(string name)
     {
-        string path = Path.Combine(RepoRoot(), "GodotClient", "config", "levels", $"{name}.layout.json");
+        string path = Repo.PathTo("GodotClient", "config", "levels", $"{name}.layout.json");
         return LevelLayout.Parse(File.ReadAllText(path), name);
-    }
-
-    private static string RepoRoot()
-    {
-        for (var dir = new DirectoryInfo(AppContext.BaseDirectory); dir != null; dir = dir.Parent)
-        {
-            if (File.Exists(Path.Combine(dir.FullName, "WarriorsOfEverdawn.slnx")))
-            {
-                return dir.FullName;
-            }
-        }
-
-        throw new DirectoryNotFoundException($"No WarriorsOfEverdawn.slnx above {AppContext.BaseDirectory}");
     }
 }

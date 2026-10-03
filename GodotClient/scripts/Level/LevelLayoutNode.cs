@@ -12,7 +12,8 @@ namespace WarriorsOfEverdawn.Level;
 // flight of stairs). Adapted from Everdawn's LevelLayoutNode; format in Docs/Design/level-layouts.md.
 public partial class LevelLayoutNode : Node3D
 {
-    // A solid at least this tall can stand between the camera and a character; lower ones never hide one.
+    // A solid at least this tall can stand between the camera and a character; lower ones never hide one. So can a
+    // loose piece that hangs on nothing and lies wholly higher than this: a storey's stone top.
     private const float OccludingHeight = 2.5f;
 
     // A piece that is not solid, sits this close to a tall solid and has its middle this far off the ground hangs on
@@ -27,7 +28,8 @@ public partial class LevelLayoutNode : Node3D
 
     public LevelLayout Layout { get; private set; } = null!;
 
-    // The tall solids, each with its box in world space, for fading the ones in the camera's way.
+    // The tall solids and the loose pieces overhead, each with its box in world space, for fading the ones in the
+    // camera's way.
     public IReadOnlyList<Occluder> Occluders => _occluders;
 
     // What hangs on them and fades with them: left opaque, a banner on a faded wall still hides what the wall did.
@@ -61,7 +63,7 @@ public partial class LevelLayoutNode : Node3D
             TextureFilter = BaseMaterial3D.TextureFilterEnum.Nearest,
         });
 
-        var loose = new List<(string Asset, Vector3 Centre, List<MeshInstance3D> Meshes)>();
+        var loose = new List<(string Asset, Node3D Piece, Vector3 Centre, List<MeshInstance3D> Meshes)>();
         foreach (var placement in Layout.Placements)
         {
             var piece = scenes[placement.Asset].Instantiate<Node3D>();
@@ -69,7 +71,7 @@ public partial class LevelLayoutNode : Node3D
                 new Basis(ToGodot(placement.Rotation)) * Basis.FromScale(ToGodot(placement.Scale)), ToGodot(placement.Position));
             AddChild(piece);
 
-            var meshes = piece.FindChildren("*", nameof(MeshInstance3D), recursive: true, owned: false).OfType<MeshInstance3D>()
+            var meshes = piece.Meshes()
                 .Concat(piece is MeshInstance3D own ? new[] { own } : Array.Empty<MeshInstance3D>())
                 .ToList();
             string path = Layout.Assets[placement.Asset];
@@ -89,21 +91,22 @@ public partial class LevelLayoutNode : Node3D
             if (meshes.Count > 0)
             {
                 var middle = piece.Transform * BoundsOf(piece, meshes).GetCenter();
-                _pieces.Add(new LevelPiece(placement.Level, new Vector2(middle.X, middle.Z), meshes));
+                _pieces.Add(new LevelPiece(placement.Level, new Vector2(middle.X, middle.Z), meshes, placement.View));
+                if (!placement.Solid)
+                {
+                    loose.Add((placement.Asset, piece, middle, meshes));
+                }
             }
 
             if (placement.Solid)
             {
                 AddSolid(piece, meshes, placement.FollowsMesh, placement.Ramp);
             }
-            else if (meshes.Count > 0)
-            {
-                loose.Add((placement.Asset, piece.Transform * BoundsOf(piece, meshes).GetCenter(), meshes));
-            }
         }
 
         var hung = new SortedDictionary<string, int>(StringComparer.Ordinal);
-        foreach (var (asset, centre, meshes) in loose)
+        var overhead = new List<Occluder>();
+        foreach (var (asset, piece, centre, meshes) in loose)
         {
             var on = centre.Y < HungAbove ? new List<Occluder>() : _occluders.Where(o => o.Holds(centre, HungWithin)).ToList();
             if (on.Count > 0)
@@ -111,7 +114,14 @@ public partial class LevelLayoutNode : Node3D
                 _hangings.Add(new Hanging(on, meshes));
                 hung[asset] = hung.GetValueOrDefault(asset) + 1;
             }
+            else if (BoxOf(piece, BoundsOf(piece, meshes)) is var (box, size) && centre.Y - size.Y / 2f >= OccludingHeight)
+            {
+                overhead.Add(new Occluder(box, size, meshes));
+            }
         }
+
+        // Only once every hanging is found, so nothing hangs on a piece overhead.
+        _occluders.AddRange(overhead);
 
         foreach (var mesh in Layout.Meshes)
         {
@@ -138,9 +148,8 @@ public partial class LevelLayoutNode : Node3D
     {
         var bounds = BoundsOf(piece, meshes);
         var scale = piece.Scale;
-        var size = bounds.Size * scale;
+        var (box, size) = BoxOf(piece, bounds);
         var turned = new Transform3D(piece.Basis.Orthonormalized(), piece.Position);
-        var box = turned * new Transform3D(Basis.Identity, bounds.GetCenter() * scale);
         var body = new StaticBody3D
         {
             Name = $"{piece.Name}Solid",
@@ -159,6 +168,11 @@ public partial class LevelLayoutNode : Node3D
             _occluders.Add(new Occluder(box, size, meshes));
         }
     }
+
+    // The piece's own box turned with it, at its scale, and its size.
+    private static (Transform3D Box, Vector3 Size) BoxOf(Node3D piece, Aabb bounds) =>
+        (new Transform3D(piece.Basis.Orthonormalized(), piece.Position) * new Transform3D(Basis.Identity, bounds.GetCenter() * piece.Scale),
+            bounds.Size * piece.Scale);
 
     // A flight of stairs: a wedge the box's whole width, sloping from the top of its -Z end down to the bottom of its +Z
     // end (the kit's stairs rise toward their own -Z) and solid under the slope, so it is walked up and never under.
@@ -267,7 +281,8 @@ public sealed record Occluder(Transform3D Box, Vector3 Size, IReadOnlyList<MeshI
 public sealed record Hanging(IReadOnlyList<Occluder> On, IReadOnlyList<MeshInstance3D> Meshes);
 
 // A piece by the floor it is on and where its middle is on the ground, with what draws it.
-public sealed record LevelPiece(int Level, Vector2 Ground, IReadOnlyList<MeshInstance3D> Meshes);
+// The cameras that draw it (LayoutView) too.
+public sealed record LevelPiece(int Level, Vector2 Ground, IReadOnlyList<MeshInstance3D> Meshes, LayoutView View = LayoutView.All);
 
 // A light by the floor under it and where it is on the ground.
 public sealed record LevelLight(OmniLight3D Light, int Level, Vector2 Ground);

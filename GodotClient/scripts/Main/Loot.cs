@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using Godot;
-using WarriorsOfEverdawn.Core.Level;
 using WarriorsOfEverdawn.Core.Loot;
 using WarriorsOfEverdawn.Enemy;
 using WarriorsOfEverdawn.Player;
@@ -80,7 +79,7 @@ public partial class Loot : Node3D
             return;
         }
 
-        var players = GetTree().GetNodesInGroup(PlayerCharacter.Group).OfType<PlayerCharacter>().ToList();
+        var players = PlayerCharacter.All(GetTree()).ToList();
         foreach (var lying in _lying.Values.ToList())
         {
             lying.Age += (float)delta;
@@ -90,8 +89,7 @@ public partial class Loot : Node3D
             }
 
             // The position each player last reported, as for hits on players (Docs/Design/multiplayer.md).
-            var taker = players.FirstOrDefault(p => !p.IsDowned && Floors.SameLevel(p.NetPosition.Y, lying.Loot.Position.Y)
-                && Flat(p.NetPosition - lying.Loot.Position) <= LootRules.PickupRadius);
+            var taker = players.FirstOrDefault(p => !p.IsDowned && Yaw.AcrossFloor(p.NetPosition, lying.Loot.Position) <= LootRules.PickupRadius);
             if (taker == null)
             {
                 continue;
@@ -128,7 +126,7 @@ public partial class Loot : Node3D
             return;
         }
 
-        foreach (var player in GetTree().GetNodesInGroup(PlayerCharacter.Group).OfType<PlayerCharacter>())
+        foreach (var player in PlayerCharacter.All(GetTree()))
         {
             player.Vitals.EarnSouls(enemy.Definition.Souls);
         }
@@ -228,8 +226,6 @@ public partial class Loot : Node3D
             }
         }
     }
-
-    private static float Flat(Vector3 offset) => new Vector2(offset.X, offset.Z).Length();
 
     private sealed class Lying
     {

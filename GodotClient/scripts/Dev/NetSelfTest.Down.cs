@@ -4,6 +4,7 @@ using Godot;
 using WarriorsOfEverdawn.Core.Combat;
 using WarriorsOfEverdawn.Main;
 using WarriorsOfEverdawn.Player;
+using WarriorsOfEverdawn.Util;
 
 namespace WarriorsOfEverdawn.Dev;
 
@@ -65,7 +66,7 @@ public partial class NetSelfTest
 
     private void MeasureDowns()
     {
-        foreach (var player in _players.GetChildren().OfType<PlayerCharacter>())
+        foreach (var player in PlayerCharacter.All(GetTree()))
         {
             string name = player.Name;
             bool down = player.IsDowned;
@@ -90,7 +91,7 @@ public partial class NetSelfTest
                 if (player.IsMultiplayerAuthority())
                 {
                     var offset = player.GlobalPosition - ArenaMap.In(GetTree()).RevivePointFor(player.PeerId);
-                    _reviveDistanceMax = Mathf.Max(_reviveDistanceMax, new Vector2(offset.X, offset.Z).Length());
+                    _reviveDistanceMax = Mathf.Max(_reviveDistanceMax, Yaw.Flat(offset).Length());
                 }
             }
 
@@ -102,13 +103,12 @@ public partial class NetSelfTest
                 if (Engine.GetPhysicsFrames() <= _settledBy[name])
                 {
                     _liesAt[name] = player.GlobalPosition;
-                    var settled = _liesAt[name] - _fellAt[name];
-                    _downSettleMax = Mathf.Max(_downSettleMax, new Vector2(settled.X, settled.Z).Length());
+                    _downSettleMax = Mathf.Max(_downSettleMax, Yaw.Flat(_liesAt[name] - _fellAt[name]).Length());
                 }
 
                 var drift = player.GlobalPosition - _liesAt[name];
                 float before = _downDriftMax;
-                _downDriftMax = Mathf.Max(_downDriftMax, new Vector2(drift.X, drift.Z).Length());
+                _downDriftMax = Mathf.Max(_downDriftMax, Yaw.Flat(drift).Length());
 
                 // Nothing should move a body once it lies: what does is printed as it happens.
                 if (_downDriftMax > before + DriftWorthPrinting)

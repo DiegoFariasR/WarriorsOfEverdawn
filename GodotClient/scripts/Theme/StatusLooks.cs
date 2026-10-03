@@ -27,8 +27,4 @@ public static class StatusLooks
 
     public static IEnumerable<(string Name, Color Colour)> Of(Statuses statuses) =>
         Told.Where(told => statuses.HasFlag(told.Status)).Select(told => (told.Name, DamageTypeColours.Name(told.Of)));
-
-    public static string NameOf(Statuses single) => Told.First(told => told.Status == single).Name;
-
-    public static Color ColourOf(Statuses single) => DamageTypeColours.Name(Told.First(told => told.Status == single).Of);
 }

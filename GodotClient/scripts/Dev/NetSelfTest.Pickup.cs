@@ -3,6 +3,7 @@ using Godot;
 using WarriorsOfEverdawn.Core.Combat;
 using WarriorsOfEverdawn.Main;
 using WarriorsOfEverdawn.Player;
+using WarriorsOfEverdawn.Util;
 
 namespace WarriorsOfEverdawn.Dev;
 
@@ -38,7 +39,7 @@ public partial class NetSelfTest
 
     private void TrackPickups(PlayerCharacter player)
     {
-        var carried = new WeaponSets(player.Weapon, player.StowedWeapon);
+        var carried = player.Sets;
         player.WeaponsChanged += sets =>
         {
             // The hand emptied with the back untouched: let go of, not swapped.
@@ -55,7 +56,7 @@ public partial class NetSelfTest
             return;
         }
 
-        var inRange = _ground.Items.Where(i => Flat(i.Position - local.GlobalPosition) <= Pickups.LabelRange).ToList();
+        var inRange = _ground.Items.Where(i => Yaw.AcrossFloor(local.GlobalPosition, i.Position) <= Pickups.LabelRange).ToList();
         var labels = _hud.GroundLabels;
         bool matches = labels.Shown.OrderBy(id => id).SequenceEqual(inRange.Select(i => i.Id).OrderBy(id => id))
             && labels.Detailed == _ground.AttendedBy(local.GlobalPosition, local.AimYaw)?.Id;
@@ -64,8 +65,6 @@ public partial class NetSelfTest
         _labelFrames += matches && inRange.Count > 0 ? 1 : 0;
         _offerFrames += labels.OffersPickUp == true ? 1 : 0;
     }
-
-    private static float Flat(Vector3 offset) => new Vector2(offset.X, offset.Z).Length();
 
     private void PrintPickupCheck(long me) =>
         GD.Print($"[pickup-check] me={me} placed_seen={_weaponsPlaced} taken_seen={_weaponsTaken} on_ground={_ground?.Items.Count() ?? -1} "

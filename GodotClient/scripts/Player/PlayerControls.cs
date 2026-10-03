@@ -440,8 +440,7 @@ public sealed class BotControls : IPlayerControls
 
         // Picking up takes the weapon in front, and bots fighting side by side let go of theirs within a step of each
         // other: the bot stands facing its own, an arm's length off, and asks only while that is the one it would get.
-        var toWeapon = mine.Position - player.GlobalPosition;
-        toWeapon.Y = 0f;
+        var toWeapon = Yaw.Flat(mine.Position - player.GlobalPosition);
         float distance = toWeapon.Length();
         var toward = distance > 0.01f ? toWeapon / distance : Yaw.Forward(player.AimYaw);
         AimYaw = Yaw.Of(toward);
@@ -458,8 +457,7 @@ public sealed class BotControls : IPlayerControls
         DashPressed = false;
         bool standing = _time % CycleLength >= StandStillFrom;
         var enemy = TargetFor(player);
-        var toEnemy = enemy == null ? Vector3.Zero : enemy.GlobalPosition - player.GlobalPosition;
-        toEnemy.Y = 0f;
+        var toEnemy = enemy == null ? Vector3.Zero : Yaw.Flat(enemy.GlobalPosition - player.GlobalPosition);
         float distance = toEnemy.Length();
 
         // A staff engages from as far as its bolts fly: its bot turns to the hostile and throws at it while it is
@@ -575,7 +573,7 @@ public sealed class BotControls : IPlayerControls
         _tracked = hostile;
         _trackedAt = now;
         _trackedWhen = _time;
-        return new Vector3(_trackedVelocity.X, 0f, _trackedVelocity.Z);
+        return Yaw.Flat(_trackedVelocity);
     }
 
     private static Vector3? TowardLoot(PlayerCharacter player)
@@ -616,8 +614,8 @@ public sealed class BotControls : IPlayerControls
     private static bool KeepsAway(Node3D hostile) => hostile is EnemyCharacter { Definition.KeepAway: > 0f };
 
     private static IEnumerable<EnemyCharacter> MeleeSkeletons(PlayerCharacter player) =>
-        player.GetTree().GetNodesInGroup(EnemyCharacter.Group).OfType<EnemyCharacter>().Where(e =>
-            !e.IsDead && e.Definition.Attack.Projectile == null && Floors.SameLevel(e.GlobalPosition.Y, player.GlobalPosition.Y)
+        EnemyCharacter.Standing(player.GetTree()).Where(e =>
+            e.Definition.Attack.Projectile == null && Floors.SameLevel(e.GlobalPosition.Y, player.GlobalPosition.Y)
             && e.GlobalPosition.DistanceTo(player.GlobalPosition) - BodySize.Radius <= e.Definition.Attack.Range + GuardReach);
 
     private static EnemyCharacter? NearestMeleeSkeleton(PlayerCharacter player) =>
@@ -635,7 +633,7 @@ public sealed class BotControls : IPlayerControls
     // before the shortest got a swing in.
     private static Node3D? TargetFor(PlayerCharacter player)
     {
-        var others = player.GetTree().GetNodesInGroup(PlayerCharacter.Group).OfType<PlayerCharacter>()
+        var others = PlayerCharacter.All(player.GetTree())
             .Where(p => p != player && !p.IsDowned)
             .ToList();
         return Hostiles(player)
@@ -648,17 +646,6 @@ public sealed class BotControls : IPlayerControls
     }
 
     // Living skeletons on the bot's floor, and in PvP every other player who is up.
-    private static IEnumerable<Node3D> Hostiles(PlayerCharacter player)
-    {
-        var tree = player.GetTree();
-        IEnumerable<Node3D> skeletons = tree.GetNodesInGroup(EnemyCharacter.Group).OfType<EnemyCharacter>()
-            .Where(e => !e.IsDead && Floors.SameLevel(e.GlobalPosition.Y, player.GlobalPosition.Y));
-        if (!SessionRules.Pvp)
-        {
-            return skeletons;
-        }
-
-        return skeletons.Concat(tree.GetNodesInGroup(PlayerCharacter.Group).OfType<PlayerCharacter>()
-            .Where(p => p != player && !p.IsDowned));
-    }
+    private static IEnumerable<Node3D> Hostiles(PlayerCharacter player) =>
+        player.Foes().Where(f => f is not EnemyCharacter || Floors.SameLevel(f.GlobalPosition.Y, player.GlobalPosition.Y));
 }

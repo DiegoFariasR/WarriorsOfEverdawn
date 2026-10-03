@@ -25,7 +25,7 @@ public partial class ArenaMap
     public bool HasWay(Vector3 from, Vector3 to)
     {
         var path = NavigationServer3D.MapGetPath(GetWorld3D().NavigationMap, from, to, optimize: true);
-        return path.Length > 0 && Flat(path[^1] - to).Length() < CornerReached && Floors.SameLevel(path[^1].Y, to.Y);
+        return path.Length > 0 && Yaw.Flat(path[^1] - to).Length() < CornerReached && Floors.SameLevel(path[^1].Y, to.Y);
     }
 
     // The direction to walk from where `walker` stands toward `to`, round the walls. Straight there when the way is
@@ -34,13 +34,13 @@ public partial class ArenaMap
     {
         var from = walker.GlobalPosition;
         ulong id = walker.GetInstanceId();
-        if (!_steps.TryGetValue(id, out var step) || _clock >= step.Until || Flat(step.Next - from).Length() < CornerReached)
+        if (!_steps.TryGetValue(id, out var step) || _clock >= step.Until || Yaw.Flat(step.Next - from).Length() < CornerReached)
         {
             step = (NextCorner(from, to), _clock + PathLifetime);
             _steps[id] = step;
         }
 
-        var direction = Flat(step.Next - from);
+        var direction = Yaw.Flat(step.Next - from);
         return direction.LengthSquared() > 1e-4f ? direction.Normalized() : Vector3.Zero;
     }
 
@@ -51,7 +51,7 @@ public partial class ArenaMap
         var path = NavigationServer3D.MapGetPath(GetWorld3D().NavigationMap, from, to, optimize: true);
         foreach (var corner in path)
         {
-            if (Flat(corner - from).Length() >= CornerReached)
+            if (Yaw.Flat(corner - from).Length() >= CornerReached)
             {
                 return corner;
             }
@@ -94,6 +94,4 @@ public partial class ArenaMap
         AddChild(new NavigationRegion3D { Name = "Ways", NavigationMesh = mesh });
         GD.Print($"[level] navigation: {mesh.GetPolygonCount()} polygons");
     }
-
-    private static Vector3 Flat(Vector3 v) => new(v.X, 0f, v.Z);
 }

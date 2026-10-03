@@ -24,7 +24,6 @@ public partial class GroundWeapons : Node3D
     // Just clear of the ground, so the model does not fight with it for the same pixels.
     private const float RestHeight = 0.06f;
 
-
     private readonly Dictionary<int, (GroundWeapon Item, Node3D Model)> _lying = new();
     private int _nextId;
 
@@ -94,13 +93,7 @@ public partial class GroundWeapons : Node3D
             return;
         }
 
-        // 0 when the host's own player asks.
-        long peer = Multiplayer.GetRemoteSenderId();
-        if (peer == 0)
-        {
-            peer = Multiplayer.GetUniqueId();
-        }
-
+        long peer = Multiplayer.Sender();
         if (_lying.ContainsKey(id))
         {
             Rpc(MethodName.Take, id, peer);
@@ -186,7 +179,7 @@ public partial class GroundWeapons : Node3D
     }
 
     [Rpc(MultiplayerApi.RpcMode.Authority, CallLocal = true, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-    private void Refuse() => PlayerCharacter.Find(GetTree(), Multiplayer.GetUniqueId())?.OnPickUpRefused();
+    private void Refuse() => PlayerCharacter.Local(GetTree())?.OnPickUpRefused();
 
     private static WeaponDefinition? Find(string weaponId)
     {
@@ -205,7 +198,7 @@ public partial class GroundWeapons : Node3D
     private static Vector3 MiddleOf(Node3D model)
     {
         Aabb? bounds = null;
-        foreach (var mesh in model.FindChildren("*", nameof(MeshInstance3D), recursive: true, owned: false).OfType<MeshInstance3D>())
+        foreach (var mesh in model.Meshes())
         {
             var box = mesh.Transform * mesh.GetAabb();
             bounds = bounds?.Merge(box) ?? box;

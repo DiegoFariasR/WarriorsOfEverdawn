@@ -36,7 +36,7 @@ public static class CharacterRig
     // A weapon modelled to be held at its origin, as it is.
     public static BoneAttachment3D AttachToHand(Node3D body, string weaponPath)
     {
-        var hand = NewHand(body);
+        var hand = AttachToHand(body, look: null);
         HoldWeapon(hand, weaponPath, Vector3.Zero);
         return hand;
     }
@@ -44,31 +44,30 @@ public static class CharacterRig
     // The look's weapon in the right hand; an empty hand, with no look.
     public static BoneAttachment3D AttachToHand(Node3D body, WeaponLook? look)
     {
-        var hand = NewHand(body);
+        var hand = Attachment(body, "RightHand", HandBone);
         HoldWeapon(hand, look);
         return hand;
     }
 
-    private static BoneAttachment3D NewHand(Node3D body)
+    private static BoneAttachment3D Attachment(Node3D body, string name, string bone)
     {
-        var hand = new BoneAttachment3D { Name = "RightHand", BoneName = HandBone };
-        body.GetNode<Skeleton3D>(RigAnimations.SkeletonPath).AddChild(hand);
-        return hand;
+        var attachment = new BoneAttachment3D { Name = name, BoneName = bone };
+        CharacterBody.SkeletonOf(body).AddChild(attachment);
+        return attachment;
     }
 
     // The left hand, holding the look's off-hand piece when it has one.
     public static BoneAttachment3D AttachOffHand(Node3D body, WeaponLook? look)
     {
-        var hand = new BoneAttachment3D { Name = "OffHand", BoneName = LeftHandBone };
+        var hand = Attachment(body, "OffHand", LeftHandBone);
         HoldOffHand(hand, look);
-        body.GetNode<Skeleton3D>(RigAnimations.SkeletonPath).AddChild(hand);
         return hand;
     }
 
     // Replaces whatever the off hand holds with the look's piece for it; an empty hand, when the look has none.
     public static void HoldOffHand(BoneAttachment3D offHand, WeaponLook? look)
     {
-        Empty(offHand);
+        offHand.FreeChildren();
         if (look?.OffHand is { } piece)
         {
             offHand.AddChild(Adorned(Placed(piece.Model, piece.HandPosition, piece.HandRotation, piece.Scale), look with { Glow = null }));
@@ -77,17 +76,15 @@ public static class CharacterRig
 
     public static BoneAttachment3D AttachToLeftHand(Node3D body, string weaponPath, Vector3 rotation)
     {
-        var hand = new BoneAttachment3D { Name = "LeftHand", BoneName = LeftHandBone };
+        var hand = Attachment(body, "LeftHand", LeftHandBone);
         HoldWeapon(hand, weaponPath, Vector3.Zero).Rotation = rotation;
-        body.GetNode<Skeleton3D>(RigAnimations.SkeletonPath).AddChild(hand);
         return hand;
     }
 
     public static BoneAttachment3D AttachToBack(Node3D body, WeaponLook look)
     {
-        var back = new BoneAttachment3D { Name = "Back", BoneName = BackBone };
+        var back = Attachment(body, "Back", BackBone);
         HoldOnBack(back, look);
-        body.GetNode<Skeleton3D>(RigAnimations.SkeletonPath).AddChild(back);
         return back;
     }
 
@@ -96,7 +93,7 @@ public static class CharacterRig
     {
         if (look == null)
         {
-            Empty(back);
+            back.FreeChildren();
             return;
         }
 
@@ -121,7 +118,7 @@ public static class CharacterRig
     {
         if (look == null)
         {
-            Empty(hand);
+            hand.FreeChildren();
         }
         else
         {
@@ -136,7 +133,7 @@ public static class CharacterRig
     {
         if (look.Enchant is { } enchantment)
         {
-            foreach (var mesh in weapon.FindChildren("*", nameof(MeshInstance3D), recursive: true, owned: false).OfType<MeshInstance3D>())
+            foreach (var mesh in weapon.Meshes())
             {
                 mesh.MaterialOverlay = ElementLooks.Enchantment(enchantment);
             }
@@ -163,7 +160,7 @@ public static class CharacterRig
     // turned `turn` about its own length.
     public static Node3D HoldWeapon(BoneAttachment3D hand, string weaponPath, Vector3 grip, float scale = 1f, float turn = 0f)
     {
-        Empty(hand);
+        hand.FreeChildren();
 
         // The hand slot bone is already the grip point.
         var weapon = Assets.InstantiateAtOrigin(weaponPath);
@@ -174,20 +171,11 @@ public static class CharacterRig
         return weapon;
     }
 
-    private static void Empty(BoneAttachment3D slot)
-    {
-        foreach (var held in slot.GetChildren())
-        {
-            slot.RemoveChild(held);
-            held.QueueFree();
-        }
-    }
-
     // Every vertex of the held weapon, in the hand's space.
     public static Vector3[] WeaponPoints(BoneAttachment3D hand)
     {
         var points = new List<Vector3>();
-        foreach (var mesh in hand.FindChildren("*", nameof(MeshInstance3D), recursive: true, owned: false).OfType<MeshInstance3D>())
+        foreach (var mesh in hand.Meshes())
         {
             var toHand = RelativeTransform(mesh, hand);
             for (int surface = 0; surface < mesh.Mesh.GetSurfaceCount(); surface++)
@@ -219,11 +207,7 @@ public static class CharacterRig
     // How far the weapon reaches across the ground from a centre: its farthest point, whichever part that is. A
     // scythe's blade curves back towards the wielder, so its point is not always what reaches furthest.
     public static float WeaponReach(IEnumerable<Vector3> points, Transform3D hand, Vector3 centre) =>
-        points.Max(p =>
-        {
-            var offset = hand * p - centre;
-            return new Vector2(offset.X, offset.Z).Length();
-        });
+        points.Max(p => Yaw.Flat(hand * p - centre).Length());
 
     private static Transform3D RelativeTransform(Node3D node, Node3D ancestor)
     {

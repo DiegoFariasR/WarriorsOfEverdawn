@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using WarriorsOfEverdawn.Core.Combat;
@@ -20,6 +21,14 @@ public class EnemiesTests
             Assert.True(enemy.AggroRange > enemy.Attack.Range, enemy.Id);
             Assert.True(enemy.Attack.Damage > 0, enemy.Id);
         }
+    }
+
+    [Fact]
+    public void Every_enemy_sees_further_than_any_weapon_reaches()
+    {
+        float furthest = Weapons.All.SelectMany(w => w.Skills).Max(s => Math.Max(s.Range, s.Projectile?.MaxDistance ?? 0f) + s.BlastRadius);
+
+        Assert.All(Enemies.All, enemy => Assert.True(enemy.AggroRange > furthest, enemy.Id));
     }
 
     [Fact]

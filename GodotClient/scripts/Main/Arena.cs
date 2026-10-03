@@ -94,7 +94,7 @@ public partial class Arena : Node3D
 
         if (_options.Bot)
         {
-            _selfTest = new NetSelfTest(_players, _hud) { Name = "NetSelfTest", TradeDrill = _options.TradeDrill, BarrierDrill = _options.BarrierDrill, StatusDrill = _options.StatusDrill };
+            _selfTest = new NetSelfTest(_hud) { Name = "NetSelfTest", TradeDrill = _options.TradeDrill, BarrierDrill = _options.BarrierDrill, StatusDrill = _options.StatusDrill };
             AddChild(_selfTest);
         }
 
@@ -136,12 +136,12 @@ public partial class Arena : Node3D
 
         if (_options.CameraCheck)
         {
-            AddChild(new CameraSelfTest(_camera, _players, _hud) { Name = "CameraSelfTest" });
+            AddChild(new CameraSelfTest(_camera, _hud) { Name = "CameraSelfTest" });
         }
 
         if (_options.WallCheck)
         {
-            AddChild(new WallSelfTest(_players) { Name = "WallSelfTest" });
+            AddChild(new WallSelfTest { Name = "WallSelfTest" });
         }
 
         if (_options.PartsCheck)
@@ -151,7 +151,7 @@ public partial class Arena : Node3D
 
         if (_options.FloorsCheck)
         {
-            AddChild(new FloorsSelfTest(_players) { Name = "FloorsSelfTest" });
+            AddChild(new FloorsSelfTest { Name = "FloorsSelfTest" });
         }
 
         if (_options.WaysDump)
@@ -198,7 +198,7 @@ public partial class Arena : Node3D
     // --down-at: a client's player when there is one, so the down and the revive also cross the network.
     private void DownOnePlayer()
     {
-        var up = _players.GetChildren().OfType<PlayerCharacter>().Where(p => !p.IsDowned).ToList();
+        var up = PlayerCharacter.All(GetTree()).Where(p => !p.IsDowned).ToList();
         var target = up.Where(p => p.PeerId != Multiplayer.GetUniqueId()).OrderBy(p => p.PeerId).FirstOrDefault() ?? up.FirstOrDefault();
         if (target == null)
         {

@@ -6,6 +6,7 @@ using WarriorsOfEverdawn.Core.Combat;
 using WarriorsOfEverdawn.Core.Loot;
 using WarriorsOfEverdawn.Core.Trade;
 using WarriorsOfEverdawn.Player;
+using WarriorsOfEverdawn.Util;
 
 namespace WarriorsOfEverdawn.Main;
 
@@ -65,13 +66,7 @@ public partial class Market : Node3D
             return;
         }
 
-        // 0 when the host's own player asks.
-        long peer = Multiplayer.GetRemoteSenderId();
-        if (peer == 0)
-        {
-            peer = Multiplayer.GetUniqueId();
-        }
-
+        long peer = Multiplayer.Sender();
         var seller = _sellers.FirstOrDefault(s => s.Seller.Id == sellerId);
         var buyer = PlayerCharacter.Find(GetTree(), peer);
         var item = buyer == null ? null : seller?.Seller.Item(buyer.AsBuyer(), itemId);
@@ -103,7 +98,7 @@ public partial class Market : Node3D
         var seller = Core.Trade.Sellers.ById(sellerId);
         var weapon = weaponId == NoWeapon ? null : Weapons.ById(weaponId);
         WeaponSlot? into = slot == NoSlot ? null : (WeaponSlot)slot;
-        if (PlayerCharacter.Find(GetTree(), Multiplayer.GetUniqueId()) is not { } buyer)
+        if (PlayerCharacter.Local(GetTree()) is not { } buyer)
         {
             GD.PushError($"[Market] bought '{itemId}' from '{sellerId}', but this machine's player is gone");
             return;

@@ -32,9 +32,10 @@ public partial class PlayerCharacter : CharacterBody3D
     private const float SyncInterval = 0.05f;
     private const float RemoteFollowRate = 15f;
     private const float BodyTurnRate = 12f;
-    // A bolt starts this far in front of the caster, clear of its own body.
-
     private const float MovingThreshold = 0.2f;
+
+    // What a player on its feet runs into; dashing or down, the level alone.
+    private const uint OnFootMask = CollisionLayers.World | CollisionLayers.Enemies;
 
     private static readonly Color TrailTint = new(1f, 0.92f, 0.75f);
 
@@ -62,13 +63,14 @@ public partial class PlayerCharacter : CharacterBody3D
     private BoneAttachment3D _hand = null!;
     private BoneAttachment3D _offHand = null!;
     private SpellArea _spellArea = null!;
+    private CastingCircles _circles = null!;
     private BarrierBubble _barrier = null!;
     private int _swingLoosed;
     private int _boltsThrown;
     private BoneAttachment3D _back = null!;
     private bool _reportedUnknownWeapon;
 
-    // The tier of armour the figure is dressed in; -1 before the first look is put on.
+    // The tier of armour the figure is dressed in; it is built in the first, tier 0.
     private int _armourShown;
     private SkillDefinition? _active;
     private SkillDefinition? _swing;
@@ -145,6 +147,8 @@ public partial class PlayerCharacter : CharacterBody3D
     // The weapon this machine shows on the player's back; null with nothing there.
     public WeaponDefinition? StowedWeapon => _stowed;
 
+    public WeaponSets Sets => new(_weapon, _stowed);
+
     public bool IsGuarding => _guard.IsUp;
 
     public float GuardRecoveryLeft => _guard.RecoveryLeft(GuardClock);
@@ -169,8 +173,7 @@ public partial class PlayerCharacter : CharacterBody3D
 
     // Whether an element shows on what this machine draws in the player's hand: an enchanted weapon's all over it,
     // a staff's at its head.
-    public bool WeaponAlight =>
-        _hand.FindChildren("*", nameof(MeshInstance3D), recursive: true, owned: false).OfType<MeshInstance3D>().Any(m => m.MaterialOverlay != null);
+    public bool WeaponAlight => _hand.Meshes().Any(m => m.MaterialOverlay != null);
 
     public bool IsChanneling => ActiveSkill?.Channeled == true;
 
@@ -216,8 +219,12 @@ public partial class PlayerCharacter : CharacterBody3D
     public bool CanUse(int button) =>
         _weapon != null && _cooldowns.IsReady(button, _clock) && _mana.CanAfford(_weapon.Skill(button).ManaCost);
 
-    public static PlayerCharacter? Find(SceneTree tree, long peerId) =>
-        tree.GetNodesInGroup(Group).OfType<PlayerCharacter>().FirstOrDefault(p => p.PeerId == peerId);
+    public static IEnumerable<PlayerCharacter> All(SceneTree tree) => tree.GetNodesInGroup(Group).OfType<PlayerCharacter>();
+
+    public static PlayerCharacter? Find(SceneTree tree, long peerId) => All(tree).FirstOrDefault(p => p.PeerId == peerId);
+
+    // The player this machine controls; null until it has spawned here.
+    public static PlayerCharacter? Local(SceneTree tree) => Find(tree, tree.GetMultiplayer().GetUniqueId());
 
     public static PlayerCharacter Create(long peerId, Vector3 spawnPosition)
     {
@@ -228,7 +235,7 @@ public partial class PlayerCharacter : CharacterBody3D
             Position = spawnPosition,
             NetPosition = spawnPosition,
             CollisionLayer = CollisionLayers.Players,
-            CollisionMask = CollisionLayers.World | CollisionLayers.Enemies,
+            CollisionMask = OnFootMask,
             FloorSnapLength = Gravity.FloorSnap,
             FloorMaxAngle = Gravity.SteepestFloor,
         };
@@ -252,6 +259,8 @@ public partial class PlayerCharacter : CharacterBody3D
         player.AddChild(player.Ghosts);
         player._spellArea = new SpellArea { Name = "SpellArea" };
         player.AddChild(player._spellArea);
+        player._circles = new CastingCircles { Name = "CastingCircles" };
+        player.AddChild(player._circles);
         player._barrier = new BarrierBubble();
         player.AddChild(player._barrier);
         player.StatusShow = new StatusShow { Name = "StatusShow" };
@@ -307,7 +316,7 @@ public partial class PlayerCharacter : CharacterBody3D
     internal void OnRevived(Vector3 at)
     {
         IsDowned = false;
-        CollisionMask = CollisionLayers.World | CollisionLayers.Enemies;
+        CollisionMask = OnFootMask;
         _animator.Revive();
         GlobalPosition = at;
         NetPosition = at;
@@ -374,7 +383,7 @@ public partial class PlayerCharacter : CharacterBody3D
             Velocity = Gravity.With(_dashDirection * DashRules.Speed, this, (float)delta);
             MoveAndSlide();
             NetPosition = GlobalPosition;
-            NetVelocity = new Vector3(Velocity.X, 0f, Velocity.Z);
+            NetVelocity = Yaw.Flat(Velocity);
             _shownAimYaw = AimYaw;
             if (_dashLeft <= 0f)
             {
@@ -432,7 +441,7 @@ public partial class PlayerCharacter : CharacterBody3D
         // answering a pick-up the slots stay as they are, so the weapon has somewhere to go when it arrives.
         if (!held && _swing == null && !_animator.IsAttacking && !_pickUpPending)
         {
-            var sets = new WeaponSets(_weapon, _stowed);
+            var sets = Sets;
             if (Controls.SwapSetsPressed)
             {
                 Carry(sets.Swapped());
@@ -480,7 +489,7 @@ public partial class PlayerCharacter : CharacterBody3D
     internal void OnPickedUp(WeaponDefinition weapon)
     {
         _pickUpPending = false;
-        var sets = new WeaponSets(_weapon, _stowed);
+        var sets = Sets;
         if (sets.HasFreeSlot)
         {
             Carry(sets.WithPickedUp(weapon));
@@ -495,7 +504,7 @@ public partial class PlayerCharacter : CharacterBody3D
     // down where the player stands; an improved one takes the place of the weapon it was made from, in its slot.
     internal void OnBought(WeaponDefinition weapon, WeaponSlot? slot)
     {
-        var (sets, putDown) = TradeRules.Receive(new WeaponSets(_weapon, _stowed), weapon, slot);
+        var (sets, putDown) = TradeRules.Receive(Sets, weapon, slot);
         if (putDown != null)
         {
             GroundWeapons.In(GetTree()).Drop(putDown, GlobalPosition + Yaw.Forward(AimYaw) * Pickups.InFront, AimYaw);
@@ -505,7 +514,7 @@ public partial class PlayerCharacter : CharacterBody3D
     }
 
     // The host paid this player for the weapon in that slot: it is gone, and the slot free.
-    internal void OnSold(WeaponSlot slot) => Carry(new WeaponSets(_weapon, _stowed).Without(slot));
+    internal void OnSold(WeaponSlot slot) => Carry(Sets.Without(slot));
 
     // Someone else took it first.
     internal void OnPickUpRefused()
@@ -567,10 +576,10 @@ public partial class PlayerCharacter : CharacterBody3D
         }
 
         Ghosts.SetWeapons(handLook, backLook);
-        _animator.Stance = handLook == null ? WeaponStance.Unarmed : handLook.OneHanded ? WeaponStance.OneHanded : WeaponStance.TwoHanded;
+        _animator.Stance = handLook?.Stance ?? WeaponStance.Unarmed;
         _weapon = inHand;
         _stowed = onBack;
-        WeaponsChanged?.Invoke(new WeaponSets(inHand, onBack));
+        WeaponsChanged?.Invoke(Sets);
     }
 
     // The owner decides its own hits, against enemies as it sees them. A single-moment swing tests once at its hit
@@ -615,29 +624,14 @@ public partial class PlayerCharacter : CharacterBody3D
         bool Reaches(Node3D body) =>
             Floors.SameLevel(GlobalPosition.Y, body.GlobalPosition.Y) && (skill.Area == null || !Walls.Between(space, GlobalPosition, body.GlobalPosition));
 
-        foreach (var node in GetTree().GetNodesInGroup(EnemyCharacter.Group))
+        foreach (var foe in Foes())
         {
-            if (node is EnemyCharacter enemy && !enemy.IsDead && !_hitThisSwing.Contains(enemy.GetInstanceId())
-                && SkillHits.Catches(me, AimYaw, skill, Yaw.ToGround(enemy.GlobalPosition), BodySize.Radius) && Reaches(enemy))
+            if (!_hitThisSwing.Contains(foe.GetInstanceId())
+                && SkillHits.Catches(me, AimYaw, skill, Yaw.ToGround(foe.GlobalPosition), BodySize.Radius) && Reaches(foe))
             {
-                enemy.RpcId(1, EnemyCharacter.MethodName.RequestDamage, skill.Id);
-                _hitThisSwing.Add(enemy.GetInstanceId());
+                DealTo(foe, skill);
+                _hitThisSwing.Add(foe.GetInstanceId());
                 _swingHits++;
-            }
-        }
-
-        if (SessionRules.Pvp)
-        {
-            foreach (var other in GetTree().GetNodesInGroup(Group).OfType<PlayerCharacter>())
-            {
-                if (other != this && !other.IsDowned && !_hitThisSwing.Contains(other.GetInstanceId())
-                    && SkillHits.Catches(me, AimYaw, skill, Yaw.ToGround(other.GlobalPosition), BodySize.Radius) && Reaches(other))
-                {
-                    other.Vitals.RpcId(1, PlayerVitals.MethodName.RequestDamage, skill.Id);
-                    _hitThisSwing.Add(other.GetInstanceId());
-                    _swingHits++;
-                    PlayerHit?.Invoke(other);
-                }
             }
         }
 
@@ -678,15 +672,15 @@ public partial class PlayerCharacter : CharacterBody3D
     {
         var projectile = skill.Projectile!;
         float feet = from.Y - Bolts.Height;
-        var enemy = GetTree().GetNodesInGroup(EnemyCharacter.Group).OfType<EnemyCharacter>()
-            .Where(e => !e.IsDead && Floors.SameLevel(feet, e.GlobalPosition.Y)
-                && Projectiles.Hits(Yaw.ToGround(from), Yaw.ToGround(to), Yaw.ToGround(e.GlobalPosition), BodySize.Radius, projectile))
-            .MinBy(e => e.GlobalPosition.DistanceSquaredTo(from));
-        var other = enemy != null || !SessionRules.Pvp ? null : GetTree().GetNodesInGroup(Group).OfType<PlayerCharacter>()
-            .Where(p => p != this && !p.IsDowned && Floors.SameLevel(feet, p.GlobalPosition.Y)
-                && Projectiles.Hits(Yaw.ToGround(from), Yaw.ToGround(to), Yaw.ToGround(p.GlobalPosition), BodySize.Radius, projectile))
-            .MinBy(p => p.GlobalPosition.DistanceSquaredTo(from));
-        if (enemy == null && other == null)
+        var touched = Foes()
+            .Where(f => Floors.SameLevel(feet, f.GlobalPosition.Y)
+                && Projectiles.Hits(Yaw.ToGround(from), Yaw.ToGround(to), Yaw.ToGround(f.GlobalPosition), BodySize.Radius, projectile))
+            .ToList();
+
+        // A skeleton it touches is struck before any player, whichever is nearer.
+        var struck = touched.OfType<EnemyCharacter>().MinBy(e => e.GlobalPosition.DistanceSquaredTo(from)) as Node3D
+            ?? touched.OfType<PlayerCharacter>().MinBy(p => p.GlobalPosition.DistanceSquaredTo(from));
+        if (struck == null)
         {
             return false;
         }
@@ -695,14 +689,9 @@ public partial class PlayerCharacter : CharacterBody3D
         {
             BlastAt(skill, to);
         }
-        else if (enemy != null)
-        {
-            enemy.RpcId(1, EnemyCharacter.MethodName.RequestDamage, skill.Id);
-        }
         else
         {
-            other!.Vitals.RpcId(1, PlayerVitals.MethodName.RequestDamage, skill.Id);
-            PlayerHit?.Invoke(other);
+            DealTo(struck, skill);
         }
 
         return true;
@@ -716,29 +705,52 @@ public partial class PlayerCharacter : CharacterBody3D
         var space = GetWorld3D().DirectSpaceState;
         var feet = at - Vector3.Up * Bolts.Height;
         int caught = 0;
-        foreach (var enemy in GetTree().GetNodesInGroup(EnemyCharacter.Group).OfType<EnemyCharacter>()
-            .Where(e => !e.IsDead && Floors.SameLevel(feet.Y, e.GlobalPosition.Y)
-                && Projectiles.Blasts(spot, skill.BlastRadius, Yaw.ToGround(e.GlobalPosition), BodySize.Radius)
-                && !Walls.Between(space, feet, e.GlobalPosition)))
+        foreach (var foe in Foes()
+            .Where(f => Floors.SameLevel(feet.Y, f.GlobalPosition.Y)
+                && Projectiles.Blasts(spot, skill.BlastRadius, Yaw.ToGround(f.GlobalPosition), BodySize.Radius)
+                && !Walls.Between(space, feet, f.GlobalPosition)))
         {
-            enemy.RpcId(1, EnemyCharacter.MethodName.RequestDamage, skill.Id);
+            DealTo(foe, skill);
             caught++;
         }
 
-        if (SessionRules.Pvp)
+        BlastCaught?.Invoke(skill, caught);
+    }
+
+    // Who this player's blows may land on: the skeletons still standing, then in PvP the other players who are up.
+    public IEnumerable<Node3D> Foes()
+    {
+        foreach (var enemy in EnemyCharacter.Standing(GetTree()))
         {
-            foreach (var other in GetTree().GetNodesInGroup(Group).OfType<PlayerCharacter>()
-                .Where(p => p != this && !p.IsDowned && Floors.SameLevel(feet.Y, p.GlobalPosition.Y)
-                    && Projectiles.Blasts(spot, skill.BlastRadius, Yaw.ToGround(p.GlobalPosition), BodySize.Radius)
-                    && !Walls.Between(space, feet, p.GlobalPosition)))
-            {
-                other.Vitals.RpcId(1, PlayerVitals.MethodName.RequestDamage, skill.Id);
-                PlayerHit?.Invoke(other);
-                caught++;
-            }
+            yield return enemy;
         }
 
-        BlastCaught?.Invoke(skill, caught);
+        if (!SessionRules.Pvp)
+        {
+            yield break;
+        }
+
+        foreach (var other in All(GetTree()))
+        {
+            if (other != this && !other.IsDowned)
+            {
+                yield return other;
+            }
+        }
+    }
+
+    // On the owner: the host is asked to deal the skill's damage to a foe one of its blows landed on.
+    private void DealTo(Node3D foe, SkillDefinition skill)
+    {
+        if (foe is PlayerCharacter other)
+        {
+            other.Vitals.RpcId(1, PlayerVitals.MethodName.RequestDamage, skill.Id);
+            PlayerHit?.Invoke(other);
+        }
+        else
+        {
+            ((EnemyCharacter)foe).RpcId(1, EnemyCharacter.MethodName.RequestDamage, skill.Id);
+        }
     }
 
     public void EndBoltEverywhere(int id, Vector3 at) => Rpc(MethodName.EndBolt, id, at);
@@ -781,7 +793,7 @@ public partial class PlayerCharacter : CharacterBody3D
     private void FinishDash()
     {
         _dashLeft = 0f;
-        CollisionMask = CollisionLayers.World | CollisionLayers.Enemies;
+        CollisionMask = OnFootMask;
         DashFinished?.Invoke(_dashFrom, GlobalPosition);
     }
 
@@ -816,7 +828,7 @@ public partial class PlayerCharacter : CharacterBody3D
 
     private void FollowNetwork(float delta)
     {
-        GlobalPosition = GlobalPosition.Lerp(NetPosition, 1f - Mathf.Exp(-RemoteFollowRate * delta));
+        GlobalPosition = GlobalPosition.Lerp(NetPosition, Easing.Share(RemoteFollowRate, delta));
         _shownAimYaw = Yaw.Approach(_shownAimYaw, AimYaw, RemoteFollowRate, delta);
     }
 
@@ -847,9 +859,10 @@ public partial class PlayerCharacter : CharacterBody3D
     }
 
     // The spell held on an area and the barrier, as this machine sees them: the area where the player is drawn
-    // aiming, a round of strikes each loop of the casting clip.
+    // aiming, a round of strikes each loop of the casting clip, and a magic circle under the caster.
     private void ShowMagic()
     {
+        _circles.Hold(ActiveSkill is { Area: not null, Element: not null });
         if (ActiveSkill is { Area: { } area, Element: { } element })
         {
             _spellArea.Hold(element, area, _animator.AttackClipLength / _swingSpeed);
@@ -898,11 +911,11 @@ public partial class PlayerCharacter : CharacterBody3D
     }
 
     // What a seller needs to know of this player: what it carries and wears.
-    public Buyer AsBuyer() => new(new WeaponSets(_weapon, _stowed), Vitals.Armour);
+    public Buyer AsBuyer() => new(Sets, Vitals.Armour);
 
     // The skill of that id as the weapons this player carries have it: an improved weapon's hits harder than the
     // plain skill the id names. Throws for an id no weapon has.
-    public SkillDefinition SkillById(string skillId) => new WeaponSets(_weapon, _stowed).SkillById(skillId);
+    public SkillDefinition SkillById(string skillId) => Sets.SkillById(skillId);
 
     private SkillDefinition? FindSkill(string skillId)
     {
@@ -928,6 +941,11 @@ public partial class PlayerCharacter : CharacterBody3D
         _swingLoosed = 0;
         _swingShownTime = 0f;
         _hitThisSwing.Clear();
+        if (skill.Projectile != null && skill.Element != null && !Bolts.IsArrow(skill))
+        {
+            _circles.Throw(AimYaw, (skill.HitTime + (skill.Projectiles - 1) * skill.VolleyInterval) / speed);
+        }
+
         AttackStarted?.Invoke(skill);
     }
 
@@ -942,7 +960,7 @@ public partial class PlayerCharacter : CharacterBody3D
     {
         _active = null;
         _guard.Raise(GuardClock);
-        _animator.PlayAttack(RigAnimations.Guard, fullBody: false, AttackSpeed, loop: true);
+        _animator.PlayAttack(RigAnimations.GuardFor(_animator.Stance), fullBody: false, AttackSpeed, loop: true);
         GuardRaised?.Invoke();
     }
 
@@ -960,23 +978,9 @@ public partial class PlayerCharacter : CharacterBody3D
 
     private static MultiplayerSynchronizer CreateSynchronizer()
     {
-        var config = new SceneReplicationConfig();
-        foreach (var property in new[] { PropertyName.NetPosition, PropertyName.NetVelocity, PropertyName.AimYaw })
-        {
-            var path = new NodePath($".:{property}");
-            config.AddProperty(path);
-            config.PropertySetSpawn(path, true);
-            config.PropertySetReplicationMode(path, SceneReplicationConfig.ReplicationMode.Always);
-        }
-
-        foreach (var property in new[] { PropertyName.WeaponId, PropertyName.StowedWeaponId })
-        {
-            var path = new NodePath($".:{property}");
-            config.AddProperty(path);
-            config.PropertySetSpawn(path, true);
-            config.PropertySetReplicationMode(path, SceneReplicationConfig.ReplicationMode.OnChange);
-        }
-
+        var config = new SceneReplicationConfig()
+            .Sending(SceneReplicationConfig.ReplicationMode.Always, PropertyName.NetPosition, PropertyName.NetVelocity, PropertyName.AimYaw)
+            .Sending(SceneReplicationConfig.ReplicationMode.OnChange, PropertyName.WeaponId, PropertyName.StowedWeaponId);
         return new MultiplayerSynchronizer { Name = "Sync", ReplicationConfig = config, ReplicationInterval = SyncInterval };
     }
 }

@@ -55,8 +55,19 @@ public partial class GhostTrail : Node
 
     public override void _Ready()
     {
-        _sourceSkeleton = _source.GetNode<Skeleton3D>(RigAnimations.SkeletonPath);
+        _sourceSkeleton = CharacterBody.SkeletonOf(_source);
         BuildPool();
+    }
+
+    public override void _Notification(int what)
+    {
+        if (what == NotificationPredelete)
+        {
+            foreach (var ghost in _pool)
+            {
+                ghost.Release();
+            }
+        }
     }
 
     // Ghosts carry the character's weapons too, in hand and on the back, so a change means a new pool.
@@ -91,6 +102,7 @@ public partial class GhostTrail : Node
 
         foreach (var ghost in _pool)
         {
+            ghost.Release();
             ghost.Root.QueueFree();
         }
 
@@ -182,7 +194,7 @@ public partial class GhostTrail : Node
         AddChild(root);
 
         var materials = new List<ShaderMaterial>();
-        foreach (var mesh in body.FindChildren("*", nameof(MeshInstance3D), recursive: true, owned: false).OfType<MeshInstance3D>())
+        foreach (var mesh in body.Meshes())
         {
             var source = mesh.GetActiveMaterial(0) as StandardMaterial3D;
             var color = new ShaderMaterial { Shader = spirit, RenderPriority = 0 };
@@ -190,7 +202,10 @@ public partial class GhostTrail : Node
             color.SetShaderParameter("albedo_color", source?.AlbedoColor ?? Colors.White);
             if (source?.AlbedoTexture is { } texture)
             {
-                color.SetShaderParameter("albedo_tex", texture);
+                // A Variant made from an object holds it until disposed. Left to a finalizer, the texture's last
+                // hold can go on the finalizer's thread after the renderer's last flush at exit, and it leaks.
+                using Variant albedo = texture;
+                color.SetShaderParameter("albedo_tex", albedo);
             }
 
             // The depth-only prepass draws first (lower priority) so the translucent pass keeps only the front-most
@@ -205,7 +220,7 @@ public partial class GhostTrail : Node
             materials.Add(depthPass);
         }
 
-        return new Ghost(root, body.GetNode<Skeleton3D>(RigAnimations.SkeletonPath), materials);
+        return new Ghost(root, CharacterBody.SkeletonOf(body), materials);
     }
 
     private sealed class Ghost
@@ -231,6 +246,18 @@ public partial class GhostTrail : Node
             {
                 material.SetShaderParameter("fade", fade);
             }
+        }
+
+        // The materials hold the character's textures as well: let go here, they are freed with the ghost's meshes on
+        // the main thread, not by a finalizer (see the albedo Variant in BuildGhost).
+        public void Release()
+        {
+            foreach (var material in _materials)
+            {
+                material.Dispose();
+            }
+
+            _materials.Clear();
         }
     }
 }

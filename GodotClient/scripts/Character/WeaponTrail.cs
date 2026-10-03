@@ -63,9 +63,6 @@ public partial class WeaponTrail : MeshInstance3D
 
     public Vector3 LatestTip => _edgeCount > 0 ? _tips[_edgeCount - 1] : Vector3.Zero;
 
-    // Where the striking point is right now, from the hand's current pose.
-    public Vector3 CurrentTip => _hand.GlobalTransform * TipPoint;
-
     // The trail marks the swing's hit window, so it shows exactly when the weapon deals damage, with a short lead-in
     // and follow-through. swingTime is real seconds since the swing started.
     public static bool Shows(SkillDefinition skill, float swingTime, float attackSpeed) =>
@@ -149,7 +146,12 @@ public partial class WeaponTrail : MeshInstance3D
 
     private void Rebuild()
     {
-        _mesh.ClearSurfaces();
+        // Clearing tells the renderer the mesh changed, empty or not: a trail with nothing to show is left alone.
+        if (_mesh.GetSurfaceCount() > 0)
+        {
+            _mesh.ClearSurfaces();
+        }
+
         if (_edgeCount < 2)
         {
             return;

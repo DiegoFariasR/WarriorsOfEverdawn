@@ -14,6 +14,7 @@ import re
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import level_audit as la  # noqa: E402
 import level_common as lc  # noqa: E402
 import level_fortresses as lf  # noqa: E402
 
@@ -62,6 +63,10 @@ def overlaps(a, b):
     return a[0] <= b[2] and b[0] <= a[2] and a[1] <= b[3] and b[1] <= a[3]
 
 
+def reaches_into(box, area):
+    return all(lc.spans_overlap((box[i], box[i + 2]), (area[i], area[i + 2]), slack=la.TOUCH) for i in (0, 1))
+
+
 def degrees(yaw):
     return round(math.degrees(yaw)) % 360
 
@@ -93,7 +98,7 @@ def main():
         res = layout["assets"][p["asset"]]
         yaw = lc.yaw_of(p["rotation"])
         box = extent([frame.of(x, z) for x, z in lc.rect_corners(lc.footprint_rect(res, p["position"], yaw, p["scale"]))])
-        if not overlaps(box, area):
+        if not reaches_into(box, area):
             continue
         low, high = lc.height_span(res, p["position"][1], p["scale"])
         u, v = frame.of(p["position"][0], p["position"][2])

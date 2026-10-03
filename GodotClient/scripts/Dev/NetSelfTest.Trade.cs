@@ -6,11 +6,12 @@ using WarriorsOfEverdawn.Core.Combat;
 using WarriorsOfEverdawn.Core.Trade;
 using WarriorsOfEverdawn.Main;
 using WarriorsOfEverdawn.Player;
+using WarriorsOfEverdawn.Util;
 
 namespace WarriorsOfEverdawn.Dev;
 
 // [trade-check], with --trade-drill: the local bot, started in reach of a seller with gold and orbs to spend, sees
-// the prompt, opens the window (nine slots in rows of three, no bigger than the game's window), gets through it
+// the prompt, opens the window (all TradeRules.Slots slots, no bigger than the game's window), gets through it
 // what the seller offers, slot after slot (weapons from the weaponsmith; from the blacksmith the weapon in its hand
 // a level better, the one on its back, then its armour a tier better; to the merchant it sells the weapon in its
 // hand, the one on its back and an orb) for as long as it can pay, is then told by the window that it cannot, asks
@@ -85,11 +86,12 @@ public partial class NetSelfTest
         _hud.Shop.Opened += () =>
         {
             _tradeOpened++;
-            _tradeStoodAt = LocalPlayer()?.GlobalPosition ?? Vector3.Zero;
+            var local = LocalPlayer();
+            _tradeStoodAt = local?.GlobalPosition ?? Vector3.Zero;
 
             // What it has before it gets anything, which is what it should still have if nothing it gets changes it.
-            _tradeExpected = new WeaponSets(LocalPlayer()?.Weapon, LocalPlayer()?.StowedWeapon);
-            _tradeExpectedArmour = LocalPlayer()?.Vitals.Armour ?? 0;
+            _tradeExpected = local?.Sets ?? new WeaponSets(null, null);
+            _tradeExpectedArmour = local?.Vitals.Armour ?? 0;
         };
         _hud.Shop.Closed += () => _tradeClosed++;
     }
@@ -105,13 +107,13 @@ public partial class NetSelfTest
 
         // A figure is dressed in the frame after its armour changes, so a frame out of step is not a fault; frames on
         // end are.
-        var figures = _players.GetChildren().OfType<PlayerCharacter>().ToList();
+        var figures = PlayerCharacter.All(GetTree()).ToList();
         _figuresMost = Mathf.Max(_figuresMost, figures.Count);
         _undressedFrames = figures.Any(p => !ArmourLook.IsDressedFor(p.Skeleton, PlayerCharacter.Look, p.Vitals.Armour)) ? _undressedFrames + 1 : 0;
         _undressedFramesMost = Mathf.Max(_undressedFramesMost, _undressedFrames);
         if (Multiplayer.IsServer())
         {
-            foreach (var player in _players.GetChildren().OfType<PlayerCharacter>())
+            foreach (var player in figures)
             {
                 _tradeSeen[player.PeerId] = (player.Weapon?.Id ?? NoWeapon, player.Vitals.Gold, player.Vitals.Orbs, player.Vitals.Armour);
             }
@@ -125,8 +127,7 @@ public partial class NetSelfTest
         var shop = _hud.Shop;
         if (shop.IsOpen)
         {
-            var moved = local.GlobalPosition - _tradeStoodAt;
-            _tradeMoved = Mathf.Max(_tradeMoved, new Vector2(moved.X, moved.Z).Length());
+            _tradeMoved = Mathf.Max(_tradeMoved, Yaw.Flat(local.GlobalPosition - _tradeStoodAt).Length());
         }
 
         _tradeWait -= delta;
@@ -216,7 +217,7 @@ public partial class NetSelfTest
             + $"drill_done={(_tradeStep == TradeStep.Done ? 1 : 0)}");
         if (Multiplayer.IsServer())
         {
-            GD.Print($"[trade-host] sold={string.Join(",", _soldTo.OrderBy(s => s.Key).Select(s => $"{s.Key}:{s.Value}"))} "
+            GD.Print($"[trade-host] sold={PerPeer(_soldTo)} "
                 + $"hands={string.Join(",", _tradeSeen.Select(s => $"{s.Key}:{s.Value.Hand}"))} "
                 + $"gold={string.Join(",", _tradeSeen.Select(s => $"{s.Key}:{s.Value.Gold}"))} "
                 + $"orbs={string.Join(",", _tradeSeen.Select(s => $"{s.Key}:{s.Value.Orbs}"))} "

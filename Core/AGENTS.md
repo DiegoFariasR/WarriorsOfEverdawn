@@ -12,6 +12,9 @@ A rule belongs in Core when it can be decided from numbers alone: who is hit by 
 | `Locomotion/` | Leg direction selection, move speeds, turn rate, dash rules and charges |
 | `Stats/` | STR / WIS / AGI and what they drive (`StatRules`), mana |
 | `Characters/` | The pools this game draws random figures from (`LookPools`). The catalogue, a look and the randomizer are the kit's (`GodotClient/kit/core`, namespace `EverdawnKit.Characters`), which Core references |
+| `Level/` | The map's floors, told from a height (`Floors`), and the level layout and its parser (`LevelLayout`) |
+| `Loot/` | What monsters leave (`LootKind`, `GoldDrop`, `LootRules`: pickup, orb chances, how a gold pile looks), costs (`Cost`) and what a player has earned (`Purse`) |
+| `Trade/` | The sellers and what each offers a buyer (`Sellers`), and prices, reach and the shop window's slots (`TradeRules`) |
 | root | `Angles` and `Ground`: yaw and ground-plane conventions shared by both sides |
 
 ## Rules

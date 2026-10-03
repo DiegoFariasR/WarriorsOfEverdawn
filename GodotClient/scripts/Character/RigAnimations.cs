@@ -28,9 +28,15 @@ public static class RigAnimations
     public const string Stab = "melee/Melee_2H_Attack_Stab";
     public const string OneHandedStab = "melee/Melee_1H_Attack_Stab";
     public const string DualSlice = "melee/Melee_Dualwield_Attack_Slice";
-    public const string DualStab = "melee/Melee_Dualwield_Attack_Stab";
     public const string Punch = "melee/Melee_Unarmed_Attack_Punch_A";
-    public const string Guard = "melee/Melee_Blocking";
+
+    // KayKit's only block raises a forearm, as with a shield on it. What is held in both hands is raised across the
+    // body instead: the two-handed chop held where its wind-up has the weapon up before the chest and both hands on
+    // the grip, made into a clip of its own as the libraries go in (Hold).
+    public const string ForearmGuard = "melee/Melee_Blocking";
+    public const string TwoHandedGuard = "melee/Melee_2H_Guard";
+    private const string TwoHandedGuardFrom = "melee/Melee_2H_Attack_Chop";
+    private const double TwoHandedGuardAt = 0.3;
     public const string DashForward = "moveadv/Dodge_Forward";
     public const string DashBackward = "moveadv/Dodge_Backward";
     public const string DashLeft = "moveadv/Dodge_Left";
@@ -57,10 +63,18 @@ public static class RigAnimations
         ("ranged", "res://assets/animations/Rig_Medium_CombatRanged.glb"),
     };
 
-    private static readonly string[] LoopingClips = { Idle, UnarmedIdle, Run, StrafeLeft, StrafeRight, Backpedal, SkeletonIdle, SkeletonWalk, SpinLoop, Guard, MagicChannel };
+    private static readonly string[] LoopingClips = { Idle, UnarmedIdle, Run, StrafeLeft, StrafeRight, Backpedal, SkeletonIdle, SkeletonWalk, SpinLoop, ForearmGuard, MagicChannel };
+
+    public static string GuardFor(WeaponStance stance) => stance == WeaponStance.TwoHanded ? TwoHandedGuard : ForearmGuard;
 
     // A clip ("library/name", as the mixers name them) straight from its library, for reading its tracks.
     public static Animation Load(string clip)
+    {
+        var (library, name) = LibraryOf(clip);
+        return library.GetAnimation(name) ?? throw new KeyNotFoundException($"No clip '{clip}' in {library.ResourcePath}");
+    }
+
+    private static (AnimationLibrary Library, string Name) LibraryOf(string clip)
     {
         int slash = clip.IndexOf('/');
         string library = slash > 0 ? clip[..slash] : throw new ArgumentException($"Clip '{clip}' has no library prefix");
@@ -68,8 +82,7 @@ public static class RigAnimations
         {
             if (name == library)
             {
-                return Assets.Load<AnimationLibrary>(path).GetAnimation(clip[(slash + 1)..])
-                    ?? throw new KeyNotFoundException($"No clip '{clip}' in {path}");
+                return (Assets.Load<AnimationLibrary>(path), clip[(slash + 1)..]);
             }
         }
 
@@ -78,6 +91,12 @@ public static class RigAnimations
 
     public static void AddTo(AnimationMixer mixer)
     {
+        var (melee, guard) = LibraryOf(TwoHandedGuard);
+        if (!melee.HasAnimation(guard))
+        {
+            melee.AddAnimation(guard, Hold(Load(TwoHandedGuardFrom), TwoHandedGuardAt));
+        }
+
         foreach (var (name, path) in Libraries)
         {
             mixer.AddAnimationLibrary(name, Assets.Load<AnimationLibrary>(path));
@@ -88,5 +107,43 @@ public static class RigAnimations
         {
             mixer.GetAnimation(clip).LoopMode = Animation.LoopModeEnum.Linear;
         }
+    }
+
+    // Every bone where the clip has it at that moment, held: a pose that loops on itself.
+    private static Animation Hold(Animation clip, double at)
+    {
+        var held = new Animation { Length = 1f, LoopMode = Animation.LoopModeEnum.Linear };
+        for (int i = 0; i < clip.GetTrackCount(); i++)
+        {
+            var type = clip.TrackGetType(i);
+            int track = held.AddTrack(type);
+            held.TrackSetPath(track, clip.TrackGetPath(i));
+            switch (type)
+            {
+                case Animation.TrackType.Position3D:
+                    held.PositionTrackInsertKey(track, 0, clip.PositionTrackInterpolate(i, at));
+                    break;
+                case Animation.TrackType.Rotation3D:
+                    held.RotationTrackInsertKey(track, 0, clip.RotationTrackInterpolate(i, at));
+                    break;
+                case Animation.TrackType.Scale3D:
+                    held.ScaleTrackInsertKey(track, 0, clip.ScaleTrackInterpolate(i, at));
+                    break;
+                default:
+                    throw new InvalidOperationException($"{clip.ResourceName} has a {type} track; a held pose is made of bone tracks only");
+            }
+        }
+
+        return held;
+    }
+
+    // A player of every clip, under a figure that is not in the tree yet. Its libraries go in before it enters the
+    // tree: playing first would crash (Everdawn godot-pitfalls.md).
+    public static AnimationPlayer AddPlayerTo(Node3D body)
+    {
+        var player = new AnimationPlayer { Name = "AnimationPlayer" };
+        AddTo(player);
+        body.AddChild(player);
+        return player;
     }
 }

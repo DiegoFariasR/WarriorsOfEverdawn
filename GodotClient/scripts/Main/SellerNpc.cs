@@ -1,9 +1,7 @@
-using System;
 using System.Collections.Generic;
 using EverdawnKit.Characters;
 using Godot;
 using WarriorsOfEverdawn.Character;
-using WarriorsOfEverdawn.Core.Level;
 using WarriorsOfEverdawn.Core.Trade;
 using WarriorsOfEverdawn.Player;
 using WarriorsOfEverdawn.Util;
@@ -35,16 +33,12 @@ public partial class SellerNpc : Node3D
     // This machine's player is in reach and free to trade: the prompt is up.
     public bool PromptShown { get; private set; }
 
-    // What the seller looks like; null for one with no figure.
-    public static CharacterLook? LookOf(SellerDefinition seller) => Looks.GetValueOrDefault(seller.Id);
+    public static CharacterLook LookOf(SellerDefinition seller) =>
+        Looks.TryGetValue(seller.Id, out var look) ? look : throw new KeyNotFoundException($"No figure for the seller '{seller.Id}'");
 
     public static SellerNpc Create(SellerSpot spot)
     {
-        if (!Looks.TryGetValue(spot.Seller.Id, out var look))
-        {
-            throw new InvalidOperationException($"No figure for the seller '{spot.Seller.Id}'");
-        }
-
+        var look = LookOf(spot.Seller);
         var npc = new SellerNpc { Name = spot.Seller.Id, Seller = spot.Seller, Position = spot.Position };
         npc.AddToGroup(ArenaMap.OnAFloor);
         var body = CharacterBody.Build(look);
@@ -53,25 +47,16 @@ public partial class SellerNpc : Node3D
         body.Rotation = new Vector3(0f, spot.Yaw, 0f);
         npc.AddChild(body);
 
-        // Libraries go in before the figure enters the tree; playing first would crash (Everdawn godot-pitfalls.md).
-        var animation = new AnimationPlayer { Name = "AnimationPlayer" };
-        RigAnimations.AddTo(animation);
-        body.AddChild(animation);
-        animation.Autoplay = RigAnimations.UnarmedIdle;
+        RigAnimations.AddPlayerTo(body).Autoplay = RigAnimations.UnarmedIdle;
 
         return npc;
     }
 
-    // Across the ground, on the seller's floor: from another floor no seller is in reach.
-    public float DistanceTo(Vector3 position)
-    {
-        var offset = position - GlobalPosition;
-        return Floors.SameLevel(position.Y, GlobalPosition.Y) ? new Vector2(offset.X, offset.Z).Length() : float.PositiveInfinity;
-    }
+    public float DistanceTo(Vector3 position) => Yaw.AcrossFloor(position, GlobalPosition);
 
     public override void _Process(double delta)
     {
-        var local = PlayerCharacter.Find(GetTree(), Multiplayer.GetUniqueId());
+        var local = PlayerCharacter.Local(GetTree());
         PromptShown = local is { IsDowned: false, IsTrading: false } && DistanceTo(local.GlobalPosition) <= TradeRules.Reach;
     }
 }

@@ -180,6 +180,37 @@ public class StatusBarsTests
     }
 
     [Fact]
+    public void The_statuses_alone_tell_being_held_and_slowed_as_the_bars_do()
+    {
+        var bars = new StatusBars();
+        void ToldAsTheBarsTellIt()
+        {
+            Assert.Equal(bars.Lost, bars.Active.IsLost());
+            Assert.Equal(bars.Speed, bars.Active.SpeedShare());
+        }
+
+        bars.Build(DamageType.Water, StatusRules.ChilledAt, damage: 1, None);
+        ToldAsTheBarsTellIt();
+        Assert.Equal(StatusRules.ChilledSpeed, bars.Active.SpeedShare());
+
+        bars.Build(DamageType.Ice, StatusRules.FrozenAt, damage: 1, None);
+        ToldAsTheBarsTellIt();
+        Assert.True(bars.Active.IsLost());
+
+        bars.Advance(StatusRules.LostTurn, Hp, None);
+        ToldAsTheBarsTellIt();
+        Assert.False(bars.Active.IsLost());
+
+        bars.Build(DamageType.Blunt, StatusRules.StunnedAt, damage: 1, None);
+        ToldAsTheBarsTellIt();
+        Assert.True(bars.Active.IsLost());
+
+        bars.Advance(StatusRules.LostTurn, Hp, None);
+        ToldAsTheBarsTellIt();
+        Assert.False(bars.Active.IsLost());
+    }
+
+    [Fact]
     public void Wind_shakes_and_never_stuns()
     {
         var bars = new StatusBars();
@@ -269,6 +300,32 @@ public class StatusBarsTests
     }
 
     [Fact]
+    public void Starting_a_skill_builds_its_divine_and_void_parts_on_the_caster_by_their_share()
+    {
+        StatusBars CastBy(SkillDefinition skill)
+        {
+            var caster = new StatusBars();
+            caster.BuildFromCasting(skill);
+            return caster;
+        }
+
+        var divine = CastBy(Weapons.Staff(Element.Divine).Primary);
+        var voided = CastBy(Weapons.Staff(Element.Void).Primary);
+        var enchanted = CastBy(Weapons.Enchanted(Weapons.Greatsword, Element.Void).Primary);
+
+        Assert.Equal(StatusRules.CasterAstral, divine.Illumination);
+        Assert.Equal(0, divine.Corruption);
+        Assert.Equal(StatusRules.CasterAstral, voided.Corruption);
+        Assert.Equal(0, voided.Illumination);
+        Assert.Equal((int)MathF.Round(StatusRules.CasterAstral * Weapons.EnchantedShare), enchanted.Corruption);
+
+        // Fire, steel, and the thrust a divine staff's dash carries, which is a blow and no magic.
+        Assert.Equal(Statuses.None, CastBy(Weapons.Staff(Element.Fire).Primary).Active);
+        Assert.Equal(Statuses.None, CastBy(Weapons.Greatsword.Primary).Active);
+        Assert.Equal(Statuses.None, CastBy(Weapons.Staff(Element.Divine).Lunge).Active);
+    }
+
+    [Fact]
     public void A_weakness_builds_a_bar_faster_and_a_resistance_slower()
     {
         var weak = Resistances.None.With(DamageType.Slash, -25);
@@ -346,6 +403,29 @@ public class StatusBarsTests
             Assert.All(weapon.Skills, skill =>
                 Assert.InRange(StatRules.DamageByType(skill, hands).Sum(part => part.Amount), StatRules.Damage(skill, hands) - 0.51f, StatRules.Damage(skill, hands) + 0.51f));
         }
+    }
+
+    [Fact]
+    public void A_blow_builds_the_bar_of_each_of_its_parts_by_that_parts_share_of_the_buildup()
+    {
+        // WIS enough for the fire part of a slice to leave a burn.
+        var hands = new CharacterStats(Str: 10, Wis: 30, Agi: 0);
+        var plain = Weapons.Greatsword.Primary;
+        var enchanted = Weapons.Enchanted(Weapons.Greatsword, Element.Fire).Primary;
+        float share = Weapons.EnchantedShare;
+        var cut = new StatusBars();
+        var burnt = new StatusBars();
+        StatRules.Afflict(cut, plain, hands, None);
+        StatRules.Afflict(burnt, enchanted, hands, None);
+
+        Assert.Equal(DamageType.Slash, plain.Type);
+        Assert.Equal(plain.Buildup, cut.Bleed);
+        Assert.Equal(Statuses.Bleeding, cut.Active);
+
+        int fireDealt = (int)MathF.Round(StatRules.DamageByType(enchanted, hands).Single(part => part.Type == DamageType.Fire).Amount);
+        Assert.Equal((int)MathF.Round(enchanted.Buildup * (1f - share)), burnt.Bleed);
+        Assert.Equal((int)MathF.Round(enchanted.Buildup * share) * fireDealt / StatusRules.BurnPerDamage, burnt.Burn);
+        Assert.Equal(Statuses.Bleeding | Statuses.Burning, burnt.Active);
     }
 
     [Fact]

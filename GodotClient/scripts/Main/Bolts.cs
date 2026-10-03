@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using EverdawnKit.Characters;
+using EverdawnKit.Magic;
 using Godot;
 using WarriorsOfEverdawn.Character;
 using WarriorsOfEverdawn.Core.Combat;
@@ -14,7 +14,7 @@ namespace WarriorsOfEverdawn.Main;
 // Every bolt and dart a staff has thrown, and every arrow a player's bow has loosed, that is still in flight. The caster's machine looses them and decides what
 // they hit, as it does for its swings; every machine flies its own copy of each from the same start along the same
 // straight line, and stops it at a wall on its own, so one costs a message to loose and one more only if it hits a
-// body. Looks apart, a skeleton's arrows (Enemy/Arrows) are the same thing decided by the host.
+// body. Util/Flight flies them, as it does a skeleton's arrows (Enemy/Arrows), which the host decides.
 // Design: Docs/Design/magic.md.
 public partial class Bolts : Node3D
 {
@@ -26,12 +26,13 @@ public partial class Bolts : Node3D
     // It leaves the hand this far in front of the caster's chest.
     public const float Leaves = 0.6f;
 
-    private const float BurstTime = 0.25f;
+    // Everdawn's trail is a tenth of a metre to a ball of 0.36: each bolt's is as big against it.
+    private const float TrailShare = 0.1f / 0.36f;
 
     // One that a wall stops ends this far short of it, so what it bursts into starts on its own side of the wall.
     private const float ShortOfWall = 0.05f;
 
-    private readonly Dictionary<(long Caster, int Id), Flight> _flights = new();
+    private readonly Dictionary<(long Caster, int Id), BoltFlight> _flights = new();
 
     // On every machine, as one starts flying: who threw it and with what.
     public static event Action<PlayerCharacter, SkillDefinition>? Loosed;
@@ -45,10 +46,8 @@ public partial class Bolts : Node3D
     // On every machine, as any ends, whatever ended it: what it was and where.
     public static event Action<SkillDefinition, Vector3>? Ended;
 
-    public int InFlight => _flights.Count;
-
     // How long the oldest in flight has been flying; 0 with none.
-    public float OldestFlight => _flights.Values.Select(f => f.Age).DefaultIfEmpty(0f).Max();
+    public float OldestFlight => Flight.Oldest(_flights.Values);
 
     // Bursts still fading where bolts ended.
     public int BurstsShowing { get; private set; }
@@ -70,7 +69,11 @@ public partial class Bolts : Node3D
         var node = Thrown(skill, direction);
         AddChild(node);
         node.GlobalPosition = from;
-        _flights[(caster.PeerId, id)] = new Flight(caster, skill, chest, from, direction, node);
+        if (!IsArrow(skill) && skill.Element is { } element)
+        {
+            node.AddChild(new SpellTrail { Colour = ElementLooks.For(element).Primary, Radius = skill.Projectile.Radius * TrailShare, Into = this });
+        }
+        _flights[(caster.PeerId, id)] = new BoltFlight(caster, skill, chest, from, direction, node);
         Loosed?.Invoke(caster, skill);
     }
 
@@ -83,26 +86,22 @@ public partial class Bolts : Node3D
     {
         if (IsArrow(skill))
         {
-            var arrow = Assets.InstantiateAtOrigin(CombatVisuals.ArrowModel);
-            ToonLook.ApplyToWeapon(arrow);
+            var arrow = Flight.Arrow(direction, toonLook: true);
             if (skill.Element is { } enchantment)
             {
-                foreach (var mesh in arrow.FindChildren("*", nameof(MeshInstance3D), recursive: true, owned: false).OfType<MeshInstance3D>())
+                foreach (var mesh in arrow.Meshes())
                 {
                     mesh.MaterialOverlay = ElementLooks.Enchantment(enchantment);
                 }
             }
 
-            // The model's point is its -Y end.
-            var along = -direction;
-            arrow.Basis = new Basis(along.Cross(Vector3.Up), along, Vector3.Up);
             return arrow;
         }
 
         var element = skill.Element ?? throw new InvalidOperationException($"{skill.Id} throws magic of no element");
         var projectile = skill.Projectile!;
         var node = ElementLooks.Made(element, skill.Projectiles > 1
-            ? ElementLooks.Bipyramid(projectile.Radius, projectile.Radius * 4f)
+            ? SpellMeshes.Bipyramid(projectile.Radius, projectile.Radius * 4f)
             : new SphereMesh { Radius = projectile.Radius, Height = projectile.Radius * 2f, RadialSegments = 16, Rings = 8 });
         node.Basis = new Basis(direction.Cross(Vector3.Up), direction, Vector3.Up);
         return node;
@@ -122,12 +121,8 @@ public partial class Bolts : Node3D
         var space = GetWorld3D().DirectSpaceState;
         foreach (var (key, flight) in _flights.ToList())
         {
-            var projectile = flight.Skill.Projectile!;
-            var before = flight.Position;
-            flight.Age += (float)delta;
-            flight.Travelled = Mathf.Min(flight.Travelled + projectile.Speed * (float)delta, projectile.MaxDistance);
-            var after = flight.Position;
-            flight.Node.GlobalPosition = after;
+            var step = flight.Advance(space, (float)delta);
+            flight.Node.GlobalPosition = step.After;
 
             // The caster may have left with its bolt in the air.
             if (!IsInstanceValid(flight.Caster))
@@ -138,36 +133,32 @@ public partial class Bolts : Node3D
             }
 
             // Walls and whatever else stands in the world stop it, the same on every machine. One that bursts does
-            // so there too, and the caster's machine decides what the burst catches. Its first step is looked at
-            // from the caster's chest, not from the hand: a caster against a wall has its hand in the wall, and a
-            // line that starts inside a wall meets nothing.
+            // so there too, and the caster's machine decides what the burst catches.
             bool mine = flight.Caster.IsMultiplayerAuthority();
-            var wall = Walls.Hit(space, flight.Leaving ?? before, after);
-            flight.Leaving = null;
-            if (wall is { } stopped)
+            if (step.Wall is { } stopped)
             {
                 EndHere(key, flight, stopped - flight.Direction * ShortOfWall, mine);
                 continue;
             }
 
             // A body it touches on the way: the caster's machine deals with it and tells the others it ended there.
-            if (mine && flight.Caster.StrikeWith(flight.Skill, before, after))
+            if (mine && flight.Caster.StrikeWith(flight.Skill, step.Before, step.After))
             {
                 Landed?.Invoke(flight.Skill);
-                flight.Caster.EndBoltEverywhere(key.Id, after);
+                flight.Caster.EndBoltEverywhere(key.Id, step.After);
                 continue;
             }
 
             // Every machine ends a miss on its own at the same distance.
-            if (flight.Travelled >= projectile.MaxDistance)
+            if (flight.AtFullDistance)
             {
-                EndHere(key, flight, after, mine);
+                EndHere(key, flight, step.After, mine);
             }
         }
     }
 
     // Ended by the world and not by a body: every machine sees that for itself.
-    private void EndHere((long Caster, int Id) key, Flight flight, Vector3 at, bool mine)
+    private void EndHere((long Caster, int Id) key, BoltFlight flight, Vector3 at, bool mine)
     {
         _flights.Remove(key);
         Finish(flight, at);
@@ -177,67 +168,44 @@ public partial class Bolts : Node3D
         }
     }
 
-    // The bolt goes, and a burst of its element swells and is gone where it ended: a puff for a bolt, and for a ball
-    // that bursts, as wide as what it catches. A plain arrow just goes.
-    private void Finish(Flight flight, Vector3 at)
+    // The bolt goes, and where it ended its element bursts as Everdawn's spells land (EverdawnKit.Magic.SpellImpact):
+    // a bolt's explosive puff, a dart's shatter, and for a ball that bursts an explosion as wide as what it catches. A
+    // plain arrow just goes.
+    private void Finish(BoltFlight flight, Vector3 at)
     {
         flight.Node.QueueFree();
         Ended?.Invoke(flight.Skill, at);
-        if (flight.Skill.Element is not { } element)
+        if (IsArrow(flight.Skill) || flight.Skill.Element is not { } element)
         {
             return;
         }
 
         float blast = flight.Skill.BlastRadius;
-        float radius = flight.Skill.Projectile!.Radius;
-        var burst = ElementLooks.Made(element, new SphereMesh { Radius = radius, Height = radius * 2f, RadialSegments = 16, Rings = 8 });
-        AddChild(burst);
-        burst.GlobalPosition = at;
+        var impact = new SpellImpact();
+        AddChild(impact);
+        impact.GlobalPosition = at;
         BurstsShowing++;
+        impact.TreeExiting += () => BurstsShowing--;
         if (blast > 0f)
         {
             Burst?.Invoke(flight.Caster, flight.Skill);
         }
 
-        var tween = burst.CreateTween();
-        tween.TweenProperty(burst, "scale", Vector3.One * (blast > 0f ? blast / radius : 2.6f), BurstTime * 0.4f);
-        tween.TweenProperty(burst, "scale", Vector3.Zero, BurstTime * 0.6f);
-        tween.TweenCallback(Callable.From(() =>
-        {
-            BurstsShowing--;
-            burst.QueueFree();
-        }));
+        var kind = flight.Skill.Projectiles > 1 ? ImpactKind.Shatter : ImpactKind.Explosive;
+        impact.Play(kind, ElementLooks.For(element).Primary, blast > 0f ? SpellImpact.ExplosiveScaleFor(blast) : 1f, ElementLooks.Dress(element));
     }
 
-    private sealed class Flight
+    private sealed class BoltFlight : Flight
     {
-        public Flight(PlayerCharacter caster, SkillDefinition skill, Vector3 chest, Vector3 from, Vector3 direction, Node3D node)
+        public BoltFlight(PlayerCharacter caster, SkillDefinition skill, Vector3 chest, Vector3 from, Vector3 direction, Node3D node)
+            : base(skill.Projectile!, chest, from, direction, node)
         {
             Caster = caster;
             Skill = skill;
-            Leaving = chest;
-            From = from;
-            Direction = direction;
-            Node = node;
         }
 
         public PlayerCharacter Caster { get; }
 
         public SkillDefinition Skill { get; }
-
-        public Vector3 From { get; }
-
-        public Vector3 Direction { get; }
-
-        public Node3D Node { get; }
-
-        // The caster's chest, until its first step has been looked at for walls.
-        public Vector3? Leaving { get; set; }
-
-        public float Travelled { get; set; }
-
-        public float Age { get; set; }
-
-        public Vector3 Position => From + Direction * Travelled;
     }
 }

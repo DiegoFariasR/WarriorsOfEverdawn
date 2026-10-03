@@ -61,11 +61,11 @@ Not a design doc. Design docs answer "what should X do." This doc answers "is X 
 
 **Refactor implication.** Registry of records (the current `Enemies.All` + `ById`), not a switch per kind. What a kind makes of each damage type is a row too (`EnemyDefinition.Resistances`, [damage-types.md](damage-types.md)): a new kind names its own or shares one, as the skeletons share `Enemies.Skeletal`. Per-part looks will replace `CombatVisuals`' (model, weapon) pair with an assembled look; Everdawn's part assembly (`../Everdawn/GodotClient/scripts/Character/`) is the reference when that starts.
 
-Ranged attacks are data too: a skill with a `Projectile`, flown by `Arrows` by attack id. A new ranged enemy is rows and assets; a projectile that arcs, homes or stops at obstacles is new code.
+Ranged attacks are data too: a skill with a `Projectile`, flown by `Arrows` by attack id. A new ranged enemy is rows and assets. The flight itself, straight and level and stopped by walls, is one `Util/Flight` that a skeleton's arrows share with a player's bolts and arrows (`Bolts`); a projectile that arcs or homes is new code there.
 
 **Revisit trigger.** Per-part looks start, or a projectile needs behaviour beyond a straight, level flight.
 
-**Last reviewed.** 2026-09-30
+**Last reviewed.** 2026-10-03
 
 ---
 

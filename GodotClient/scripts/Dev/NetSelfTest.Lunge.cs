@@ -87,8 +87,7 @@ public partial class NetSelfTest
 
     private void PrintLungeCheck(long me)
     {
-        float reachOff = _lungeReachOff.Count > 0 ? _lungeReachOff.OrderBy(r => r).ElementAt(_lungeReachOff.Count / 2) : float.NaN;
         GD.Print($"[lunge-check] me={me} lunges_here={_lungesHere} seen_remote={_lungesSeenRemote} lunge_hits={_lungeHits} "
-            + $"land_offset_frames_max={_lungeLandOffsetMax} forward_lunges={_lungeReachOff.Count} reach_off_range={reachOff:F2}");
+            + $"land_offset_frames_max={_lungeLandOffsetMax} forward_lunges={_lungeReachOff.Count} reach_off_range={Median(_lungeReachOff):F2}");
     }
 }

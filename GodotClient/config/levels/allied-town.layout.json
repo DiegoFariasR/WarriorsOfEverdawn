@@ -5,6 +5,7 @@
   "wall_window_open": "res://assets/dungeon/wall_window_open.glb",
   "wall": "res://assets/dungeon/wall.glb",
   "wall_doorway": "res://assets/dungeon/wall_doorway.glb",
+  "wall_endcap": "res://assets/dungeon/wall_endcap.glb",
   "wall_archedwindow_open": "res://assets/dungeon/wall_archedwindow_open.glb",
   "pillar": "res://assets/dungeon/pillar.glb",
   "paladin_statue": "res://assets/props/paladin_statue.glb",
@@ -711,7 +712,48 @@
     1.0
    ],
    "solid": true,
-   "shape": "mesh"
+   "shape": "mesh",
+   "view": "around"
+  },
+  {
+   "asset": "wall_endcap",
+   "position": [
+    10.0,
+    0.0,
+    22.0
+   ],
+   "rotation": [
+    0.0,
+    0.707107,
+    0.0,
+    0.707107
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "view": "overhead"
+  },
+  {
+   "asset": "wall_endcap",
+   "position": [
+    10.0,
+    0.0,
+    18.0
+   ],
+   "rotation": [
+    0.0,
+    0.707107,
+    0.0,
+    -0.707107
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "view": "overhead"
   },
   {
    "asset": "wall_doorway",
@@ -732,7 +774,48 @@
     1.0
    ],
    "solid": true,
-   "shape": "mesh"
+   "shape": "mesh",
+   "view": "around"
+  },
+  {
+   "asset": "wall_endcap",
+   "position": [
+    -10.0,
+    0.0,
+    22.0
+   ],
+   "rotation": [
+    0.0,
+    0.707107,
+    0.0,
+    0.707107
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "view": "overhead"
+  },
+  {
+   "asset": "wall_endcap",
+   "position": [
+    -10.0,
+    0.0,
+    18.0
+   ],
+   "rotation": [
+    0.0,
+    0.707107,
+    0.0,
+    -0.707107
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "view": "overhead"
   },
   {
    "asset": "wall_archedwindow_open",
@@ -951,26 +1034,6 @@
     1.0,
     1.0
    ]
-  },
-  {
-   "asset": "bench",
-   "position": [
-    5.4,
-    0.0,
-    19.6
-   ],
-   "rotation": [
-    0.0,
-    1.0,
-    0.0,
-    0.0
-   ],
-   "scale": [
-    1.0,
-    1.0,
-    1.0
-   ],
-   "solid": true
   },
   {
    "asset": "bench",
@@ -1352,13 +1415,13 @@
    "position": [
     3.9,
     0.0,
-    15.233
+    12.767
    ],
    "rotation": [
     0.0,
+    1.0,
     0.0,
-    0.0,
-    -1.0
+    0.0
    ],
    "scale": [
     1.0,
@@ -1410,13 +1473,13 @@
    "position": [
     4.0,
     2.3,
-    13.5
+    14.5
    ],
    "rotation": [
     0.0,
-    1.0,
     0.0,
-    0.0
+    0.0,
+    -1.0
    ],
    "scale": [
     1.0,
@@ -1524,13 +1587,13 @@
    "position": [
     -3.9,
     0.0,
-    15.233
+    12.767
    ],
    "rotation": [
     0.0,
+    1.0,
     0.0,
-    0.0,
-    -1.0
+    0.0
    ],
    "scale": [
     1.0,
@@ -1582,13 +1645,13 @@
    "position": [
     -4.0,
     2.3,
-    13.5
+    14.5
    ],
    "rotation": [
     0.0,
-    1.0,
     0.0,
-    0.0
+    0.0,
+    -1.0
    ],
    "scale": [
     1.0,
@@ -2448,6 +2511,82 @@
    "solid": true
   },
   {
+   "asset": "floor_tile_large",
+   "position": [
+    12.0,
+    8.0,
+    24.0
+   ],
+   "rotation": [
+    0.0,
+    0.0,
+    0.0,
+    1.0
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  {
+   "asset": "floor_tile_large",
+   "position": [
+    12.0,
+    8.0,
+    20.0
+   ],
+   "rotation": [
+    0.0,
+    1.0,
+    0.0,
+    0.0
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  {
+   "asset": "floor_tile_large",
+   "position": [
+    16.0,
+    8.0,
+    24.0
+   ],
+   "rotation": [
+    0.0,
+    1.0,
+    0.0,
+    0.0
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  {
+   "asset": "floor_tile_large",
+   "position": [
+    16.0,
+    8.0,
+    20.0
+   ],
+   "rotation": [
+    0.0,
+    0.0,
+    0.0,
+    1.0
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  {
    "asset": "chest_large",
    "position": [
     13.1,
@@ -2711,9 +2850,9 @@
    ],
    "rotation": [
     0.0,
-    1.0,
+    0.707107,
     0.0,
-    0.0
+    0.707107
    ],
    "scale": [
     1.0,
@@ -2730,9 +2869,9 @@
    ],
    "rotation": [
     0.0,
-    1.0,
     0.0,
-    0.0
+    0.0,
+    -1.0
    ],
    "scale": [
     1.0,
@@ -2820,7 +2959,7 @@
    "solid": true
   },
   {
-   "asset": "wall_archedwindow_open",
+   "asset": "wall_window_open",
    "position": [
     -12.0,
     0.0,
@@ -2860,7 +2999,7 @@
    "solid": true
   },
   {
-   "asset": "wall_window_open",
+   "asset": "wall",
    "position": [
     -16.0,
     0.0,
@@ -2949,9 +3088,9 @@
    ],
    "rotation": [
     0.0,
+    0.707107,
     0.0,
-    0.0,
-    -1.0
+    0.707107
    ],
    "scale": [
     1.0,
@@ -2989,9 +3128,9 @@
    ],
    "rotation": [
     0.0,
-    0.707107,
+    1.0,
     0.0,
-    0.707107
+    0.0
    ],
    "scale": [
     1.0,
@@ -3029,26 +3168,6 @@
    ],
    "rotation": [
     0.0,
-    1.0,
-    0.0,
-    0.0
-   ],
-   "scale": [
-    1.0,
-    1.0,
-    1.0
-   ],
-   "solid": true
-  },
-  {
-   "asset": "floor_wood_small",
-   "position": [
-    -13.0,
-    4.0,
-    23.0
-   ],
-   "rotation": [
-    0.0,
     0.0,
     0.0,
     -1.0
@@ -3065,7 +3184,7 @@
    "position": [
     -13.0,
     4.0,
-    21.0
+    23.0
    ],
    "rotation": [
     0.0,
@@ -3085,13 +3204,33 @@
    "position": [
     -13.0,
     4.0,
-    19.0
+    21.0
    ],
    "rotation": [
     0.0,
     0.707107,
     0.0,
     0.707107
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "solid": true
+  },
+  {
+   "asset": "floor_wood_small",
+   "position": [
+    -13.0,
+    4.0,
+    19.0
+   ],
+   "rotation": [
+    0.0,
+    0.707107,
+    0.0,
+    -0.707107
    ],
    "scale": [
     1.0,
@@ -3129,9 +3268,9 @@
    ],
    "rotation": [
     0.0,
-    0.707107,
     0.0,
-    -0.707107
+    0.0,
+    -1.0
    ],
    "scale": [
     1.0,
@@ -3149,9 +3288,9 @@
    ],
    "rotation": [
     0.0,
+    0.707107,
     0.0,
-    0.0,
-    -1.0
+    0.707107
    ],
    "scale": [
     1.0,
@@ -3266,26 +3405,6 @@
     -12.0,
     4.0,
     26.0
-   ],
-   "rotation": [
-    0.0,
-    1.0,
-    0.0,
-    0.0
-   ],
-   "scale": [
-    1.0,
-    1.0,
-    1.0
-   ],
-   "solid": true
-  },
-  {
-   "asset": "wall",
-   "position": [
-    -12.0,
-    4.0,
-    18.0
    ],
    "rotation": [
     0.0,
@@ -3303,6 +3422,26 @@
   {
    "asset": "wall_archedwindow_open",
    "position": [
+    -12.0,
+    4.0,
+    18.0
+   ],
+   "rotation": [
+    0.0,
+    1.0,
+    0.0,
+    0.0
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "solid": true
+  },
+  {
+   "asset": "wall",
+   "position": [
     -16.0,
     4.0,
     26.0
@@ -3419,6 +3558,82 @@
     1.2
    ],
    "solid": true
+  },
+  {
+   "asset": "floor_tile_large",
+   "position": [
+    -12.0,
+    8.0,
+    24.0
+   ],
+   "rotation": [
+    0.0,
+    0.0,
+    0.0,
+    -1.0
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  {
+   "asset": "floor_tile_large",
+   "position": [
+    -12.0,
+    8.0,
+    20.0
+   ],
+   "rotation": [
+    0.0,
+    1.0,
+    0.0,
+    0.0
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  {
+   "asset": "floor_tile_large",
+   "position": [
+    -16.0,
+    8.0,
+    24.0
+   ],
+   "rotation": [
+    0.0,
+    0.0,
+    0.0,
+    -1.0
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  {
+   "asset": "floor_tile_large",
+   "position": [
+    -16.0,
+    8.0,
+    20.0
+   ],
+   "rotation": [
+    0.0,
+    1.0,
+    0.0,
+    0.0
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ]
   },
   {
    "asset": "trunk_medium_A",
@@ -3900,6 +4115,18 @@
    "level": 1
   },
   {
+   "name": "cover",
+   "min": [
+    9.5,
+    17.5
+   ],
+   "max": [
+    18.5,
+    26.5
+   ],
+   "level": 2
+  },
+  {
    "name": "room",
    "min": [
     -17.5,
@@ -3932,6 +4159,18 @@
     26.5
    ],
    "level": 1
+  },
+  {
+   "name": "cover",
+   "min": [
+    -18.5,
+    17.5
+   ],
+   "max": [
+    -9.5,
+    26.5
+   ],
+   "level": 2
   }
  ],
  "meshes": [],
@@ -3968,7 +4207,7 @@
    "position": [
     3.9,
     2.475,
-    16.348
+    11.652
    ],
    "color": [
     1.0,
@@ -3982,7 +4221,7 @@
    "position": [
     4.0,
     2.929,
-    12.884
+    15.116
    ],
    "color": [
     1.0,
@@ -4024,7 +4263,7 @@
    "position": [
     -3.9,
     2.475,
-    16.348
+    11.652
    ],
    "color": [
     1.0,
@@ -4038,7 +4277,7 @@
    "position": [
     -4.0,
     2.929,
-    12.884
+    15.116
    ],
    "color": [
     1.0,

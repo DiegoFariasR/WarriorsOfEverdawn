@@ -5,6 +5,7 @@
   "wall_cracked": "res://assets/dungeon/wall_cracked.glb",
   "wall": "res://assets/dungeon/wall.glb",
   "wall_doorway": "res://assets/dungeon/wall_doorway.glb",
+  "wall_endcap": "res://assets/dungeon/wall_endcap.glb",
   "wall_broken": "res://assets/dungeon/wall_broken.glb",
   "pillar": "res://assets/dungeon/pillar.glb",
   "crypt": "res://assets/props/crypt.glb",
@@ -698,7 +699,48 @@
     1.0
    ],
    "solid": true,
-   "shape": "mesh"
+   "shape": "mesh",
+   "view": "around"
+  },
+  {
+   "asset": "wall_endcap",
+   "position": [
+    -10.0,
+    0.0,
+    -22.0
+   ],
+   "rotation": [
+    0.0,
+    -0.707107,
+    0.0,
+    0.707107
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "view": "overhead"
+  },
+  {
+   "asset": "wall_endcap",
+   "position": [
+    -10.0,
+    0.0,
+    -18.0
+   ],
+   "rotation": [
+    0.0,
+    0.707107,
+    0.0,
+    0.707107
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "view": "overhead"
   },
   {
    "asset": "wall_doorway",
@@ -719,7 +761,48 @@
     1.0
    ],
    "solid": true,
-   "shape": "mesh"
+   "shape": "mesh",
+   "view": "around"
+  },
+  {
+   "asset": "wall_endcap",
+   "position": [
+    10.0,
+    0.0,
+    -22.0
+   ],
+   "rotation": [
+    0.0,
+    -0.707107,
+    0.0,
+    0.707107
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "view": "overhead"
+  },
+  {
+   "asset": "wall_endcap",
+   "position": [
+    10.0,
+    0.0,
+    -18.0
+   ],
+   "rotation": [
+    0.0,
+    0.707107,
+    0.0,
+    0.707107
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "view": "overhead"
   },
   {
    "asset": "wall_broken",

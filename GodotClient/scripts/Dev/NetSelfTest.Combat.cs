@@ -56,7 +56,7 @@ public partial class NetSelfTest
             + $"hits_by_skill={string.Join(",", _hitsBySkill.OrderBy(h => h.Key).Select(h => $"{h.Key}:{h.Value}"))}");
         if (Multiplayer.IsServer())
         {
-            GD.Print($"[combat-host] damage_by_peer={string.Join(",", _enemyDamageByPeer.OrderBy(p => p.Key).Select(p => $"{p.Key}:{p.Value}"))} "
+            GD.Print($"[combat-host] damage_by_peer={PerPeer(_enemyDamageByPeer)} "
                 + $"biggest_hit_by_skill={string.Join(",", _biggestHitBySkill.Select(h => $"{h.Key}:{h.Value}"))} "
                 + $"hits_by_type={string.Join(",", _hitsByType.OrderBy(h => h.Key).Select(h => $"{DamageTypes.NameOf(h.Key)}:{h.Value}"))} "
                 + $"weak_hits={_weakHits} resisted_hits={_resistedHits} plain_hits={_plainHits}");
@@ -65,7 +65,7 @@ public partial class NetSelfTest
         GD.Print($"[pvp-check] me={me} pvp={SessionRules.Pvp} hits_on_players={_playerHitsSent}");
         if (Multiplayer.IsServer())
         {
-            GD.Print($"[pvp-host] damage_by_attacker={string.Join(",", _playerDamageByAttacker.OrderBy(p => p.Key).Select(p => $"{p.Key}:{p.Value}"))}");
+            GD.Print($"[pvp-host] damage_by_attacker={PerPeer(_playerDamageByAttacker)}");
         }
 
         GD.Print($"[flash-check] me={me} enemy_flashes={_enemyFlashes} player_flashes={_playerFlashes} lingering_frames={_flashLingering}");
@@ -111,8 +111,8 @@ public partial class NetSelfTest
     // A flash must be gone shortly after its quarter second.
     private void MeasureFlashes()
     {
-        var flashes = GetTree().GetNodesInGroup(EnemyCharacter.Group).OfType<EnemyCharacter>().Select(e => e.Flash)
-            .Concat(_players.GetChildren().OfType<PlayerCharacter>().Select(p => p.Flash));
+        var flashes = EnemyCharacter.All(GetTree()).Select(e => e.Flash)
+            .Concat(PlayerCharacter.All(GetTree()).Select(p => p.Flash));
         _flashLingering += flashes.Count(f => f.Showing && f.Age > HitFlash.Duration + 0.1f);
     }
 }

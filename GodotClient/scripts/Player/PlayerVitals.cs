@@ -54,10 +54,10 @@ public partial class PlayerVitals : Node
     public Statuses Statuses => (Statuses)StatusMask;
 
     // Frozen or stunned: it neither moves nor acts.
-    public bool IsLost => (Statuses & (Statuses.Frozen | Statuses.Stunned)) != Statuses.None;
+    public bool IsLost => Statuses.IsLost();
 
     // The share of its run and attack speed it keeps: less while chilled.
-    public float Speed => Statuses.HasFlag(Statuses.Chilled) ? StatusRules.ChilledSpeed : 1f;
+    public float Speed => Statuses.SpeedShare();
 
     // Host only: the bars themselves, for what the player deals and takes.
     public StatusBars Status => _status;
@@ -81,15 +81,9 @@ public partial class PlayerVitals : Node
     public static PlayerVitals Create()
     {
         var vitals = new PlayerVitals { Name = "Vitals" };
-        var config = new SceneReplicationConfig();
-        foreach (var property in new[] { PropertyName.Hp, PropertyName.Gold, PropertyName.Souls, PropertyName.Orbs, PropertyName.Armour, PropertyName.Barrier, PropertyName.StatusMask })
-        {
-            var path = new NodePath($".:{property}");
-            config.AddProperty(path);
-            config.PropertySetSpawn(path, true);
-            config.PropertySetReplicationMode(path, SceneReplicationConfig.ReplicationMode.OnChange);
-        }
-
+        var config = new SceneReplicationConfig().Sending(
+            SceneReplicationConfig.ReplicationMode.OnChange,
+            PropertyName.Hp, PropertyName.Gold, PropertyName.Souls, PropertyName.Orbs, PropertyName.Armour, PropertyName.Barrier, PropertyName.StatusMask);
         vitals.AddChild(new MultiplayerSynchronizer { Name = "Sync", ReplicationConfig = config });
         return vitals;
     }
@@ -222,8 +216,7 @@ public partial class PlayerVitals : Node
     [Rpc(MultiplayerApi.RpcMode.AnyPeer, CallLocal = true, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
     private void RequestDamage(string skillId)
     {
-        long sender = Multiplayer.GetRemoteSenderId();
-        long attackerId = sender == 0 ? Multiplayer.GetUniqueId() : sender;
+        long attackerId = Multiplayer.Sender();
         if (!Multiplayer.IsServer() || !SessionRules.Pvp)
         {
             GD.PushError($"[Vitals {Player.Name}] player damage request from peer {attackerId} outside a PvP host");

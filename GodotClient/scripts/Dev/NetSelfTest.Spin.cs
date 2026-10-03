@@ -4,6 +4,7 @@ using WarriorsOfEverdawn.Core;
 using WarriorsOfEverdawn.Core.Combat;
 using WarriorsOfEverdawn.Core.Locomotion;
 using WarriorsOfEverdawn.Player;
+using WarriorsOfEverdawn.Util;
 
 namespace WarriorsOfEverdawn.Dev;
 
@@ -51,7 +52,7 @@ public partial class NetSelfTest
 
         if (_wasSpinning)
         {
-            float speed = new Vector2(slowing.local.NetVelocity.X, slowing.local.NetVelocity.Z).Length();
+            float speed = Yaw.Flat(slowing.local.NetVelocity).Length();
             _spinFrames++;
             _spinMaxSpeed = Mathf.Max(_spinMaxSpeed, speed);
             _spinSpeedLimit = MoveSpeed.Run * slowing.skill.MoveSpeedFactor;

@@ -97,9 +97,8 @@ public partial class NetSelfTest
     {
         GD.Print($"[spin-dash-check] me={me} spin_dashes={_spinDashes} kept={_spinDashesKept} cut_while_held={_spinDashesCut} "
             + $"tests_while_dashing={_spinTestsWhileDashing} remote_seen={_remoteSpinDashesSeen}");
-        float dashMedian = _dashDistances.Count > 0 ? _dashDistances.OrderBy(d => d).ElementAt(_dashDistances.Count / 2) : float.NaN;
         float dashLongest = _dashDistances.Count > 0 ? _dashDistances.Max() : float.NaN;
-        GD.Print($"[dash-check] me={me} dashes={_dashDistances.Count} distance_median={dashMedian:F2} distance_max={dashLongest:F2} expected={DashRules.Distance:F2} "
+        GD.Print($"[dash-check] me={me} dashes={_dashDistances.Count} distance_median={Median(_dashDistances):F2} distance_max={dashLongest:F2} expected={DashRules.Distance:F2} "
             + $"max_in_recharge_window={MaxDashesInRechargeWindow()} charges={DashRules.Charges} refused={LocalPlayer()?.DashesRefused} remote_dashes_seen={_remoteDashesSeen} "
             + $"ghosts_emitted={LocalPlayer()?.Ghosts.Emitted} ghost_lingering_frames={_ghostLingering}");
     }

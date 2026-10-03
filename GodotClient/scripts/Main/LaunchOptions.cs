@@ -147,7 +147,7 @@ public sealed record LaunchOptions
             {
                 "--host" => options with { Mode = SessionMode.Host },
                 "--join" => options with { Mode = SessionMode.Join, Address = ValueAfter(args, ref i) },
-                "--port" => options with { Port = int.Parse(ValueAfter(args, ref i), CultureInfo.InvariantCulture) },
+                "--port" => options with { Port = IntAfter(args, ref i) },
                 "--bot" => options with { Bot = true },
                 "--camera-check" => options with { CameraCheck = true },
                 "--wall-check" => options with { WallCheck = true },
@@ -205,19 +205,35 @@ public sealed record LaunchOptions
 
     private static ScreenshotOptions ShotOf(LaunchOptions options) => options.Screenshot ?? ScreenshotOptions.Default;
 
-    private static float FloatAfter(string[] args, ref int i) => float.Parse(ValueAfter(args, ref i), CultureInfo.InvariantCulture);
+    private static float FloatAfter(string[] args, ref int i)
+    {
+        string flag = args[i];
+        string value = ValueAfter(args, ref i);
+        return float.TryParse(value, NumberStyles.Float | NumberStyles.AllowThousands, CultureInfo.InvariantCulture, out float number)
+            ? number
+            : throw new ArgumentException($"{flag} needs a number, got '{value}'");
+    }
+
+    private static int IntAfter(string[] args, ref int i)
+    {
+        string flag = args[i];
+        string value = ValueAfter(args, ref i);
+        return int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out int number)
+            ? number
+            : throw new ArgumentException($"{flag} needs a whole number, got '{value}'");
+    }
 
     private static int PositiveIntAfter(string[] args, ref int i)
     {
         string flag = args[i];
-        int value = int.Parse(ValueAfter(args, ref i), CultureInfo.InvariantCulture);
+        int value = IntAfter(args, ref i);
         return value > 0 ? value : throw new ArgumentException($"{flag} needs a number above 0, got {value}");
     }
 
     // Numbered as the player sees them: 1 to 4, the order C cycles through.
     private static CameraMode CameraAfter(string[] args, ref int i)
     {
-        int number = int.Parse(ValueAfter(args, ref i), CultureInfo.InvariantCulture);
+        int number = IntAfter(args, ref i);
         return number is >= 1 and <= CameraModes.Count
             ? (CameraMode)(number - 1)
             : throw new ArgumentException($"--camera needs 1 to {CameraModes.Count}, got {number}");
@@ -226,7 +242,7 @@ public sealed record LaunchOptions
     private static int ArmourTierAfter(string[] args, ref int i)
     {
         string flag = args[i];
-        int tier = int.Parse(ValueAfter(args, ref i), CultureInfo.InvariantCulture);
+        int tier = IntAfter(args, ref i);
         return tier >= 0 && tier <= Armours.MaxTier ? tier : throw new ArgumentException($"{flag} needs a tier from 0 to {Armours.MaxTier}, got {tier}");
     }
 
@@ -291,6 +307,7 @@ public sealed record LaunchOptions
 
     private static WeaponDefinition WeaponAfter(string[] args, ref int i)
     {
+        string flag = args[i];
         string id = ValueAfter(args, ref i);
         try
         {
@@ -298,7 +315,7 @@ public sealed record LaunchOptions
         }
         catch (KeyNotFoundException)
         {
-            throw new ArgumentException($"--weapon '{id}' is not one of {string.Join(", ", Weapons.All.Select(w => w.Id))}");
+            throw new ArgumentException($"{flag} '{id}' is not one of {string.Join(", ", Weapons.All.Select(w => w.Id))}");
         }
     }
 

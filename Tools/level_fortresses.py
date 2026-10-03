@@ -36,6 +36,8 @@ TOWN_Z, FORTRESS_Z = 22.0, -22.0
 # Gate towers stand this far either side of the gate's middle, leaving a 3 m opening.
 GATE_TOWER_OFFSET = 2.4
 GATE_TOWER_SCALE = 1.2
+# The town's lantern posts stand this far out from the middle line of its front wall, either side of the gate.
+GATE_LANTERNS_OUT = 1.8
 CORNER_TOWER_SCALE = 1.5
 # Rooms reach this many segments out from the side wall and run this many along it, about the courtyard's middle.
 ROOM_OUT, ROOM_ALONG = 2, 2
@@ -43,6 +45,8 @@ ROOM_TOWER_SCALE = 1.2
 # The side-wall segment that is each room's doorway (its middle, toward the gate), and half the kit doorway's opening.
 DOOR_D = 2.0
 DOOR_HALF = 0.9
+# A wall's end, one at either end of a doorway's segment: as long as half of what the opening leaves of it.
+WALL_END = "wall_endcap"
 # Ground either side of a doorway that stays clear, so the way through is not walled off by a prop.
 DOOR_APPROACH = 1.5
 # A character's body, for keeping spawn points and the gate clear.
@@ -54,6 +58,8 @@ STOREY = lc.STOREY
 FLOOR_TOP = 0.05
 # A storey's floor is small tiles, so the hole the stairs come up through can be cut to fit.
 SMALL_TILE = 2.0
+# A storey is topped with stone tiles on its walls, out of reach: the town's buildings are roofed seen from outside.
+STOREY_TOP = "floor_tile_large"
 # A flight of the kit's wooden stairs is this wide and this long, and rises one storey (to a floor tile's top),
 # toward its own -Z: its origin is at the top of the flight.
 STAIRS = "stairs_wood"
@@ -114,13 +120,14 @@ class Fort:
         """Yaw for a piece whose own +Z should point toward the gate (0) or turned from that."""
         return (0.0 if self.front > 0 else math.pi) + yaw_toward_gate
 
-    def put(self, res_format, name, x, d, yaw=0.0, scale=1.0, solid=False, y=0.0, centred=True, shape=None):
+    def put(self, res_format, name, x, d, yaw=0.0, scale=1.0, solid=False, y=0.0, centred=True, shape=None, view=None):
         """Places a piece with the middle of its box at (x, d), or its own origin there when not centred, standing at
         height y. Its scale is one number, or three along its own x, y and z.
 
         shape="mesh" makes a solid block as its mesh does, not as its box: a doorway is walked through. shape="ramp"
         makes it a slope from the top of its box at its -Z end down to the bottom at its +Z end, as the kit's stairs
-        rise: stairs are walked up.
+        rise: stairs are walked up. view="overhead" draws it only for the cameras looking straight down, view="around"
+        only for the others; it blocks the same whichever draws it.
         """
         res = res_format.format(name)
         yaw = self.facing(yaw)
@@ -152,6 +159,8 @@ class Fort:
             placement["solid"] = True
         if shape is not None:
             placement["shape"] = shape
+        if view is not None:
+            placement["view"] = view
         self.placements.append(placement)
         if name in BURNING:
             at, colour, energy, reach = BURNING[name]
@@ -204,7 +213,12 @@ class Fort:
             d = (i - (DEEP - 1) / 2) * SEGMENT
             for side in (-1, 1):
                 if d == DOOR_D:
-                    self.put(DUNGEON, "wall_doorway", side * self.half_x, d, yaw=math.pi / 2, solid=True, shape="mesh")
+                    self.put(DUNGEON, "wall_doorway", side * self.half_x, d, yaw=math.pi / 2, solid=True, shape="mesh", view="around")
+                    # Seen from straight above, the arch hides the way through under it: those cameras see two wall
+                    # ends instead, with the opening between them. Each faces the opening with its rounded end.
+                    end_long = lc.bounds(DUNGEON.format(WALL_END))[1][0]
+                    for along, yaw in ((-1, -math.pi / 2), (1, math.pi / 2)):
+                        self.put(DUNGEON, WALL_END, side * self.half_x, d + along * (SEGMENT - end_long) / 2, yaw=yaw, view="overhead")
                 else:
                     self.put(DUNGEON, self.pick(), side * self.half_x, d, yaw=math.pi / 2, solid=True)
         for sx in (-1, 1):
@@ -261,8 +275,8 @@ class Fort:
     def storey(self, room, floor, outer_wall):
         """A storey over a room: a floor of small tiles with a hole over the stairs, which run up along the room's outer
         wall away from the gate, from room to step on before them up to a landing a tile deep; three walls and the
-        courtyard side, towers at the corners. A level-1 "cover" over the room hides the storey from a player in the
-        room under it."""
+        courtyard side, towers at the corners, and a top of stone tiles on its walls. A level-1 "cover" over the room
+        hides the storey from a player in the room under it, and a level-2 one the top from a player in the storey."""
         out, along = ROOM_OUT * SEGMENT, ROOM_ALONG * SEGMENT
         up = STOREY
         stairs_u = out - WALL_THICK / 2 - STAIRS_HALF_WIDE * STAIRS_NARROWED
@@ -289,8 +303,13 @@ class Fort:
         for u in (0.0, out):
             for end in (-1, 1):
                 room.put(DUNGEON, "pillar", u, end * along / 2, scale=ROOM_TOWER_SCALE, solid=True, y=up)
+        for i in range(ROOM_OUT):
+            for j in range(ROOM_ALONG):
+                room.put(DUNGEON, STOREY_TOP, (i + 0.5) * SEGMENT, (j - (ROOM_ALONG - 1) / 2) * SEGMENT,
+                         yaw=self.rng.randrange(4) * math.pi / 2, y=2 * up)
         inner, outer = room.side * (self.half_x - WALL_THICK / 2), room.side * (self.half_x + out + WALL_THICK / 2)
-        self.area("cover", min(inner, outer), -along / 2 - WALL_THICK / 2, max(inner, outer), along / 2 + WALL_THICK / 2, level=1)
+        for level in (1, 2):
+            self.area("cover", min(inner, outer), -along / 2 - WALL_THICK / 2, max(inner, outer), along / 2 + WALL_THICK / 2, level=level)
 
     def crypt(self):
         """The crypt under the fortress's left room and the left of its courtyard, one storey down: its floor, walls and
@@ -420,10 +439,10 @@ def allied_town(seed):
     # A statue at the back, facing the gate.
     f.put(PROPS, "paladin_statue", 0.0, -5.6, solid=True)
 
-    # A camp fire with benches on the left, a long table on the right.
+    # A camp fire with a bench on the left, a long table on the right. The fire's side toward the gate is left open:
+    # the way from the gate to the blacksmith passes it.
     f.put(PROPS, "Campfire_Base", -5.4, 0.6)
     f.put(PROPS, "Campfire_Logs", -5.4, 0.6)
-    f.put(DUNGEON, "bench", -5.4, 2.4, solid=True)
     f.put(DUNGEON, "bench", -3.5, 0.6, yaw=math.pi / 2, solid=True)
     f.put(DUNGEON, "table_long", 6.0, 0.2, solid=True)
     f.put(DUNGEON, "bench", 4.5, 0.2, yaw=math.pi / 2, solid=True)
@@ -457,13 +476,13 @@ def allied_town(seed):
     f.put(DUNGEON, "barrel_small_stack", 8.4, -5.6, yaw=math.pi / 2, solid=True)
     f.put(DUNGEON, "trunk_large_A", -8.6, -5.4, yaw=math.pi / 2, solid=True)
 
-    # Lanterns inside the gate; colours on every wall, and outside either side of the gate.
+    # Lanterns outside the gate, torches inside it; colours on every wall, and outside either side of the gate.
     for sx in (-1, 1):
         side = "left" if sx < 0 else "right"
-        f.put(PROPS, "post_lantern", sx * 3.9, 6.2, yaw=math.pi, solid=True)
+        f.put(PROPS, "post_lantern", sx * 3.9, f.half_z + GATE_LANTERNS_OUT, solid=True)
         f.on_wall("banner_shield_blue", "front", sx * 6.0, inside=False)
         f.on_wall("banner_blue", "front", sx * 6.0)
-        f.on_wall("torch_mounted", "front", sx * 4.0, height=2.3, inside=False, out=ON_FACE)
+        f.on_wall("torch_mounted", "front", sx * 4.0, height=2.3, out=ON_FACE)
         f.on_wall("banner_patternA_blue", side, -4.0)
         f.on_wall("torch_mounted", side, 0.0, height=2.3, out=ON_FACE)
         f.on_wall("banner_blue", side, 4.0)

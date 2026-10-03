@@ -39,7 +39,7 @@ public partial class NetSelfTest
             _secondsDoing[bot.Activity] = _secondsDoing.GetValueOrDefault(bot.Activity) + delta;
         }
 
-        var hostiles = GetTree().GetNodesInGroup(EnemyCharacter.Group).OfType<EnemyCharacter>().Where(e => !e.IsDead).ToList();
+        var hostiles = EnemyCharacter.Standing(GetTree()).ToList();
         if (hostiles.Count == 0)
         {
             _secondsNoHostile += delta;

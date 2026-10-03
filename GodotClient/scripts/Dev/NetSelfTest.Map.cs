@@ -64,7 +64,7 @@ public partial class NetSelfTest
             _straightStepsAtStart = _map.StraightSteps;
         }
 
-        foreach (var enemy in GetTree().GetNodesInGroup(EnemyCharacter.Group).OfType<EnemyCharacter>().Where(e => !e.IsGuard))
+        foreach (var enemy in EnemyCharacter.All(GetTree()).Where(e => !e.IsGuard))
         {
             bool inFortress = _map.InFortress(enemy.GlobalPosition);
             if (_seenRising.Add(enemy.GetInstanceId()) && !inFortress)

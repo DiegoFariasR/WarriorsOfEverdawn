@@ -57,8 +57,6 @@ public partial class ArenaMap : Node3D
 
     public IReadOnlyList<Vector3> EnemySpawns => _enemySpawns;
 
-    public IReadOnlyList<LayoutArea> SafeAreas => _safe;
-
     // The enemy fortress's courtyard, and the middle of its gate.
     public LayoutArea FortressCourtyard { get; private set; } = null!;
 
@@ -209,7 +207,7 @@ public partial class ArenaMap : Node3D
         var ward = new StaticBody3D
         {
             Name = "Ward",
-            Position = new Vector3((gate.Min.X + gate.Max.X) / 2f, WardHeight / 2f, (gate.Min.Y + gate.Max.Y) / 2f),
+            Position = new Vector3(gate.Centre.X, WardHeight / 2f, gate.Centre.Y),
             CollisionLayer = CollisionLayers.Ward,
             CollisionMask = 0,
         };

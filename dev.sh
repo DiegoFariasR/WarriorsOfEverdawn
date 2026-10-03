@@ -6,7 +6,7 @@ ROOT="$(cd "$(dirname "$0")" && pwd)"
 PROJECT="$ROOT/GodotClient"
 
 usage() {
-    cat <<'EOF'
+    cat <<EOF
 Usage: ./dev.sh <command>
 
 Build and test:
@@ -16,9 +16,9 @@ Build and test:
   import            Headless asset import (run after copying assets in)
 
 Godot self-tests (headless):
-  net-test          Co-op host + 4 bot clients, one per weapon; asserts movement, combat, visuals and HUD reach every peer
+  net-test          Co-op host + $COOP_CLIENTS bot clients, one per weapon; asserts movement, combat, visuals and HUD reach every peer
   pvp-test          PvP host + 1 bot client, no skeletons; asserts players hit and damage each other
-  magic-test        Host + 4 bot clients, three with magic staffs, one with wands and one with enchanted weapons;
+  magic-test        Host + $MAGIC_CLIENTS bot clients, $MAGIC_STAFFS with magic staffs, one with wands and one with enchanted weapons;
                     asserts bolts and volleys are thrown, land and are seen by the others, area spells are drawn, a
                     wand's ball bursts, barriers take blows and come back, and every weapon of an element shows it
   trade-test        For each seller, a host + 1 bot client beside it with gold and orbs; asserts each opens the
@@ -48,7 +48,7 @@ Screenshots (real renderer; off-screen, minimized, unfocused window):
                     --status-drill  every few seconds a skeleton is frozen and the next stunned
 
   armour-lineup     The knight in a row in each tier of armour, seen from the front; saves _staging/armour-lineup.png
-                    [Outfit,Outfit,...] shows those outfits instead (models under assets/character_parts)
+                    [Outfit,Outfit,...] shows those outfits instead (characters of the kit's parts catalogue)
   weapon-lineup <id>  The knight holding that weapon in its stance, its guard and each skill as it lands, and
                     carrying it on the back; saves _staging/weapon-lineup.png
   magic-lineup      The staffs casting: each holds its spell on an area, what it throws beside it. With nothing
@@ -117,8 +117,8 @@ KNOWN_DISCONNECT_ERROR='Unable to send packet on channel [0-9]+, max channels: 0
 MAX_TWISTED_CHEST_ERROR_DEG=15
 MIN_TWIST_SAMPLES=50
 
-# Playtest: session length, when the host takes a player down, and the leak tolerances. Over runs of 8-11 waves the
-# node count the leak check compares stayed at 1331-1332 from the second wave on and orphan nodes at 0.
+# Playtest: session length, when the host takes a player down, and the leak tolerances. In a run of 16-17 waves the
+# node count the leak check compares stayed at 2848-2849 from the second wave on and orphan nodes at 0.
 PLAYTEST_HOST_SECONDS=150
 PLAYTEST_CLIENT_SECONDS=142
 PLAYTEST_DOWN_AT=40
@@ -170,36 +170,67 @@ run_session() {
     else
         timeout "$limit" "${game[@]}" --host --port "$port" --bot --weapon "${SESSION_WEAPONS[0]}" --back-weapon "${SESSION_BACK_WEAPONS[0]}" --quit-after "$host_quit" "$@" > "$logs/host.log" 2>&1 &
     fi
-    local pids=($!)
+    local pids=($!) names=(host)
     # Gives the host time to boot .NET and open the port; ENet keeps retrying the handshake for a few seconds beyond this.
     sleep 3
     local i
     for i in $(seq 1 "$clients"); do
         timeout "$limit" "${game[@]}" --join 127.0.0.1 --port "$port" --bot --weapon "${SESSION_WEAPONS[i]}" --back-weapon "${SESSION_BACK_WEAPONS[i]}" --quit-after "$client_quit" "$@" > "$logs/client$i.log" 2>&1 &
         pids+=($!)
+        names+=("client$i")
     done
 
-    local failed=0 pid
-    for pid in "${pids[@]}"; do
-        wait "$pid" || { echo "a session process exited with $?"; failed=1; }
+    local failed=0 status
+    for i in "${!pids[@]}"; do
+        wait "${pids[i]}"
+        status=$?
+        if [ "$status" -ne 0 ]; then
+            echo "FAIL ${names[i]}: $(ended "$status" "$limit") (log: $logs/${names[i]}.log)"
+            failed=1
+        fi
     done
     return "$failed"
+}
+
+# How a process run under `timeout <limit>` ended: 124 is timeout's own, for one it killed at the limit.
+ended() {
+    local status=$1 limit=$2
+    if [ "$status" -eq 124 ]; then
+        echo "still running after $limit s, killed by timeout"
+    else
+        echo "exited with $status"
+    fi
 }
 
 # Passes when the log's [tag] line satisfies an awk condition over its key=value fields, read as v["key"].
 gate() {
     local label=$1 file=$2 tag=$3 condition=$4 message=$5
-    local line
+    local line keys missing
     line=$(grep -E "^\[$tag\]" "$file")
-    # An empty line would read every field as 0, which satisfies conditions like "difference is about zero".
+    # A field that is not there, or NaN, would read as 0 (gawk takes "NaN" for 0), which satisfies conditions like
+    # "difference is about zero": the line must be there with every field the condition names, and NaN is stored as
+    # a real NaN, which fails every ordered comparison.
     if [ -z "$line" ]; then
         echo "FAIL $label: $message (no $tag line in the log)"
         return 1
     fi
-    if ! echo "$line" | awk "{ for (i = 2; i <= NF; i++) { split(\$i, kv, \"=\"); v[kv[1]] = kv[2] } exit !($condition) }"; then
-        echo "FAIL $label: $message (${line:-no $tag line})"
-        return 1
-    fi
+    keys=$(grep -oE 'v\["[^"]+"\]' <<< "$condition" | sed -E 's/^v\["(.*)"\]$/\1/' | tr '\n' ' ')
+    missing=$(echo "$line" | awk -v keys="$keys" "{
+        for (i = 2; i <= NF; i++) {
+            split(\$i, kv, \"=\")
+            if (tolower(kv[2]) == \"nan\") v[kv[1]] = \"+nan\" + 0; else v[kv[1]] = kv[2]
+            seen[kv[1]] = 1
+        }
+        n = split(keys, named, \" \")
+        for (j = 1; j <= n; j++) if (!(named[j] in seen)) { print named[j]; exit 3 }
+        exit !($condition)
+    }")
+    case $? in
+        0) return 0 ;;
+        3) echo "FAIL $label: $message ($missing not printed in the $tag line)" ;;
+        *) echo "FAIL $label: $message ($line)" ;;
+    esac
+    return 1
 }
 
 # Any error fails, except the known engine disconnect error, which is noted instead.
@@ -265,7 +296,7 @@ co_op_session() {
             echo "FAIL $log: players' weapons (in hand+on back) seen as '$sets_seen', expected '$expected_sets'"
             failed=1
         fi
-        if awk '/^\[net-check\]/ { if (match($0, /weapon_changes=[0-9]+/) && substr($0, RSTART + 15, RLENGTH - 15) + 0 < 2) bad = 1 } END { exit !bad }' "$file"; then
+        if awk '/^\[net-check\]/ { if (!match($0, /weapon_changes=[0-9]+/) || substr($0, RSTART + 15, RLENGTH - 15) + 0 < 2) bad = 1 } END { exit !bad }' "$file"; then
             echo "FAIL $log: some player's swap to the back weapon and back was not seen here ($(grep -oE 'player=[0-9]+|weapon_changes=[0-9]+' "$file" | paste -d' ' - - | tr '\n' ';'))"
             failed=1
         fi
@@ -513,7 +544,7 @@ playtest() {
         # Node growth compares each later wave with the second: the fewest nodes in each while every player carries
         # both weapons, leaving out what comes and goes with the fight and has its own check: skeletons and damage
         # numbers (the two lingering counts), gold on the ground (loot-check), HP bars (ui-check), arrows (ranged-check).
-        gate "$log" "$file" leak-check "v[\"corpse_lingering_frames\"] + 0 == 0 && v[\"text_lingering_frames\"] + 0 == 0 && v[\"node_growth\"] != \"NaN\" && v[\"node_growth\"] + 0 <= $MAX_NODE_GROWTH && v[\"orphan_growth\"] + 0 <= $MAX_ORPHAN_GROWTH" \
+        gate "$log" "$file" leak-check "v[\"corpse_lingering_frames\"] + 0 == 0 && v[\"text_lingering_frames\"] + 0 == 0 && v[\"node_growth\"] + 0 <= $MAX_NODE_GROWTH && v[\"orphan_growth\"] + 0 <= $MAX_ORPHAN_GROWTH" \
             "dead skeletons or damage numbers outstaying their time, or nodes piling up from wave to wave" || failed=1
         gate "$log" "$file" down-check 'v["downs"] + 0 >= 1 && v["revives"] + 0 >= 1 && (v["down_seconds_min"] - v["expected_seconds"]) ^ 2 < 0.25 && (v["down_seconds_max"] - v["expected_seconds"]) ^ 2 < 0.25 && v["hp_after_revive_min"] + 0 == v["hp_max"] + 0 && v["hits_while_down"] + 0 == 0' \
             "no one seen going down and back up after the respawn delay at full HP, or a downed player was hit" || failed=1
@@ -628,9 +659,9 @@ trade_session() {
     for log in host client1; do
         local file="$logs/$log.log"
         grep -E '^\[(trade-check|trade-host)\]' "$file" | sed "s/^/$seller $log: /"
-        # The window: the prompt shows beside the seller, the window opens once, for this seller, and closes, has its
-        # nine slots with the seller's offers in them and is no bigger than the game's window (a headless run has no
-        # screen to fit it on), and the player stands still while it is open.
+        # The window: the prompt shows beside the seller, the window opens once, for this seller, and closes, has all
+        # its slots (TradeRules.Slots) with the seller's offers in them and is no bigger than the game's window (a
+        # headless run has no screen to fit it on), and the player stands still while it is open.
         gate "$seller $log" "$file" trade-check 'v["sellers"] + 0 >= 1 && v["prompt_frames"] + 0 >= 1 && v["opened"] + 0 == 1 && v["closed"] + 0 == 1 && v["seller"] == "'"$seller"'" && v["slots"] + 0 == v["slots_wanted"] + 0 && v["items"] + 0 >= 1 && v["window_fits"] + 0 == 1 && v["moved_while_trading"] + 0 <= 0.05 && v["drill_done"] + 0 == 1' \
             "no seller or prompt, the shop window not opening for this seller or closing once, its slots or offers missing, it being bigger than the game's window, or the player moving while it is open" || failed=1
         # The trade: it gets the seller's first three offers, the window then says it cannot pay for another, the host
@@ -793,16 +824,19 @@ trade_test() {
 
 camera_test() {
     build || return 1
-    local log="$ROOT/_staging/camera-test.log"
+    local log="$ROOT/_staging/camera-test.log" limit=60
     mkdir -p "$ROOT/_staging"
-    timeout 60 "$GODOT" --headless --path "$PROJECT" -- --camera-check > "$log" 2>&1
+    timeout "$limit" "$GODOT" --headless --path "$PROJECT" -- --camera-check > "$log" 2>&1
     local status=$?
     grep -E '^\[(camera|layout)-check\]' "$log"
     local modes layout
     modes=$(grep -cE '^\[camera-check\].* ok$' "$log")
     layout=$(grep -cE '^\[layout-check\].* ok$' "$log")
-    if [ "$status" -ne 0 ] || [ "$modes" -ne 4 ] || [ "$layout" -ne 1 ]; then
-        echo "camera-test FAILED (exit $status, $modes/4 modes ok, layout ok: $layout, log: $log)"
+    local failed=0
+    [ "$status" -eq 0 ] && [ "$modes" -eq 4 ] && [ "$layout" -eq 1 ] || failed=1
+    check_log_errors camera-test "$log" || failed=1
+    if [ "$failed" -ne 0 ]; then
+        echo "camera-test FAILED ($(ended "$status" "$limit"), $modes/4 modes ok, layout ok: $layout, log: $log)"
         return 1
     fi
     echo "camera-test passed"
@@ -810,13 +844,16 @@ camera_test() {
 
 wall_test() {
     build || return 1
-    local log="$ROOT/_staging/wall-test.log"
+    local log="$ROOT/_staging/wall-test.log" limit=60
     mkdir -p "$ROOT/_staging"
-    timeout 60 "$GODOT" --headless --path "$PROJECT" -- --wall-check --no-enemies > "$log" 2>&1
+    timeout "$limit" "$GODOT" --headless --path "$PROJECT" -- --wall-check --no-enemies > "$log" 2>&1
     local status=$?
     grep -E '^\[wall-check\]' "$log"
-    if [ "$status" -ne 0 ] || ! grep -qE '^\[wall-check\] passed$' "$log"; then
-        echo "wall-test FAILED (exit $status, log: $log)"
+    local failed=0
+    [ "$status" -eq 0 ] && grep -qE '^\[wall-check\] passed$' "$log" || failed=1
+    check_log_errors wall-test "$log" || failed=1
+    if [ "$failed" -ne 0 ]; then
+        echo "wall-test FAILED ($(ended "$status" "$limit"), log: $log)"
         return 1
     fi
     echo "wall-test passed"
@@ -824,13 +861,16 @@ wall_test() {
 
 parts_test() {
     build || return 1
-    local log="$ROOT/_staging/parts-test.log"
+    local log="$ROOT/_staging/parts-test.log" limit=120
     mkdir -p "$ROOT/_staging"
-    timeout 120 "$GODOT" --headless --path "$PROJECT" -- --parts-check --no-enemies > "$log" 2>&1
+    timeout "$limit" "$GODOT" --headless --path "$PROJECT" -- --parts-check --no-enemies > "$log" 2>&1
     local status=$?
     grep -E '^\[parts-check\]' "$log"
-    if [ "$status" -ne 0 ] || ! grep -qE '^\[parts-check\] passed$' "$log"; then
-        echo "parts-test FAILED (exit $status, log: $log)"
+    local failed=0
+    [ "$status" -eq 0 ] && grep -qE '^\[parts-check\] passed$' "$log" || failed=1
+    check_log_errors parts-test "$log" || failed=1
+    if [ "$failed" -ne 0 ]; then
+        echo "parts-test FAILED ($(ended "$status" "$limit"), log: $log)"
         return 1
     fi
     echo "parts-test passed"
@@ -839,24 +879,27 @@ parts_test() {
 # The navigation mesh baked headless, its polygons printed: in the area, or (with none) only the faulty ones.
 ways_dump() {
     build || return 1
-    local log="$ROOT/_staging/ways-dump.log"
+    local log="$ROOT/_staging/ways-dump.log" limit=120
     mkdir -p "$ROOT/_staging"
-    timeout 120 "$GODOT" --headless --path "$PROJECT" -- --ways-dump "${1:-all}" --no-enemies > "$log" 2>&1
+    timeout "$limit" "$GODOT" --headless --path "$PROJECT" -- --ways-dump "${1:-all}" --no-enemies > "$log" 2>&1
     local status=$?
     grep -E '^\[ways\]' "$log"
-    [ "$status" -eq 0 ] || echo "ways-dump: exit $status (log: $log)"
+    [ "$status" -eq 0 ] || echo "ways-dump: $(ended "$status" "$limit") (log: $log)"
     return "$status"
 }
 
 floors_test() {
     build || return 1
-    local log="$ROOT/_staging/floors-test.log"
+    local log="$ROOT/_staging/floors-test.log" limit=240
     mkdir -p "$ROOT/_staging"
-    timeout 240 "$GODOT" --headless --path "$PROJECT" -- --floors-check > "$log" 2>&1
+    timeout "$limit" "$GODOT" --headless --path "$PROJECT" -- --floors-check > "$log" 2>&1
     local status=$?
     grep -E '^\[floors-check\]' "$log"
-    if [ "$status" -ne 0 ] || ! grep -qE '^\[floors-check\] passed$' "$log"; then
-        echo "floors-test FAILED (exit $status, log: $log)"
+    local failed=0
+    [ "$status" -eq 0 ] && grep -qE '^\[floors-check\] passed$' "$log" || failed=1
+    check_log_errors floors-test "$log" || failed=1
+    if [ "$failed" -ne 0 ]; then
+        echo "floors-test FAILED ($(ended "$status" "$limit"), log: $log)"
         return 1
     fi
     echo "floors-test passed"
@@ -955,18 +998,17 @@ screenshot() {
     build || return 1
     mkdir -p "$ROOT/_staging"
     rm -f "$ROOT"/_staging/screenshot*.png
-    local log="$ROOT/_staging/screenshot.log"
-    timeout 120 "$GODOT" --position -10000,-10000 --path "$PROJECT" -- --ai-playtest --screenshot "${args[@]}" > "$log" 2>&1
+    local log="$ROOT/_staging/screenshot.log" limit=120
+    timeout "$limit" "$GODOT" --position -10000,-10000 --path "$PROJECT" -- --ai-playtest --screenshot "${args[@]}" > "$log" 2>&1
     local status=$?
     grep -E '^\[screenshot\]' "$log"
     if [ "$status" -ne 0 ] || ! ls "$ROOT"/_staging/screenshot*.png > /dev/null 2>&1; then
-        echo "screenshot FAILED (exit $status, log: $log)"
+        echo "screenshot FAILED ($(ended "$status" "$limit"), log: $log)"
         grep -E -A2 'ERROR|Unhandled exception' "$log" | head -10
         return 1
     fi
 }
 
-# Where each weapon skill's hit time and range come from (Dev/SwingSurvey.cs); read it before setting them in Core.
 # Blender, for the tools that build models. No window: it runs in the background.
 BLENDER="${BLENDER:-C:/Program Files/Blender Foundation/Blender 5.2/blender.exe}"
 
@@ -975,27 +1017,28 @@ gold_piles() {
         echo "gold-piles: no Blender at '$BLENDER' (set BLENDER to its executable)"
         return 1
     fi
-    local log="$ROOT/_staging/gold-piles.log"
+    local log="$ROOT/_staging/gold-piles.log" limit=300
     mkdir -p "$ROOT/_staging"
-    timeout 300 "$BLENDER" --background --factory-startup --python-exit-code 1 --python "$ROOT/Tools/gold_piles.py" < /dev/null > "$log" 2>&1
+    timeout "$limit" "$BLENDER" --background --factory-startup --python-exit-code 1 --python "$ROOT/Tools/gold_piles.py" < /dev/null > "$log" 2>&1
     local status=$?
     grep -E '^\[gold-piles\]' "$log"
     if [ "$status" -ne 0 ]; then
-        echo "gold-piles FAILED (exit $status, log: $log)"
+        echo "gold-piles FAILED ($(ended "$status" "$limit"), log: $log)"
         return 1
     fi
     echo "gold-piles: run ./dev.sh import for the game to see them"
 }
 
+# Where each weapon skill's hit time and range come from (Dev/SwingSurvey.cs); read it before setting them in Core.
 swing_survey() {
     build || return 1
-    local log="$ROOT/_staging/swing-survey.log"
+    local log="$ROOT/_staging/swing-survey.log" limit=60
     mkdir -p "$ROOT/_staging"
-    timeout 60 "$GODOT" --headless --path "$PROJECT" -- --swing-survey --no-enemies > "$log" 2>&1
+    timeout "$limit" "$GODOT" --headless --path "$PROJECT" -- --swing-survey --no-enemies > "$log" 2>&1
     local status=$?
     grep -E '^\[swing-survey\]' "$log"
     if [ "$status" -ne 0 ] || ! grep -q '^\[swing-survey\]' "$log"; then
-        echo "swing-survey FAILED (exit $status, log: $log)"
+        echo "swing-survey FAILED ($(ended "$status" "$limit"), log: $log)"
         grep -E -A2 'ERROR|Unhandled exception' "$log" | head -10
         return 1
     fi

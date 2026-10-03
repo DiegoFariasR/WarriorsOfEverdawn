@@ -1,7 +1,9 @@
 using System.Collections.Generic;
 using System.Linq;
+using EverdawnKit.Characters;
 using Godot;
 using WarriorsOfEverdawn.Core.Locomotion;
+using WarriorsOfEverdawn.Util;
 
 namespace WarriorsOfEverdawn.Character;
 
@@ -98,7 +100,7 @@ public sealed class CharacterAnimator
 
     public CharacterAnimator(Node3D model)
     {
-        var skeleton = model.GetNode<Skeleton3D>(RigAnimations.SkeletonPath);
+        var skeleton = CharacterBody.SkeletonOf(model);
         Twist = new TorsoTwistModifier { Name = "TorsoTwist" };
         skeleton.AddChild(Twist);
 
@@ -236,7 +238,7 @@ public sealed class CharacterAnimator
         // to keep the chest on the aim. Swings are authored relative to the body, so an attack takes the bias away.
         // The idle stance keeps its authored chest angle.
         float bias = legs == null ? 0f : _chestYawByState[state];
-        _chestBias = Mathf.Lerp(_chestBias, bias, 1f - Mathf.Exp(-delta / LegCrossfade));
+        _chestBias = Mathf.Lerp(_chestBias, bias, Easing.Share(1f / LegCrossfade, delta));
         float dashWeight = 0f;
         if (IsDashing)
         {

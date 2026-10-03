@@ -17,6 +17,10 @@ public partial class ArenaMap
     private static readonly Vector2 GroundHalf = new(35f, 40f);
     private static readonly Color GroundColour = new(0.36f, 0.42f, 0.3f);
 
+    // A storey and its top are cut away not only from a player under them but from one this near the building: from
+    // above they would cover its doorways, on the floor the player is on.
+    private const float CutawayReach = 5f;
+
     // A group for what stands or lies on a floor and is hidden with it, besides players and skeletons: sellers, gold,
     // orbs, weapons on the ground.
     public const string OnAFloor = "on_a_floor";
@@ -26,14 +30,21 @@ public partial class ArenaMap
     private readonly HashSet<ulong> _hiddenBodies = new();
     private List<LayoutArea> _covers = new();
     private List<LayoutArea> _covering = new();
-    private string _coveringKey = "";
     private bool _underground;
+
+    // Null until the pieces are first drawn for a camera.
+    private bool? _straightDown;
 
     // The sky and light the camera sees the arena in, darkened while its subject is under the ground.
     public Environment? Atmosphere { get; set; }
 
     // The pieces hidden now, as above the camera's subject, and the floor that subject is on.
-    public int HiddenPieces => _pieces.Count(p => !Shown(p.Meshes));
+    public int HiddenPieces => _pieces.Count(p => Hides(p.Level, p.Ground));
+
+    public int HiddenPiecesAt(int level) => _pieces.Count(p => p.Level == level && Hides(p.Level, p.Ground));
+
+    // Whether a storey stands over that spot of the ground.
+    public bool UnderAStorey(Vector3 position) => _covers.Any(c => c.Level > 0 && c.Contains(Yaw.ToGround(position)));
 
     public int SubjectLevel => CameraSubject != null && IsInstanceValid(CameraSubject) ? Floors.LevelOf(CameraSubject.GlobalPosition.Y) : 0;
 
@@ -49,9 +60,11 @@ public partial class ArenaMap
     }
 
     // What is above the camera's subject, over where it stands, is hidden: every floor from a cover's level up, over
-    // the cover's ground, while the subject is below that level and on that ground. A storey over a room hides from
-    // a player in the room; the whole ground hides from one in the crypt. Hidden pieces are drawn into the shadows
-    // still, so a floor overhead still shades what is under it; lights and bodies up there are not drawn at all.
+    // the cover's ground, while the subject is below that level and on that ground or within CutawayReach of it. A
+    // storey over a room hides from a player in the room or beside the building; the whole ground hides from one in
+    // the crypt. Hidden pieces are drawn into the shadows still, so a floor overhead still shades what is under it;
+    // lights and bodies up there are not drawn at all. A piece the camera's view does not draw (LayoutView) is drawn
+    // into the shadows only, whatever covers it.
     private void Cover(Vector3 subject)
     {
         int level = Floors.LevelOf(subject.Y);
@@ -62,20 +75,25 @@ public partial class ArenaMap
         }
 
         var ground = Yaw.ToGround(subject);
-        _covering = _covers.Where(c => c.Level > level && c.Contains(ground)).ToList();
-        string key = string.Join(",", _covering.Select(c => _covers.IndexOf(c)));
-        if (key != _coveringKey)
+        var covering = _covers.Where(c => c.Level > level && c.DistanceTo(ground) <= CutawayReach).ToList();
+        bool straightDown = Camera is ArenaCamera { Mode: var mode } && mode.LooksStraightDown();
+        if (!covering.SequenceEqual(_covering) || straightDown != _straightDown)
         {
-            _coveringKey = key;
+            _covering = covering;
+            _straightDown = straightDown;
             foreach (var piece in _pieces)
             {
-                Show(piece.Meshes, !Hides(piece.Level, piece.Ground));
+                bool drawn = piece.View == LayoutView.All || (piece.View == LayoutView.Overhead) == straightDown;
+                Show(piece.Meshes, drawn && !Hides(piece.Level, piece.Ground));
             }
 
             foreach (var light in _lights)
             {
                 light.Light.Visible = !Hides(light.Level, light.Ground);
             }
+
+            // A body freed while hidden leaves its id here; those go as the cover changes, not every frame.
+            _hiddenBodies.RemoveWhere(id => !IsInstanceIdValid(id));
         }
 
         // Only what this hid is shown again: anything else that hides a body keeps it hidden.
@@ -113,9 +131,6 @@ public partial class ArenaMap
             mesh.CastShadow = shown ? GeometryInstance3D.ShadowCastingSetting.On : GeometryInstance3D.ShadowCastingSetting.ShadowsOnly;
         }
     }
-
-    private static bool Shown(IReadOnlyList<MeshInstance3D> meshes) =>
-        meshes.Count == 0 || meshes[0].CastShadow != GeometryInstance3D.ShadowCastingSetting.ShadowsOnly;
 
     // The field with the holes cut out of it: the ground's rectangle cut along every hole's edges, and every piece of
     // it outside the holes laid as a slab of its own.

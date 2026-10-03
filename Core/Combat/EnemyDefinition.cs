@@ -25,8 +25,8 @@ public sealed record EnemyDefinition(string Id, int MaxHp, float MoveSpeed, floa
 
 public static class Enemies
 {
-    // Further than the arena is long: a wave marches from its fortress on the players wherever they are.
-    private const float MarchRange = 100f;
+    // Past the furthest a player's shot carries (a bow's), so a skeleton sees whoever can hit it.
+    private const float Sight = 16f;
 
     // Bare bone: whatever cuts, breaks or runs it through does a quarter more, and so do fire and the divine.
     // First pass, and the one use of resistances so far.
@@ -37,14 +37,14 @@ public static class Enemies
         .With(DamageType.Fire, SkeletonWeakness)
         .With(DamageType.Divine, SkeletonWeakness);
 
-    public static readonly EnemyDefinition SkeletonMinion = new("skeleton-minion", MaxHp: 40, MoveSpeed: 2.6f, AggroRange: MarchRange, AttackCooldown: 1.6f, Skills.MinionChop)
+    public static readonly EnemyDefinition SkeletonMinion = new("skeleton-minion", MaxHp: 40, MoveSpeed: 2.6f, AggroRange: Sight, AttackCooldown: 1.6f, Skills.MinionChop)
     {
         Gold = new GoldDrop(2, 4),
         OrbChance = 0.02f,
         Resistances = Skeletal,
     };
 
-    public static readonly EnemyDefinition SkeletonWarrior = new("skeleton-warrior", MaxHp: 70, MoveSpeed: 2.2f, AggroRange: MarchRange, AttackCooldown: 2.2f, Skills.WarriorChop)
+    public static readonly EnemyDefinition SkeletonWarrior = new("skeleton-warrior", MaxHp: 70, MoveSpeed: 2.2f, AggroRange: Sight, AttackCooldown: 2.2f, Skills.WarriorChop)
     {
         Gold = new GoldDrop(6, 10),
         OrbChance = 0.06f,
@@ -52,7 +52,7 @@ public static class Enemies
     };
 
     // Fragile, so reaching it is the answer; it keeps its distance to make that take effort.
-    public static readonly EnemyDefinition SkeletonArcher = new("skeleton-archer", MaxHp: 30, MoveSpeed: 2.4f, AggroRange: MarchRange, AttackCooldown: 2.6f, Skills.ArcherShot)
+    public static readonly EnemyDefinition SkeletonArcher = new("skeleton-archer", MaxHp: 30, MoveSpeed: 2.4f, AggroRange: Sight, AttackCooldown: 2.6f, Skills.ArcherShot)
     {
         KeepAway = 5f,
         Gold = new GoldDrop(3, 6),

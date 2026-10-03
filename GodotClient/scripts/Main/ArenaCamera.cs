@@ -143,7 +143,7 @@ public partial class ArenaCamera : Camera3D
         }
 
         var goal = GoalTransform(_target);
-        float blend = 1f - Mathf.Exp(-FollowRate * (float)delta);
+        float blend = Easing.Share(FollowRate, (float)delta);
         var rotation = GlobalBasis.GetRotationQuaternion().Slerp(goal.Basis.GetRotationQuaternion(), blend);
         GlobalTransform = new Transform3D(new Basis(rotation), GlobalPosition.Lerp(goal.Origin, blend));
         Size = Mathf.Lerp(Size, ViewHeightAt(_target), blend);

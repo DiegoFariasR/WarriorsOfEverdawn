@@ -25,6 +25,8 @@ public static class CameraModes
     // wherever it stands, near the camera or far, as in an isometric game. Behind keeps its perspective.
     public static bool IsOrthographic(this CameraMode mode) => mode != CameraMode.Behind;
 
+    public static bool LooksStraightDown(this CameraMode mode) => mode is CameraMode.TopDown or CameraMode.TopDownTurning;
+
     public static CameraMode Next(this CameraMode mode) => (CameraMode)(((int)mode + 1) % Count);
 
     public static string Label(this CameraMode mode) => mode switch

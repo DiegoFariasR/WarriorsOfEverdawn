@@ -76,10 +76,10 @@ public partial class NetSelfTest
             return;
         }
 
-        var skeletons = GetTree().GetNodesInGroup(EnemyCharacter.Group).OfType<EnemyCharacter>().Where(e => !e.IsDead).ToList();
+        var skeletons = EnemyCharacter.Standing(GetTree()).ToList();
         if (skeletons.Count > 0)
         {
-            var free = skeletons.FirstOrDefault(e => (e.Statuses & (Statuses.Frozen | Statuses.Stunned)) == Statuses.None);
+            var free = skeletons.FirstOrDefault(e => !e.Statuses.IsLost());
             if (free == null)
             {
                 return;
@@ -89,7 +89,7 @@ public partial class NetSelfTest
         }
         else if (SessionRules.Pvp)
         {
-            var players = _players.GetChildren().OfType<PlayerCharacter>().OrderBy(p => p.PeerId).ToList();
+            var players = PlayerCharacter.All(GetTree()).OrderBy(p => p.PeerId).ToList();
             if (players.Count == 0)
             {
                 return;
@@ -119,12 +119,11 @@ public partial class NetSelfTest
             DrillStatuses(delta);
         }
 
-        var held = Statuses.Frozen | Statuses.Stunned;
-        foreach (var enemy in GetTree().GetNodesInGroup(EnemyCharacter.Group).OfType<EnemyCharacter>().Where(e => !e.IsDead))
+        foreach (var enemy in EnemyCharacter.Standing(GetTree()))
         {
             _enemyStatusesSeen |= enemy.Statuses;
             ulong id = enemy.GetInstanceId();
-            if ((enemy.Statuses & held) == Statuses.None)
+            if (!enemy.Statuses.IsLost())
             {
                 _heldAt.Remove(id);
                 continue;
@@ -149,7 +148,7 @@ public partial class NetSelfTest
             }
         }
 
-        foreach (var player in _players.GetChildren().OfType<PlayerCharacter>())
+        foreach (var player in PlayerCharacter.All(GetTree()))
         {
             _playerStatusesSeen |= player.Vitals.Statuses;
         }

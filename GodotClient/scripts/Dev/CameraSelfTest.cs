@@ -1,5 +1,4 @@
 using System;
-using System.Linq;
 using Godot;
 using WarriorsOfEverdawn.Main;
 using WarriorsOfEverdawn.Player;
@@ -33,21 +32,19 @@ public partial class CameraSelfTest : Node
     private const float ScreenMargin = 8f;
 
     private readonly ArenaCamera _camera;
-    private readonly Node3D _players;
     private readonly Hud _hud;
     private bool _cameraPassed;
     private int _framesSinceCamera = -1;
 
-    public CameraSelfTest(ArenaCamera camera, Node3D players, Hud hud)
+    public CameraSelfTest(ArenaCamera camera, Hud hud)
     {
         _camera = camera;
-        _players = players;
         _hud = hud;
     }
 
     // Godot needs a parameterless constructor to instantiate script classes itself.
     public CameraSelfTest()
-        : this(null!, null!, null!)
+        : this(null!, null!)
     {
     }
 
@@ -65,7 +62,7 @@ public partial class CameraSelfTest : Node
             return;
         }
 
-        var player = _players.GetChildren().OfType<PlayerCharacter>().FirstOrDefault(p => p.IsMultiplayerAuthority());
+        var player = PlayerCharacter.Local(GetTree());
         if (player == null)
         {
             return;

@@ -5,6 +5,7 @@ using WarriorsOfEverdawn.Core.Combat;
 using WarriorsOfEverdawn.Core.Locomotion;
 using WarriorsOfEverdawn.Player;
 using WarriorsOfEverdawn.Theme;
+using WarriorsOfEverdawn.Util;
 
 namespace WarriorsOfEverdawn.Main;
 
@@ -16,6 +17,7 @@ public partial class Hud : CanvasLayer
     private const float NoticeFade = 0.5f;
     private const float Margin = 16f;
     private const float BarWidth = 260f;
+    private const float SlotHeight = 62f;
 
     // The player frame's border and margins either side of its bars.
     private const float FramePadding = 28f;
@@ -31,15 +33,13 @@ public partial class Hud : CanvasLayer
     private readonly Label _status = UiTheme.MakeLabel("", UiTheme.Words, 13, Colors.White, outline: 3);
     private readonly Label[] _statValues = new Label[4];
     private readonly Label _gold = UiTheme.MakeLabel("0", UiTheme.Numbers, 16, UiTheme.GoldHi);
-    private readonly Label _souls = UiTheme.MakeLabel("0", UiTheme.Numbers, 16, SoulText);
+    private readonly Label _souls = UiTheme.MakeLabel("0", UiTheme.Numbers, 16, UiTheme.SoulText);
 
     // White, and tinted each frame with the colour the orbs themselves are passing through.
     private readonly Label _orbs = UiTheme.MakeLabel("0", UiTheme.Numbers, 16, Colors.White);
     private readonly (Label Name, HBoxContainer Types, Label Cost, Label Cooldown, ColorRect Dim)[] _slots = new (Label, HBoxContainer, Label, Label, ColorRect)[SkillSlots.Length];
 
     private const string NoSkill = "-";
-
-    private static readonly Color SoulText = new(0.72f, 0.9f, 1f);
 
     // Everdawn's MP colour, for mana costs on the skill bar.
     private static readonly Color ManaText = new(0.55f, 0.78f, 1f);
@@ -130,7 +130,7 @@ public partial class Hud : CanvasLayer
 
             ShowSkills(Player.Weapon);
             _backWeapon.Text = NameOf(Player.StowedWeapon, "Empty");
-            _shownSets = new WeaponSets(Player.Weapon, Player.StowedWeapon);
+            _shownSets = Player.Sets;
         }
 
         _name.Text = $"Knight  -  {NameOf(Player.Weapon, "Unarmed")}" + (SessionRules.Pvp ? "  -  PvP" : "");
@@ -251,27 +251,15 @@ public partial class Hud : CanvasLayer
 
         for (int i = 0; i < SkillSlots.Length; i++)
         {
-            var key = SkillSlots[i].Key;
-            var slot = new PanelContainer { CustomMinimumSize = new Vector2(140f, 62f), MouseFilter = Control.MouseFilterEnum.Ignore };
-            slot.AddThemeStyleboxOverride("panel", UiTheme.Panel(UiTheme.WoodDk, UiTheme.Gold, radius: 4, margin: 6f, borderWidth: 2));
-
-            var column = new VBoxContainer { Alignment = BoxContainer.AlignmentMode.Center };
-            var keyLabel = UiTheme.MakeLabel(key, UiTheme.Numbers, 12, UiTheme.GoldDk);
-            keyLabel.HorizontalAlignment = HorizontalAlignment.Center;
-            var name = UiTheme.MakeLabel("", UiTheme.Words, 15, UiTheme.TextMain);
-            name.HorizontalAlignment = HorizontalAlignment.Center;
+            var (slot, column, name) = BarSlot(140f, SkillSlots[i].Key);
             var types = new HBoxContainer { Alignment = BoxContainer.AlignmentMode.Center, MouseFilter = Control.MouseFilterEnum.Ignore };
             types.AddThemeConstantOverride("separation", 4);
             var cost = UiTheme.MakeLabel("", UiTheme.Numbers, 12, ManaText);
             cost.HorizontalAlignment = HorizontalAlignment.Center;
-            column.AddChild(keyLabel);
-            column.AddChild(name);
             column.AddChild(types);
             column.AddChild(cost);
 
-            slot.AddChild(column);
-
-            var dim = new ColorRect { Color = new Color(0f, 0f, 0f, 0.55f), Visible = false, MouseFilter = Control.MouseFilterEnum.Ignore };
+            var dim = Dim();
             slot.AddChild(dim);
             var cooldown = UiTheme.MakeLabel("", UiTheme.Numbers, 22, Colors.White, outline: 4);
             cooldown.HorizontalAlignment = HorizontalAlignment.Center;
@@ -291,13 +279,7 @@ public partial class Hud : CanvasLayer
     // A pip per charge, lit while available, the seconds until the next one comes back, and the lunge it turns into.
     private Control BuildDashSlot()
     {
-        var slot = new PanelContainer { CustomMinimumSize = new Vector2(110f, 62f), MouseFilter = Control.MouseFilterEnum.Ignore };
-        slot.AddThemeStyleboxOverride("panel", UiTheme.Panel(UiTheme.WoodDk, UiTheme.Gold, radius: 4, margin: 6f, borderWidth: 2));
-        var column = new VBoxContainer { Alignment = BoxContainer.AlignmentMode.Center };
-        var key = UiTheme.MakeLabel("SPACE", UiTheme.Numbers, 12, UiTheme.GoldDk);
-        key.HorizontalAlignment = HorizontalAlignment.Center;
-        var name = UiTheme.MakeLabel("Dash", UiTheme.Words, 15, UiTheme.TextMain);
-        name.HorizontalAlignment = HorizontalAlignment.Center;
+        var (slot, column, _) = BarSlot(110f, "SPACE", "Dash");
         var pips = new HBoxContainer { Alignment = BoxContainer.AlignmentMode.Center };
         pips.AddThemeConstantOverride("separation", 6);
         for (int i = 0; i < _dashPips.Length; i++)
@@ -306,13 +288,8 @@ public partial class Hud : CanvasLayer
             pips.AddChild(_dashPips[i]);
         }
 
-        var hint = UiTheme.MakeLabel("+ LMB: lunge", UiTheme.Words, 11, UiTheme.GoldDk);
-        hint.HorizontalAlignment = HorizontalAlignment.Center;
-        column.AddChild(key);
-        column.AddChild(name);
         column.AddChild(pips);
-        column.AddChild(hint);
-        slot.AddChild(column);
+        column.AddChild(Hint("+ LMB: lunge"));
 
         _dashRecharge = UiTheme.MakeLabel("", UiTheme.Numbers, 14, Colors.White, outline: 3);
         _dashRecharge.HorizontalAlignment = HorizontalAlignment.Right;
@@ -323,20 +300,10 @@ public partial class Hud : CanvasLayer
 
     private Control BuildGuardSlot()
     {
-        var slot = new PanelContainer { CustomMinimumSize = new Vector2(110f, 62f), MouseFilter = Control.MouseFilterEnum.Ignore };
-        slot.AddThemeStyleboxOverride("panel", UiTheme.Panel(UiTheme.WoodDk, UiTheme.Gold, radius: 4, margin: 6f, borderWidth: 2));
-        var column = new VBoxContainer { Alignment = BoxContainer.AlignmentMode.Center };
-        var key = UiTheme.MakeLabel("SHIFT", UiTheme.Numbers, 12, UiTheme.GoldDk);
-        key.HorizontalAlignment = HorizontalAlignment.Center;
-        _guardName = UiTheme.MakeLabel("", UiTheme.Words, 15, UiTheme.TextMain);
-        _guardName.HorizontalAlignment = HorizontalAlignment.Center;
-        var hint = UiTheme.MakeLabel("hold", UiTheme.Words, 11, UiTheme.GoldDk);
-        hint.HorizontalAlignment = HorizontalAlignment.Center;
-        column.AddChild(key);
-        column.AddChild(_guardName);
-        column.AddChild(hint);
-        slot.AddChild(column);
-        _guardDim = new ColorRect { Color = new Color(0f, 0f, 0f, 0.55f), Visible = false, MouseFilter = Control.MouseFilterEnum.Ignore };
+        var (slot, column, name) = BarSlot(110f, "SHIFT");
+        _guardName = name;
+        column.AddChild(Hint("hold"));
+        _guardDim = Dim();
         slot.AddChild(_guardDim);
         return slot;
     }
@@ -344,21 +311,36 @@ public partial class Hud : CanvasLayer
     // The other weapon set, on the back: what X swaps to.
     private Control BuildSwapSlot()
     {
-        var slot = new PanelContainer { CustomMinimumSize = new Vector2(120f, 62f), MouseFilter = Control.MouseFilterEnum.Ignore };
-        slot.AddThemeStyleboxOverride("panel", UiTheme.Panel(UiTheme.WoodDk, UiTheme.Gold, radius: 4, margin: 6f, borderWidth: 2));
-        var column = new VBoxContainer { Alignment = BoxContainer.AlignmentMode.Center };
-        var key = UiTheme.MakeLabel("X", UiTheme.Numbers, 12, UiTheme.GoldDk);
-        key.HorizontalAlignment = HorizontalAlignment.Center;
-        _backWeapon = UiTheme.MakeLabel("", UiTheme.Words, 15, UiTheme.TextMain);
-        _backWeapon.HorizontalAlignment = HorizontalAlignment.Center;
-        var hint = UiTheme.MakeLabel("on your back", UiTheme.Words, 11, UiTheme.GoldDk);
-        hint.HorizontalAlignment = HorizontalAlignment.Center;
-        column.AddChild(key);
-        column.AddChild(_backWeapon);
-        column.AddChild(hint);
-        slot.AddChild(column);
+        var (slot, column, name) = BarSlot(120f, "X");
+        _backWeapon = name;
+        column.AddChild(Hint("on your back"));
         return slot;
     }
+
+    // A framed slot of the skill bar with its key over its name; what else it shows goes under them in the column.
+    private static (PanelContainer Slot, VBoxContainer Column, Label Name) BarSlot(float width, string key, string name = "")
+    {
+        var slot = new PanelContainer { CustomMinimumSize = new Vector2(width, SlotHeight), MouseFilter = Control.MouseFilterEnum.Ignore };
+        slot.AddThemeStyleboxOverride("panel", UiTheme.Panel(UiTheme.WoodDk, UiTheme.Gold, radius: 4, margin: 6f, borderWidth: 2));
+        var column = new VBoxContainer { Alignment = BoxContainer.AlignmentMode.Center };
+        var keyLabel = UiTheme.MakeLabel(key, UiTheme.Numbers, 12, UiTheme.GoldDk);
+        keyLabel.HorizontalAlignment = HorizontalAlignment.Center;
+        var nameLabel = UiTheme.MakeLabel(name, UiTheme.Words, 15, UiTheme.TextMain);
+        nameLabel.HorizontalAlignment = HorizontalAlignment.Center;
+        column.AddChild(keyLabel);
+        column.AddChild(nameLabel);
+        slot.AddChild(column);
+        return (slot, column, nameLabel);
+    }
+
+    private static Label Hint(string text)
+    {
+        var hint = UiTheme.MakeLabel(text, UiTheme.Words, 11, UiTheme.GoldDk);
+        hint.HorizontalAlignment = HorizontalAlignment.Center;
+        return hint;
+    }
+
+    private static ColorRect Dim() => new() { Color = new Color(0f, 0f, 0f, 0.55f), Visible = false, MouseFilter = Control.MouseFilterEnum.Ignore };
 
     // With an empty hand the slots have no skill to name; they stay dimmed, since nothing can be used.
     private void ShowSkills(WeaponDefinition? weapon)
@@ -376,12 +358,7 @@ public partial class Hud : CanvasLayer
     // The damage types a skill is of, each in its own colour: one, or two for a blow with an enchanted weapon.
     private static void ShowTypes(HBoxContainer row, SkillDefinition? skill)
     {
-        foreach (var shown in row.GetChildren())
-        {
-            row.RemoveChild(shown);
-            shown.QueueFree();
-        }
-
+        row.FreeChildren();
         foreach (var type in skill?.Types ?? System.Array.Empty<DamageType>())
         {
             if (row.GetChildCount() > 0)

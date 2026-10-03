@@ -1,4 +1,3 @@
-using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -14,7 +13,7 @@ public class LookPoolsTests
 {
     private const int Rolled = 100;
 
-    private static readonly string Kit = Path.Combine(RepoRoot(), "GodotClient", "kit");
+    private static readonly string Kit = Repo.PathTo("GodotClient", "kit");
 
     private static readonly PartsCatalog Catalog = PartsCatalog.Parse(File.ReadAllText(Path.Combine(Kit, "config", "parts_catalog.json")), "parts_catalog.json");
 
@@ -46,18 +45,5 @@ public class LookPoolsTests
     {
         Assert.All(LookPools.All, pool => Assert.Same(pool, LookPools.ByName(pool.Name)));
         Assert.Throws<KeyNotFoundException>(() => LookPools.ByName("nobody"));
-    }
-
-    private static string RepoRoot()
-    {
-        for (var dir = new DirectoryInfo(AppContext.BaseDirectory); dir != null; dir = dir.Parent)
-        {
-            if (File.Exists(Path.Combine(dir.FullName, "WarriorsOfEverdawn.slnx")))
-            {
-                return dir.FullName;
-            }
-        }
-
-        throw new DirectoryNotFoundException($"No WarriorsOfEverdawn.slnx above {AppContext.BaseDirectory}");
     }
 }

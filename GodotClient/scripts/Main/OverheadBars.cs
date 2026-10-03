@@ -77,12 +77,12 @@ public partial class OverheadBars : Control
     // What should carry a bar right now: living skeletons, and every player but the local one while they are up.
     private IEnumerable<(Node3D Node, int Hp, int MaxHp, float Height, Color Fill, Statuses Statuses)> Targets()
     {
-        foreach (var enemy in GetTree().GetNodesInGroup(EnemyCharacter.Group).OfType<EnemyCharacter>().Where(e => !e.IsDead))
+        foreach (var enemy in EnemyCharacter.Standing(GetTree()))
         {
             yield return (enemy, enemy.Hp, enemy.Definition.MaxHp, EnemyHeight, UiTheme.BarHp, enemy.Statuses);
         }
 
-        foreach (var player in GetTree().GetNodesInGroup(PlayerCharacter.Group).OfType<PlayerCharacter>())
+        foreach (var player in PlayerCharacter.All(GetTree()))
         {
             if (!player.IsMultiplayerAuthority() && !player.IsDowned)
             {
@@ -137,12 +137,7 @@ public partial class OverheadBars : Control
             }
 
             _named = statuses;
-            foreach (var named in _statuses.GetChildren())
-            {
-                _statuses.RemoveChild(named);
-                named.QueueFree();
-            }
-
+            _statuses.FreeChildren();
             foreach (var (name, colour) in StatusLooks.Of(statuses))
             {
                 _statuses.AddChild(UiTheme.MakeLabel(name, UiTheme.Words, 11, colour, outline: 3));

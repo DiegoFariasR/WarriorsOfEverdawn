@@ -1,15 +1,16 @@
+using EverdawnKit;
 using Godot;
 using WarriorsOfEverdawn.Core.Combat;
 using WarriorsOfEverdawn.Util;
 
 namespace WarriorsOfEverdawn.Character;
 
-// The barrier a staff raises, as every machine draws it: Everdawn's honeycomb (barrier_hex) on a shell round the
+// The barrier a staff raises, as every machine draws it: Everdawn's honeycomb (the kit's barrier_hex) on a shell round the
 // caster, in the colour of the staff's element, thinning as the barrier is spent and gone when it gives. Looks only:
 // what the barrier takes is the host's business (PlayerVitals).
 public partial class BarrierBubble : MeshInstance3D
 {
-    private const string ShaderPath = "res://assets/shaders/barrier_hex.gdshader";
+    private const string ShaderPath = KitPaths.BarrierShader;
     private const float Radius = 1.25f;
     private const float Height = 1f;
 

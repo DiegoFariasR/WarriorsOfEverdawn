@@ -46,6 +46,9 @@ public partial class Lineup : Node3D
     private const float SpellApart = 4.4f;
     private const float SpellEyeHeight = 5f;
 
+    // Longer than any lineup is looked at.
+    private const float LineupLasts = 3600f;
+
     // Piles of gold: near enough to each other for all ten to be seen at a size coins can be counted at.
     private const float GoldApart = 0.7f;
     private const float GoldLabelHeight = 0.45f;
@@ -88,8 +91,8 @@ public partial class Lineup : Node3D
     // The tiers of armour, or with outfits named, those.
     public static Lineup OfArmour(IReadOnlyList<string> outfits) => new(
         outfits.Count > 0
-            ? outfits.Select(outfit => new Figure(outfit, _ => { }, RigAnimations.UnarmedIdle) { Look = ArmourLook.DressedAs(PlayerCharacter.Look, outfit) }).ToList()
-            : Armours.All.Select(a => new Figure($"{a.Tier}  {a.Name}", _ => { }, RigAnimations.UnarmedIdle) { Look = ArmourLook.Dressed(PlayerCharacter.Look, a.Tier) }).ToList(),
+            ? outfits.Select(outfit => Standing(outfit, ArmourLook.DressedAs(PlayerCharacter.Look, outfit))).ToList()
+            : Armours.All.Select(a => Standing($"{a.Tier}  {a.Name}", ArmourLook.Dressed(PlayerCharacter.Look, a.Tier))).ToList(),
         ArmourApart)
     {
         Name = "ArmourLineup",
@@ -120,16 +123,15 @@ public partial class Lineup : Node3D
         Name = "LookLineup",
     };
 
+    private static Figure Standing(string label, CharacterLook look) => new(label, _ => { }, RigAnimations.UnarmedIdle) { Look = look };
+
     private static IEnumerable<Figure> Figures(string shown)
     {
-        static Figure Standing(string label, CharacterLook look) => new(label, _ => { }, RigAnimations.UnarmedIdle) { Look = look };
-
         if (shown == Cast)
         {
             return new[] { Standing("player", ArmourLook.Dressed(PlayerCharacter.Look, 0)) }
                 .Concat(Enemies.All.Select(enemy => Standing(enemy.Id, CombatVisuals.LookFor(enemy).Figure)))
-                .Concat(Sellers.All.Select(seller => Standing(seller.Name, SellerNpc.LookOf(seller)
-                    ?? throw new KeyNotFoundException($"No figure for the seller '{seller.Id}'"))));
+                .Concat(Sellers.All.Select(seller => Standing(seller.Name, SellerNpc.LookOf(seller))));
         }
 
         string[] pool = shown.Split('@');
@@ -178,7 +180,7 @@ public partial class Lineup : Node3D
             new Figure[]
             {
                 new("Stance", Armed, look.OneHanded ? RigAnimations.UnarmedIdle : RigAnimations.Idle),
-                new(weapon.Guard.Name, Armed, RigAnimations.Guard),
+                new(weapon.Guard.Name, Armed, RigAnimations.GuardFor(look.Stance)),
                 new(weapon.Primary.Name, Armed, CombatVisuals.ClipFor(weapon.Primary), weapon.Primary.HitTime),
                 new(weapon.Secondary.Name, Armed, CombatVisuals.ClipFor(weapon.Secondary), weapon.Secondary.HitTime),
                 new(weapon.Lunge.Name, Armed, CombatVisuals.ClipFor(weapon.Lunge), weapon.Lunge.SweepEnd ?? weapon.Lunge.HitTime),
@@ -220,6 +222,13 @@ public partial class Lineup : Node3D
                 var thrown = Bolts.Thrown(staff.Primary, Vector3.Right);
                 thrown.Position = new Vector3(-1.1f, 1.3f, 0.3f);
                 body.AddChild(thrown);
+
+                // Both circles a caster stands in, though none throws and holds at once: the throw's toward the
+                // camera, for as long as the lineup stands.
+                var circles = new CastingCircles { Name = "CastingCircles" };
+                body.AddChild(circles);
+                circles.Hold(true);
+                circles.Throw(Yaw.Of(Vector3.Back), lastLeaves: LineupLasts);
             },
         };
     }
@@ -228,7 +237,7 @@ public partial class Lineup : Node3D
     {
         var staff = Weapons.Staff(element);
         var look = CombatVisuals.LookFor(staff);
-        return new Figure(staff.Name, body => CharacterRig.AttachToHand(body, look), RigAnimations.Guard)
+        return new Figure(staff.Name, body => CharacterRig.AttachToHand(body, look), RigAnimations.GuardFor(look.Stance))
         {
             Staged = body =>
             {
@@ -290,10 +299,7 @@ public partial class Lineup : Node3D
         body.Rotation = new Vector3(0f, figure.Turned ? Mathf.Pi : 0f, 0f);
         figure.Dress(body);
 
-        // Libraries go in before the figure enters the tree; playing first would crash (Everdawn godot-pitfalls.md).
-        var animation = new AnimationPlayer { Name = "AnimationPlayer" };
-        RigAnimations.AddTo(animation);
-        body.AddChild(animation);
+        var animation = RigAnimations.AddPlayerTo(body);
         AddChild(body);
         animation.Play(figure.Clip);
         if (figure.HeldAt is { } moment)

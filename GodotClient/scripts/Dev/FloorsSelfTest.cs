@@ -8,13 +8,14 @@ using WarriorsOfEverdawn.Core.Loot;
 using WarriorsOfEverdawn.Enemy;
 using WarriorsOfEverdawn.Main;
 using WarriorsOfEverdawn.Player;
+using WarriorsOfEverdawn.Util;
 
 namespace WarriorsOfEverdawn.Dev;
 
 // Attached with --floors-check, skeletons on. No polygon of the ways may go through the air. The player walks the
 // map's ways, as a player would: up into each of the town's storeys and back down, then down into the crypt under the
 // enemy fortress and back up. Each walk must find its way and reach its floor. A storey must be hidden while the
-// player is in the room under it and nothing hidden upstairs; the ground must be hidden from the crypt and the sky
+// player is in the room under it and already as it walks up to the building, and upstairs only its stone top; the ground must be hidden from the crypt and the sky
 // dark there, and nothing hidden from the ground. The crypt's guards must keep to the crypt until the player comes
 // down. All but one that fights hand to hand are cut down before the player goes down, and that one must come for the
 // player on the way and is cut down as it does: it is the floors on trial here, not the fight. Once it falls the
@@ -40,7 +41,6 @@ public partial class FloorsSelfTest : Node
     // Blows dealt to a skeleton before giving up on it: far more than any takes.
     private const int MostBlows = 200;
 
-    private readonly Node3D _players;
     private readonly Queue<Stage> _stages = new();
     private readonly Steered _steered = new();
     private ArenaMap _map = null!;
@@ -51,25 +51,15 @@ public partial class FloorsSelfTest : Node
     private bool _started;
     private bool _passed = true;
     private bool _hiddenOnGroundFloor;
+    private bool _cutAwayFromOutside;
     private string? _guardCame;
     private List<int> _treasure = new();
     private int _goldBefore;
     private int _orbsBefore;
 
-    public FloorsSelfTest(Node3D players)
-    {
-        _players = players;
-    }
-
-    // Godot needs a parameterless constructor to instantiate script classes itself.
-    public FloorsSelfTest()
-        : this(null!)
-    {
-    }
-
     public override void _PhysicsProcess(double delta)
     {
-        var player = _players.GetChildren().OfType<PlayerCharacter>().FirstOrDefault(p => p.IsMultiplayerAuthority());
+        var player = PlayerCharacter.Local(GetTree());
         if (player == null || ++_steps < SettleSteps)
         {
             return;
@@ -107,6 +97,11 @@ public partial class FloorsSelfTest : Node
         if (_map.SubjectLevel == 0 && _map.HiddenPieces > 0)
         {
             _hiddenOnGroundFloor = true;
+        }
+
+        if (_map.SubjectLevel == 0 && _map.HiddenPiecesAt(1) > 0 && !_map.UnderAStorey(_player.GlobalPosition))
+        {
+            _cutAwayFromOutside = true;
         }
 
         if (_guardCame == null && Floors.LevelOf(_player.GlobalPosition.Y) == -1
@@ -151,8 +146,9 @@ public partial class FloorsSelfTest : Node
         {
             Walk($"up-{i}", upstairs, 1, () =>
             {
-                Report($"up-{i}-hiding", $"storey_hidden_from_the_room={_hiddenOnGroundFloor} hidden_upstairs={_map.HiddenPieces}",
-                    _hiddenOnGroundFloor && _map.HiddenPieces == 0);
+                Report($"up-{i}-hiding", $"storey_hidden_from_the_room={_hiddenOnGroundFloor} cut_away_from_outside={_cutAwayFromOutside} "
+                    + $"hidden_on_the_storey={_map.HiddenPiecesAt(1)} top_hidden={_map.HiddenPiecesAt(2)}",
+                    _hiddenOnGroundFloor && _cutAwayFromOutside && _map.HiddenPiecesAt(1) == 0 && _map.HiddenPiecesAt(2) > 0);
             });
             Walk($"down-{i}", home, 0, () => Report($"down-{i}-hiding", $"hidden_in_the_town={_map.HiddenPieces}", _map.HiddenPieces == 0));
         }
@@ -205,11 +201,12 @@ public partial class FloorsSelfTest : Node
     private void Walk(string name, Vector3 to, int level, Action? arrived = null)
     {
         _stages.Enqueue(new Stage(name,
-            () => Flat(_player.GlobalPosition - to).Length() < Arrived && Floors.LevelOf(_player.GlobalPosition.Y) == level,
+            () => Yaw.Flat(_player.GlobalPosition - to).Length() < Arrived && Floors.LevelOf(_player.GlobalPosition.Y) == level,
             WalkLimit,
             Start: () =>
             {
                 _hiddenOnGroundFloor = false;
+                _cutAwayFromOutside = false;
                 _map.Forget(_player);
                 bool way = _map.HasWay(_player.GlobalPosition, to);
                 Report($"{name}-way", $"from={Rounded(_player.GlobalPosition)} to={Rounded(to)} way={way}", way);
@@ -230,20 +227,20 @@ public partial class FloorsSelfTest : Node
         }));
 
     private List<EnemyCharacter> Guards() =>
-        GetTree().GetNodesInGroup(EnemyCharacter.Group).OfType<EnemyCharacter>().Where(e => e.IsGuard).ToList();
+        EnemyCharacter.All(GetTree()).Where(e => e.IsGuard).ToList();
 
     private float OffItsSpot(EnemyCharacter guard)
     {
         int spot = int.Parse(guard.Name.ToString()[EnemyDirector.GuardPrefix.Length..], System.Globalization.CultureInfo.InvariantCulture);
-        return Flat(guard.GlobalPosition - _map.CryptGuards[spot]).Length();
+        return Yaw.Flat(guard.GlobalPosition - _map.CryptGuards[spot]).Length();
     }
 
     private IEnumerable<GroundLoot> TreasureLying() =>
-        Loot.In(GetTree()).OnGround.Where(l => Floors.SameLevel(l.Position.Y, _map.CryptTreasure.Y) && Flat(l.Position - _map.CryptTreasure).Length() <= TreasureSpread);
+        Loot.In(GetTree()).OnGround.Where(l => Floors.SameLevel(l.Position.Y, _map.CryptTreasure.Y) && Yaw.Flat(l.Position - _map.CryptTreasure).Length() <= TreasureSpread);
 
     private void CutDownWaves()
     {
-        foreach (var enemy in GetTree().GetNodesInGroup(EnemyCharacter.Group).OfType<EnemyCharacter>().Where(e => !e.IsDead && !e.IsGuard))
+        foreach (var enemy in EnemyCharacter.Standing(GetTree()).Where(e => !e.IsGuard))
         {
             CutDown(enemy);
         }
@@ -290,8 +287,6 @@ public partial class FloorsSelfTest : Node
             + $" way=[{string.Join(" ", path.Select(Rounded))}]"
             + $" on_floor={_player.IsOnFloor()} on_wall={_player.IsOnWall()} touching=[{string.Join(" ", touching)}]";
     }
-
-    private static Vector3 Flat(Vector3 v) => new(v.X, 0f, v.Z);
 
     private static string Rounded(Vector3 v) => $"({v.X:F1},{v.Y:F1},{v.Z:F1})";
 
