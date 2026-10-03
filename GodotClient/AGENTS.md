@@ -13,13 +13,13 @@ Key reminders:
 
 | Folder | Owns |
 |---|---|
-| `Main/` | Arena and session start, launch flags (`LaunchOptions`), camera and camera modes, HUD, overhead bars, weapons on the ground and their labels (`GroundWeapons`, `GroundWeaponLabels`), gold, souls and magic orbs (`Loot`, with `MagicOrb` for how an orb looks), sellers and trade (`Market`, `SellerNpc`, and `ShopPanel`, the one window every seller uses), the two fortresses and the ways round them (`ArenaMap`), session rules (PvP) |
+| `Main/` | Arena and session start, launch flags (`LaunchOptions`), camera and camera modes, HUD, overhead bars, weapons on the ground and their labels (`GroundWeapons`, `GroundWeaponLabels`), gold, souls and magic orbs (`Loot`, with `MagicOrb` for how an orb looks), sellers and trade (`Market`, `SellerNpc`, and `ShopPanel`, the one window every seller uses), the two fortresses, their floors and the ways round them (`ArenaMap`, split into `ArenaMap.Floors` and `ArenaMap.Ways`), session rules (PvP) |
 | `Level/` | Builds a level layout in the scene (`LevelLayoutNode`): pieces, their textures, solids; format and tools in [Docs/Design/level-layouts.md](../Docs/Design/level-layouts.md) |
 | `Theme/` | Everdawn-style colours, fonts, panels and bars (`UiTheme`) |
 | `Player/` | Networked character (`PlayerCharacter`), host-owned vitals (`PlayerVitals`), human and bot controls (`PlayerControls`) |
 | `Enemy/` | Skeletons (`EnemyCharacter`, host-run AI), wave director, arrows in flight (`Arrows`) |
 | `Character/` | What each tier of armour puts on a figure (`ArmourLook`), rig clips (`RigAnimations`), animator layers, torso twist, weapons in the hands and on the back (`CharacterRig`), clip-per-skill and enemy looks (`CombatVisuals`), weapon trails, hit flash, dash ghosts. The figure itself and its toon look are the kit's (`kit/godot/`: `CharacterBody`, `ToonLook`; [Docs/Design/characters.md](../Docs/Design/characters.md)) |
-| `Dev/` | Headless self-tests: `NetSelfTest` (net-test, pvp-test, trade-test, magic-test; one part per area, `NetSelfTest.<Area>.cs`), `CameraSelfTest` (camera-test), `WallSelfTest` (wall-test), `PartsSelfTest` (parts-test); window captures (`ScreenshotCapture`) |
+| `Dev/` | Headless self-tests: `NetSelfTest` (net-test, pvp-test, trade-test, magic-test; one part per area, `NetSelfTest.<Area>.cs`), `CameraSelfTest` (camera-test), `WallSelfTest` (wall-test), `PartsSelfTest` (parts-test), `FloorsSelfTest` (floors-test), `WaysDump` (ways-dump); window captures (`ScreenshotCapture`) |
 | `Util/` | Small shared helpers |
 
 ## Headless self-tests
@@ -31,7 +31,7 @@ Headless runs draw nothing, so the self-tests measure instead: each check prints
 - `NetSelfTest` is a partial class split by area: `NetSelfTest.cs` runs the frame loop, tracks players and prints `[net-check]`; `Combat`, `Body`, `Spin`, `Weapon`, `Hud`, `Dash`, `Lunge`, `Pickup`, `Loot`, `Map`, `Trade`, `Bot`, `Ranged`, `Guard`, `Status` (statuses seen, held bodies, burns' and wounds' bites), `Session` (waves, removal of the dead and of damage numbers, node count per wave) and `Down` (going down and back up) each hold their checks' fields, measurements and printed lines. A new check goes into the part for its area (or a new part), wired through `Track`, the frame loop and `PrintSummary`.
 - Bots (`--bot`) drive the characters: they seek the nearest hostile, spin while hostiles are in reach, swing (at the air too while closing in, so every skill's reach gets samples), find their way round the walls and into the enemy fortress, run at their target and circle it once close, dash in bursts with a lunge in every third, spin, swing and lunge at the air on a schedule when nothing is in reach, swap their sets, let go of their weapon and take it back, and defend in phases (parrying, then bracing), so every feature gets exercised without a person. Each behaviour takes session time from the others: when a gate comes up short of samples, look at how often the bots get to do that thing before touching the gate: `[bot-check]` prints where each bot spent the session and on what (which kind of skeleton it chased or fought, time in reach of one, time down or unarmed), and `[combat-check]` its hits by skill.
 - `./dev.sh playtest` runs the net-test session for 2.5 minutes and adds the `Session` and `Down` gates, which need several waves and a player going down. `--down-at` makes sure one does; the leak tolerances next to the gates in `dev.sh` record what was measured.
-- Logs land in `_staging/net-test/`, `_staging/pvp-test/`, `_staging/trade-test/`, `_staging/magic-test/`, `_staging/playtest/`, `_staging/camera-test.log`, `_staging/wall-test.log` and `_staging/parts-test.log`.
+- Logs land in `_staging/net-test/`, `_staging/pvp-test/`, `_staging/trade-test/`, `_staging/magic-test/`, `_staging/playtest/`, `_staging/camera-test.log`, `_staging/wall-test.log`, `_staging/parts-test.log` and `_staging/floors-test.log`.
 - `KNOWN_DISCONNECT_ERROR` in `dev.sh` whitelists one engine error on disconnect (godot#86814); every other `ERROR` in a log fails the run.
 
 ## Launch flags
@@ -48,6 +48,8 @@ Parsed by `scripts/Main/LaunchOptions.cs`, after the `--` separator. An unknown 
 | `--camera-check` | Runs `CameraSelfTest` |
 | `--wall-check` | Runs `WallSelfTest` |
 | `--parts-check` | Runs `PartsSelfTest` |
+| `--floors-check` | Runs `FloorsSelfTest` (skeletons on: it needs the crypt's guards) |
+| `--ways-dump <x0,z0,x1,z1 or all>` | Runs `Dev/WaysDump`: prints the navigation mesh's polygons in the area (with `all`, only those through the air) and quits, 1 when any goes through the air (`./dev.sh ways-dump`) |
 | `--gold-lineup <height>` | Every pile gold falls in, one coin to ten, in a row in the field, seen from that high over the ground (`Dev/Lineup`) |
 | `--look-lineup <what,...>` | Figures in a row in the field (`Dev/Lineup`): `cast`, a pool of random looks (`townsfolk`, `skeletons@40`), or characters of the parts catalogue (`Druid`, or `Druid:bare` with nothing on) |
 | `--camera 1-4` | Starts in that camera mode (numbered as C cycles them) |
@@ -66,7 +68,7 @@ Parsed by `scripts/Main/LaunchOptions.cs`, after the `--` separator. An unknown 
 | `--orb-chance P` | Host only: every monster leaves a magic orb P of the time (0 to 1) in place of its own few in a hundred; net-test and playtest pass 0.25 so every machine sees orbs fall and be picked up, and `./dev.sh screenshot --orb-chance 1` shows them |
 | `--start-gold N`, `--start-orbs N`, `--start-armour TIER` | Host only: every player starts with that much gold, that many orbs and that tier of armour (0 to 5), for trying the sellers and the armour; the trade test passes 150 gold at the weaponsmith, 280, 3 and tier 2 at the blacksmith, 10 gold and 1 orb at the merchant, and 180 gold and 3 orbs at the enchanter |
 | `--trade-drill` | With `--bot`: the bot trades with the seller it starts beside, through the shop window (`NetSelfTest.Trade`); the trade test passes it, and `./dev.sh screenshot --trade-drill` shows the window |
-| `--start-at x,z` | Host only: players start on that spot of the ground instead of in the town's courtyard. `./dev.sh screenshot --start-at` uses it to look at a place; the playtest starts its players inside a town room, so each has to walk out through a doorway |
+| `--start-at x,z`, `x,y,z` or `<marker>[:N]` | Host only: players start on that spot of the ground (or at that height: 4.05 a storey up, -3.95 in the crypt), or on a layout's marker (`crypt`, `upstairs:1` for the second of that name, town first; an unknown one stops the launch listing the names), instead of in the town's courtyard. `./dev.sh screenshot --start-at` uses it to look at a place; the playtest starts its players inside a town room, so each has to walk out through a doorway |
 
 The self-tests are these flags plus `--headless`; any new AI-facing mode gets `--headless` built in from day one, or `--ai-playtest` when it must draw.
 

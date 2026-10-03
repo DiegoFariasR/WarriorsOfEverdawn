@@ -9,10 +9,11 @@ using WarriorsOfEverdawn.Util;
 namespace WarriorsOfEverdawn.Dev;
 
 // [map-check]: the local player starts inside the allied town and takes no hit while it stands there; no skeleton is
-// ever inside the town; every skeleton rises inside the enemy fortress and skeletons get out of it; the local player
-// gets out of the town and as far as the fortress; walls between the camera and the player fade, and what hangs on
-// them with them; walkers find their way (after the first second, nobody had to be sent straight for want of a
-// path); and the ways lead from where players start into every room of both fortresses.
+// ever inside the town; every skeleton of a wave rises inside the enemy fortress and skeletons get out of it (the
+// crypt's guards rise under it and keep to the crypt: floors-test follows them); the local player gets out of the
+// town and as far as the fortress; walls between the camera and the player fade, and what hangs on them with them;
+// walkers find their way (after the first second, nobody had to be sent straight for want of a path); and the ways
+// lead from where players start into every room of both fortresses.
 public partial class NetSelfTest
 {
     // The navigation mesh joins its map at the end of the first physics frame; ways asked before that go straight.
@@ -63,7 +64,7 @@ public partial class NetSelfTest
             _straightStepsAtStart = _map.StraightSteps;
         }
 
-        foreach (var enemy in GetTree().GetNodesInGroup(EnemyCharacter.Group).OfType<EnemyCharacter>())
+        foreach (var enemy in GetTree().GetNodesInGroup(EnemyCharacter.Group).OfType<EnemyCharacter>().Where(e => !e.IsGuard))
         {
             bool inFortress = _map.InFortress(enemy.GlobalPosition);
             if (_seenRising.Add(enemy.GetInstanceId()) && !inFortress)

@@ -8,7 +8,8 @@ using WarriorsOfEverdawn.Util;
 namespace WarriorsOfEverdawn.Level;
 
 // Builds a level layout in the scene: every placement, with the texture its layout gives its kit, and a body on the
-// World layer for each solid (its box, or its mesh for a piece that is walked through, like a doorway). Adapted from Everdawn's LevelLayoutNode; format in Docs/Design/level-layouts.md.
+// World layer for each solid (its box, its mesh for a piece that is walked through, like a doorway, or a wedge for a
+// flight of stairs). Adapted from Everdawn's LevelLayoutNode; format in Docs/Design/level-layouts.md.
 public partial class LevelLayoutNode : Node3D
 {
     // A solid at least this tall can stand between the camera and a character; lower ones never hide one.
@@ -21,6 +22,8 @@ public partial class LevelLayoutNode : Node3D
 
     private readonly List<Occluder> _occluders = new();
     private readonly List<Hanging> _hangings = new();
+    private readonly List<LevelPiece> _pieces = new();
+    private readonly List<LevelLight> _lights = new();
 
     public LevelLayout Layout { get; private set; } = null!;
 
@@ -29,6 +32,11 @@ public partial class LevelLayoutNode : Node3D
 
     // What hangs on them and fades with them: left opaque, a banner on a faded wall still hides what the wall did.
     public IReadOnlyList<Hanging> Hangings => _hangings;
+
+    // Every piece and every light, by its floor, for hiding what is above a player who is under it.
+    public IReadOnlyList<LevelPiece> Pieces => _pieces;
+
+    public IReadOnlyList<LevelLight> Lights => _lights;
 
     // Fails loudly: a level that cannot be read is no level to play.
     public static LevelLayoutNode Load(string resPath)
@@ -78,9 +86,15 @@ public partial class LevelLayoutNode : Node3D
                 }
             }
 
+            if (meshes.Count > 0)
+            {
+                var middle = piece.Transform * BoundsOf(piece, meshes).GetCenter();
+                _pieces.Add(new LevelPiece(placement.Level, new Vector2(middle.X, middle.Z), meshes));
+            }
+
             if (placement.Solid)
             {
-                AddSolid(piece, meshes, placement.FollowsMesh);
+                AddSolid(piece, meshes, placement.FollowsMesh, placement.Ramp);
             }
             else if (meshes.Count > 0)
             {
@@ -107,7 +121,9 @@ public partial class LevelLayoutNode : Node3D
         foreach (var light in Layout.Lights)
         {
             var color = new Color(light.LinearColor.X, light.LinearColor.Y, light.LinearColor.Z).LinearToSrgb();
-            AddChild(new OmniLight3D { Position = ToGodot(light.Position), LightColor = color, LightEnergy = light.Energy, OmniRange = light.Range });
+            var omni = new OmniLight3D { Position = ToGodot(light.Position), LightColor = color, LightEnergy = light.Energy, OmniRange = light.Range };
+            AddChild(omni);
+            _lights.Add(new LevelLight(omni, Floors.FloorUnder(light.Position.Y), new Vector2(light.Position.X, light.Position.Z)));
         }
 
         GD.Print($"[level] {resPath}: {Layout.Placements.Count} placements ({Layout.Placements.Count(p => p.Solid)} solid, "
@@ -116,8 +132,9 @@ public partial class LevelLayoutNode : Node3D
     }
 
     // The body sits beside the piece, not under it: a piece may be scaled, and physics bodies must not be. Its shape is
-    // the piece's own box, turned with it, or the piece's faces. Either way the box is what fades when it is tall.
-    private void AddSolid(Node3D piece, List<MeshInstance3D> meshes, bool followsMesh)
+    // the piece's own box, turned with it, the piece's faces, or a flight of stairs. Whichever, the box is what fades
+    // when it is tall.
+    private void AddSolid(Node3D piece, List<MeshInstance3D> meshes, bool followsMesh, bool ramp)
     {
         var bounds = BoundsOf(piece, meshes);
         var scale = piece.Scale;
@@ -127,17 +144,37 @@ public partial class LevelLayoutNode : Node3D
         var body = new StaticBody3D
         {
             Name = $"{piece.Name}Solid",
-            Transform = followsMesh ? turned : box,
+            Transform = followsMesh || ramp ? turned : box,
             CollisionLayer = CollisionLayers.World,
             CollisionMask = 0,
         };
-        body.AddChild(new CollisionShape3D { Shape = followsMesh ? FacesOf(piece, meshes) : new BoxShape3D { Size = size } });
+        body.AddChild(new CollisionShape3D
+        {
+            Shape = ramp ? Wedge(bounds, scale) : followsMesh ? FacesOf(piece, meshes) : new BoxShape3D { Size = size },
+        });
         AddChild(body);
 
         if (size.Y >= OccludingHeight)
         {
             _occluders.Add(new Occluder(box, size, meshes));
         }
+    }
+
+    // A flight of stairs: a wedge the box's whole width, sloping from the top of its -Z end down to the bottom of its +Z
+    // end (the kit's stairs rise toward their own -Z) and solid under the slope, so it is walked up and never under.
+    private static ConvexPolygonShape3D Wedge(Aabb bounds, Vector3 scale)
+    {
+        var lo = bounds.Position * scale;
+        var hi = bounds.End * scale;
+        return new ConvexPolygonShape3D
+        {
+            Points = new[]
+            {
+                new Vector3(lo.X, lo.Y, lo.Z), new Vector3(hi.X, lo.Y, lo.Z),
+                new Vector3(lo.X, hi.Y, lo.Z), new Vector3(hi.X, hi.Y, lo.Z),
+                new Vector3(lo.X, lo.Y, hi.Z), new Vector3(hi.X, lo.Y, hi.Z),
+            },
+        };
     }
 
     // The piece's triangles in its own space, at its scale.
@@ -228,3 +265,9 @@ public sealed record Occluder(Transform3D Box, Vector3 Size, IReadOnlyList<MeshI
 
 // A piece hung on tall solids (one wall, or two where it sits on their join): it fades when any of them does.
 public sealed record Hanging(IReadOnlyList<Occluder> On, IReadOnlyList<MeshInstance3D> Meshes);
+
+// A piece by the floor it is on and where its middle is on the ground, with what draws it.
+public sealed record LevelPiece(int Level, Vector2 Ground, IReadOnlyList<MeshInstance3D> Meshes);
+
+// A light by the floor under it and where it is on the ground.
+public sealed record LevelLight(OmniLight3D Light, int Level, Vector2 Ground);

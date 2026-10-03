@@ -95,12 +95,13 @@ public partial class Lineup : Node3D
         Name = "ArmourLineup",
     };
 
-    // The pile each amount of gold lies in, from one coin to the most a pile shows, each under its amount, seen
+    // The pile each amount of gold lies in, from one coin to the most a pile shows, each under its amount and
+    // turned as a drop of that number would lie, seen
     // from that high over the ground: low for how they look from behind a player, high for how they look from
     // above.
     public static Lineup OfGold(float eyeHeight) => new(
         Enumerable.Range(1, LootRules.MostCoinsShown)
-            .Select(gold => new Figure(gold.ToString(System.Globalization.CultureInfo.InvariantCulture), _ => { }, "") { Thing = () => Loot.Pile(gold) })
+            .Select(gold => new Figure(gold.ToString(System.Globalization.CultureInfo.InvariantCulture), _ => { }, "") { Thing = () => Loot.Pile(gold, LootRules.PileYaw(gold)) })
             .ToList(),
         GoldApart,
         eyeHeight: eyeHeight,

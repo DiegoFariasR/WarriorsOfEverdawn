@@ -6,6 +6,7 @@ using Godot;
 using WarriorsOfEverdawn.Character;
 using WarriorsOfEverdawn.Core;
 using WarriorsOfEverdawn.Core.Combat;
+using WarriorsOfEverdawn.Core.Level;
 using WarriorsOfEverdawn.Core.Locomotion;
 using WarriorsOfEverdawn.Core.Stats;
 using WarriorsOfEverdawn.Core.Trade;
@@ -228,6 +229,8 @@ public partial class PlayerCharacter : CharacterBody3D
             NetPosition = spawnPosition,
             CollisionLayer = CollisionLayers.Players,
             CollisionMask = CollisionLayers.World | CollisionLayers.Enemies,
+            FloorSnapLength = Gravity.FloorSnap,
+            FloorMaxAngle = Gravity.SteepestFloor,
         };
         player.AddChild(CharacterRig.CreateCapsule());
 
@@ -368,10 +371,10 @@ public partial class PlayerCharacter : CharacterBody3D
                 Rpc(MethodName.StartLunge, _weapon.Lunge.Id, _dashLeft);
             }
 
-            Velocity = _dashDirection * DashRules.Speed;
+            Velocity = Gravity.With(_dashDirection * DashRules.Speed, this, (float)delta);
             MoveAndSlide();
             NetPosition = GlobalPosition;
-            NetVelocity = Velocity;
+            NetVelocity = new Vector3(Velocity.X, 0f, Velocity.Z);
             _shownAimYaw = AimYaw;
             if (_dashLeft <= 0f)
             {
@@ -401,7 +404,7 @@ public partial class PlayerCharacter : CharacterBody3D
         // Frozen or stunned, it is not moved at all: left to the physics, skeletons walking into it would shove it.
         if (!lost)
         {
-            Velocity = velocity;
+            Velocity = Gravity.With(velocity, this, (float)delta);
             MoveAndSlide();
         }
 
@@ -606,9 +609,11 @@ public partial class PlayerCharacter : CharacterBody3D
             HitTested?.Invoke(skill, Trail.ReachFrom(GlobalPosition));
         }
 
-        // A spell held on an area lands on what its caster can see: not on what stands behind a wall.
+        // A blow lands on the floor it is struck on, and a spell held on an area on what its caster can see: not on
+        // what stands behind a wall.
         var space = GetWorld3D().DirectSpaceState;
-        bool Reaches(Node3D body) => skill.Area == null || !Walls.Between(space, GlobalPosition, body.GlobalPosition);
+        bool Reaches(Node3D body) =>
+            Floors.SameLevel(GlobalPosition.Y, body.GlobalPosition.Y) && (skill.Area == null || !Walls.Between(space, GlobalPosition, body.GlobalPosition));
 
         foreach (var node in GetTree().GetNodesInGroup(EnemyCharacter.Group))
         {
@@ -672,11 +677,14 @@ public partial class PlayerCharacter : CharacterBody3D
     public bool StrikeWith(SkillDefinition skill, Vector3 from, Vector3 to)
     {
         var projectile = skill.Projectile!;
+        float feet = from.Y - Bolts.Height;
         var enemy = GetTree().GetNodesInGroup(EnemyCharacter.Group).OfType<EnemyCharacter>()
-            .Where(e => !e.IsDead && Projectiles.Hits(Yaw.ToGround(from), Yaw.ToGround(to), Yaw.ToGround(e.GlobalPosition), BodySize.Radius, projectile))
+            .Where(e => !e.IsDead && Floors.SameLevel(feet, e.GlobalPosition.Y)
+                && Projectiles.Hits(Yaw.ToGround(from), Yaw.ToGround(to), Yaw.ToGround(e.GlobalPosition), BodySize.Radius, projectile))
             .MinBy(e => e.GlobalPosition.DistanceSquaredTo(from));
         var other = enemy != null || !SessionRules.Pvp ? null : GetTree().GetNodesInGroup(Group).OfType<PlayerCharacter>()
-            .Where(p => p != this && !p.IsDowned && Projectiles.Hits(Yaw.ToGround(from), Yaw.ToGround(to), Yaw.ToGround(p.GlobalPosition), BodySize.Radius, projectile))
+            .Where(p => p != this && !p.IsDowned && Floors.SameLevel(feet, p.GlobalPosition.Y)
+                && Projectiles.Hits(Yaw.ToGround(from), Yaw.ToGround(to), Yaw.ToGround(p.GlobalPosition), BodySize.Radius, projectile))
             .MinBy(p => p.GlobalPosition.DistanceSquaredTo(from));
         if (enemy == null && other == null)
         {
@@ -706,10 +714,11 @@ public partial class PlayerCharacter : CharacterBody3D
     {
         var spot = Yaw.ToGround(at);
         var space = GetWorld3D().DirectSpaceState;
-        var feet = new Vector3(at.X, 0f, at.Z);
+        var feet = at - Vector3.Up * Bolts.Height;
         int caught = 0;
         foreach (var enemy in GetTree().GetNodesInGroup(EnemyCharacter.Group).OfType<EnemyCharacter>()
-            .Where(e => !e.IsDead && Projectiles.Blasts(spot, skill.BlastRadius, Yaw.ToGround(e.GlobalPosition), BodySize.Radius)
+            .Where(e => !e.IsDead && Floors.SameLevel(feet.Y, e.GlobalPosition.Y)
+                && Projectiles.Blasts(spot, skill.BlastRadius, Yaw.ToGround(e.GlobalPosition), BodySize.Radius)
                 && !Walls.Between(space, feet, e.GlobalPosition)))
         {
             enemy.RpcId(1, EnemyCharacter.MethodName.RequestDamage, skill.Id);
@@ -719,7 +728,8 @@ public partial class PlayerCharacter : CharacterBody3D
         if (SessionRules.Pvp)
         {
             foreach (var other in GetTree().GetNodesInGroup(Group).OfType<PlayerCharacter>()
-                .Where(p => p != this && !p.IsDowned && Projectiles.Blasts(spot, skill.BlastRadius, Yaw.ToGround(p.GlobalPosition), BodySize.Radius)
+                .Where(p => p != this && !p.IsDowned && Floors.SameLevel(feet.Y, p.GlobalPosition.Y)
+                    && Projectiles.Blasts(spot, skill.BlastRadius, Yaw.ToGround(p.GlobalPosition), BodySize.Radius)
                     && !Walls.Between(space, feet, p.GlobalPosition)))
             {
                 other.Vitals.RpcId(1, PlayerVitals.MethodName.RequestDamage, skill.Id);

@@ -56,7 +56,7 @@ public partial class SpellArea : Node3D
         AddChild(_ring);
     }
 
-    public void MoveTo(Vector3 centre) => GlobalPosition = new Vector3(centre.X, 0f, centre.Z);
+    public void MoveTo(Vector3 centre) => GlobalPosition = centre;
 
     // Let go: the ring goes, the strikes already falling play out.
     public void Release()

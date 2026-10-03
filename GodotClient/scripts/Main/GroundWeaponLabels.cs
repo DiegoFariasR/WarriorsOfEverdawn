@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Godot;
 using WarriorsOfEverdawn.Core.Combat;
+using WarriorsOfEverdawn.Core.Level;
 using WarriorsOfEverdawn.Core.Stats;
 using WarriorsOfEverdawn.Player;
 using WarriorsOfEverdawn.Theme;
@@ -108,10 +109,11 @@ public partial class GroundWeaponLabels : Control
 
     private GroundWeapons? Ground() => GetTree().CurrentScene.GetNodeOrNull<GroundWeapons>(GroundWeapons.NodeName);
 
+    // Across the ground, on one floor: one lying on another floor is out of range.
     private float DistanceTo(GroundWeapon item)
     {
         var offset = item.Position - Player!.GlobalPosition;
-        return new Vector2(offset.X, offset.Z).Length();
+        return Floors.SameLevel(item.Position.Y, Player.GlobalPosition.Y) ? new Vector2(offset.X, offset.Z).Length() : float.PositiveInfinity;
     }
 
     private Entry Create(WeaponDefinition weapon)

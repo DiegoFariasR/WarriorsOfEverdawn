@@ -17,7 +17,9 @@ public static class FloatingText
 
     // `above` lifts it clear of another text spawned over the same anchor at the same moment; `scale` writes it
     // larger or smaller than the rest. It starts over the anchor and rises up the screen, whichever way the camera
-    // looks: rising through the world, it would not move at all seen from straight above.
+    // looks: rising through the world, it would not move at all seen from straight above. It is drawn over
+    // everything, floors included: whoever spawns one over a body on another floor than the camera's subject shows it
+    // through the floor between (ArenaMap.OnSubjectsFloor).
     public static void Spawn(Node3D anchor, string text, Color color, float above = 0f, float scale = 1f)
     {
         var label = new Label3D

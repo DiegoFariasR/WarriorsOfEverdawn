@@ -5,6 +5,7 @@ using EverdawnKit.Characters;
 using Godot;
 using WarriorsOfEverdawn.Character;
 using WarriorsOfEverdawn.Core.Combat;
+using WarriorsOfEverdawn.Core.Level;
 using WarriorsOfEverdawn.Player;
 using WarriorsOfEverdawn.Util;
 
@@ -48,7 +49,7 @@ public partial class GroundWeapons : Node3D
 
     private GroundWeapon? Focused(Vector3 position, float facingYaw, float within)
     {
-        var items = Items.ToList();
+        var items = Items.Where(i => Floors.SameLevel(i.Position.Y, position.Y)).ToList();
         int focused = Pickups.Focused(items.Select(i => Yaw.ToGround(i.Position)).ToList(), Yaw.ToGround(position), facingYaw, within);
         return focused >= 0 ? items[focused] : null;
     }
@@ -81,7 +82,7 @@ public partial class GroundWeapons : Node3D
             return;
         }
 
-        Rpc(MethodName.Place, _nextId++, weaponId, new Vector3(at.X, 0f, at.Z), yaw);
+        Rpc(MethodName.Place, _nextId++, weaponId, at, yaw);
     }
 
     // First come, first served: a weapon already taken is refused to whoever asks next.
@@ -121,6 +122,7 @@ public partial class GroundWeapons : Node3D
 
         var pivot = Lying(weapon, at, yaw);
         pivot.Name = $"Weapon{id}";
+        pivot.AddToGroup(ArenaMap.OnAFloor);
         AddChild(pivot);
 
         var item = new GroundWeapon(id, weapon, at, yaw);

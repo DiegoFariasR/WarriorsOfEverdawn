@@ -6,9 +6,13 @@ using System.Text.Json;
 
 namespace WarriorsOfEverdawn.Core.Level;
 
-// Solid pieces block movement; the rest is walked through. A solid blocks as its whole box does, or with FollowsMesh
-// as its mesh does: a doorway is walked through.
-public sealed record LayoutPlacement(string Asset, Vector3 Position, Quaternion Rotation, Vector3 Scale, bool Solid, bool FollowsMesh = false);
+// Solid pieces block movement; the rest is walked through. A solid blocks as its whole box does, with FollowsMesh as
+// its mesh does (a doorway is walked through), or as a Ramp from the top of its box at its -Z end down to the bottom
+// at its +Z end, as the kit's stairs rise (a flight of stairs is walked up). Level is the floor it stands on (Floors.FloorUnder).
+public sealed record LayoutPlacement(string Asset, Vector3 Position, Quaternion Rotation, Vector3 Scale, bool Solid, bool FollowsMesh = false, bool Ramp = false)
+{
+    public int Level => Floors.FloorUnder(Position.Y);
+}
 
 // Faces are Blender polygons: vertex indices in counter-clockwise order.
 public sealed record LayoutMesh(string Name, IReadOnlyList<Vector3> Vertices, IReadOnlyList<IReadOnlyList<int>> Faces, Vector3 LinearColor);
@@ -19,8 +23,9 @@ public sealed record LayoutLight(Vector3 Position, Vector3 LinearColor, float En
 // stands there faces, in radians about +Y, for the markers that someone stands on.
 public sealed record LayoutMarker(string Name, Vector3 Position, float Yaw = 0f);
 
-// A named rectangle of ground, by its corners on the ground plane (x, z).
-public sealed record LayoutArea(string Name, Vector2 Min, Vector2 Max)
+// A named rectangle of ground, by its corners on the ground plane (x, z), on a level: the floor it is of, for the
+// areas that say something about one floor (a "cover", a "hole").
+public sealed record LayoutArea(string Name, Vector2 Min, Vector2 Max, int Level = 0)
 {
     public Vector2 Centre => (Min + Max) / 2f;
 
@@ -43,6 +48,7 @@ public sealed record LevelLayout(
     public const int SupportedVersion = 1;
 
     private const string MeshShape = "mesh";
+    private const string RampShape = "ramp";
 
     public IEnumerable<Vector3> MarkersNamed(string name) => Markers.Where(m => m.Name == name).Select(m => m.Position);
 
@@ -85,7 +91,11 @@ public sealed record LevelLayout(
                     m.GetProperty("name").GetString()!,
                     ReadVector3(m.GetProperty("position")),
                     m.TryGetProperty("yaw", out var yaw) ? yaw.GetSingle() : 0f)),
-                ReadList(root, "areas", a => new LayoutArea(a.GetProperty("name").GetString()!, ReadVector2(a.GetProperty("min")), ReadVector2(a.GetProperty("max")))),
+                ReadList(root, "areas", a => new LayoutArea(
+                    a.GetProperty("name").GetString()!,
+                    ReadVector2(a.GetProperty("min")),
+                    ReadVector2(a.GetProperty("max")),
+                    a.TryGetProperty("level", out var level) ? level.GetInt32() : 0)),
                 ReadList(root, "meshes", ReadMesh),
                 ReadList(root, "lights", ReadLight));
         }
@@ -100,9 +110,9 @@ public sealed record LevelLayout(
         string asset = p.GetProperty("asset").GetString()!;
         bool solid = p.TryGetProperty("solid", out var solidValue) && solidValue.GetBoolean();
         string? shape = p.TryGetProperty("shape", out var shapeValue) ? shapeValue.GetString() : null;
-        if (shape != null && (shape != MeshShape || !solid))
+        if (shape != null && (shape is not (MeshShape or RampShape) || !solid))
         {
-            throw new FormatException($"{sourceName}: placement of '{asset}' has shape '{shape}'; only a solid may have one, and only \"{MeshShape}\"");
+            throw new FormatException($"{sourceName}: placement of '{asset}' has shape '{shape}'; only a solid may have one, \"{MeshShape}\" or \"{RampShape}\"");
         }
 
         return new LayoutPlacement(
@@ -111,7 +121,8 @@ public sealed record LevelLayout(
             ReadQuaternion(p.GetProperty("rotation")),
             ReadVector3(p.GetProperty("scale")),
             solid,
-            FollowsMesh: shape == MeshShape);
+            FollowsMesh: shape == MeshShape,
+            Ramp: shape == RampShape);
     }
 
     private static List<T> ReadList<T>(JsonElement root, string name, Func<JsonElement, T> read) =>

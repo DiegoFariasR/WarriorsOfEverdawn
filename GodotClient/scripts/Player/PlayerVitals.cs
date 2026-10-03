@@ -281,7 +281,11 @@ public partial class PlayerVitals : Node
     [Rpc(MultiplayerApi.RpcMode.Authority, CallLocal = true, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
     private void ShowHit(int amount, int types)
     {
-        FloatingText.Spawn(Player, amount.ToString(), types == DamageTypes.NoTypes ? DamageColor : DamageTypeColours.Number(types));
+        if (SeenFloating)
+        {
+            FloatingText.Spawn(Player, amount.ToString(), types == DamageTypes.NoTypes ? DamageColor : DamageTypeColours.Number(types));
+        }
+
         Player.Flash.Flash();
         Hit?.Invoke(amount);
     }
@@ -290,8 +294,14 @@ public partial class PlayerVitals : Node
     private void ShowGuarded(int outcome)
     {
         bool parried = (GuardOutcome)outcome == GuardOutcome.Parried;
-        FloatingText.Spawn(Player, parried ? "Parry!" : "Block", parried ? ParryColor : BlockColor);
+        if (SeenFloating)
+        {
+            FloatingText.Spawn(Player, parried ? "Parry!" : "Block", parried ? ParryColor : BlockColor);
+        }
     }
+
+    // What floats over this player is drawn through floors, so only while it is on the camera's subject's floor.
+    private bool SeenFloating => ArenaMap.In(GetTree()).OnSubjectsFloor(Player.GlobalPosition);
 
     [Rpc(MultiplayerApi.RpcMode.Authority, CallLocal = true, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
     private void Downed() => Player.OnDowned();

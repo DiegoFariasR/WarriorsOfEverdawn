@@ -56,6 +56,7 @@ public partial class OverheadBars : Control
             return;
         }
 
+        var map = ArenaMap.In(GetTree());
         foreach (var target in targets.Values)
         {
             if (!_bars.TryGetValue(target.Node, out var entry))
@@ -68,7 +69,7 @@ public partial class OverheadBars : Control
             entry.Bar.Value = target.Hp;
 
             var overhead = Overhead.Point(Camera, target.Node.GlobalPosition, target.Height, Girth);
-            entry.Bar.Visible = !Camera.IsPositionBehind(overhead);
+            entry.Bar.Visible = target.Node.Visible && map.OnSubjectsFloor(target.Node.GlobalPosition) && !Camera.IsPositionBehind(overhead);
             entry.Bar.Position = Camera.UnprojectPosition(overhead) - BarSize / 2f;
         }
     }

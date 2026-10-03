@@ -65,6 +65,15 @@ public static class LootRules
     public static int CoinsShown(int gold) =>
         gold > 0 ? Math.Min(gold, MostCoinsShown) : throw new ArgumentOutOfRangeException(nameof(gold), gold, "A pile holds at least 1 gold");
 
+    // Each pile lies turned this much further round than the one before it: the golden angle, which never comes
+    // back to a turn it has used, so no two piles near each other lie the same way.
+    public const float PileTurnStep = 2.39996323f;
+
+    // Which way the pile of that drop lies, in radians about the upright: the same on every machine, by the drop's
+    // number, so the piles do not all lie as the model was made.
+    public static float PileYaw(int id) =>
+        id >= 0 ? (float)(id * (double)PileTurnStep % (2 * Math.PI)) : throw new ArgumentOutOfRangeException(nameof(id), id, "A drop's number is not negative");
+
     // Whether a monster that leaves a magic orb `chance` of the time leaves one now. roll is uniform in [0, 1).
     public static bool DropsOrb(float chance, float roll)
     {

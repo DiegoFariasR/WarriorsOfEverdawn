@@ -27,8 +27,11 @@ Godot self-tests (headless):
   camera-test       In every camera mode, W must move up the screen and D right; HUD sits on screen
   wall-test         Bolts, balls and arrows loosed at a wall, from afar and from against it, must end at it
   parts-test        Every part and alias of the catalogue put on a figure, and 200 figures drawn at random from each pool
-  smoke             camera-test, wall-test, parts-test, net-test, pvp-test, trade-test and magic-test in turn; fails
-                    if any fails
+  floors-test       The player walks up into each of the town's storeys and down into the crypt; asserts every way is
+                    found and walked, what is above is hidden and nothing else, and the crypt's guards keep to it, come
+                    for the player, fall and leave a treasure the player takes
+  smoke             camera-test, wall-test, parts-test, floors-test, net-test, pvp-test, trade-test and magic-test in
+                    turn; fails if any fails
   playtest          net-test made 2.5 minutes long with a player downed on cue: every net-test gate plus waves,
                     removal of the dead and of damage numbers, a flat node count, and going down and back up
                     --screenshots N   the host runs in an off-screen, minimized window and captures N frames
@@ -37,7 +40,8 @@ Screenshots (real renderer; off-screen, minimized, unfocused window):
   screenshot        Bot plays solo; saves _staging/screenshot.png after --at seconds (default 6)
                     --frames N --interval S   a series: _staging/screenshot_1.png .. _N.png
                     --camera 1-4   --zoom 0.5-2 (below 1 is nearer)   --no-ui   --no-enemies   --weapon <id>   --back-weapon <id>   (greatsword, quarterstaff, spear, scythe, sword-and-shield, <element>-staff, <element>-wand; spear~fire enchanted, spear+3 improved)
-                    --start-at x,z   the bot starts on that spot of the ground instead of in the town
+                    --start-at x,z   the bot starts on that spot of the ground instead of in the town; x,y,z
+                                     at that height (4 a storey up, -4 the crypt); or a marker: crypt, upstairs:1
                     --orb-chance P   every monster leaves a magic orb P of the time (0 to 1) instead of rarely
                     --start-gold N   --start-orbs N   --start-armour TIER   the bot starts with that much
                     --trade-drill   the bot trades with the seller it starts beside
@@ -66,7 +70,13 @@ Assets:
 
 Levels:
   level-fortresses  Generate the two fortress layouts (GodotClient/config/levels/*.layout.json); --seed N, --out-dir D
-  level-audit       Audit level layouts without Godot: missing files, solids run together, markers or a gate blocked
+  level-audit       Audit level layouts without Godot: missing files, solids run together, markers or a gate blocked,
+                    stairs with no floor to step off at either end
+  level-list <town|fortress> [x0,z0,x1,z1] [--room -1|1]
+                    What a layout has in an area (or all of it): placements with their boxes, markers and areas, in
+                    world coordinates, or in a room's (u, v) with --room
+  ways-dump [x0,z0,x1,z1]  The arena's navigation mesh: its polygons in that area, or with none only those that go
+                    through the air between floors; exit 1 when any does
 
 Drift checks:
   health            Dashboard: formatting, docs, pending refactors, agent/skill docs, headless timeouts, level layouts
@@ -826,6 +836,32 @@ parts_test() {
     echo "parts-test passed"
 }
 
+# The navigation mesh baked headless, its polygons printed: in the area, or (with none) only the faulty ones.
+ways_dump() {
+    build || return 1
+    local log="$ROOT/_staging/ways-dump.log"
+    mkdir -p "$ROOT/_staging"
+    timeout 120 "$GODOT" --headless --path "$PROJECT" -- --ways-dump "${1:-all}" --no-enemies > "$log" 2>&1
+    local status=$?
+    grep -E '^\[ways\]' "$log"
+    [ "$status" -eq 0 ] || echo "ways-dump: exit $status (log: $log)"
+    return "$status"
+}
+
+floors_test() {
+    build || return 1
+    local log="$ROOT/_staging/floors-test.log"
+    mkdir -p "$ROOT/_staging"
+    timeout 240 "$GODOT" --headless --path "$PROJECT" -- --floors-check > "$log" 2>&1
+    local status=$?
+    grep -E '^\[floors-check\]' "$log"
+    if [ "$status" -ne 0 ] || ! grep -qE '^\[floors-check\] passed$' "$log"; then
+        echo "floors-test FAILED (exit $status, log: $log)"
+        return 1
+    fi
+    echo "floors-test passed"
+}
+
 # Every pile gold falls in, one coin to ten, in a row on the ground: once from low, as from behind a player, and
 # once from high, as the cameras that look down see them.
 gold_lineup() {
@@ -968,7 +1004,7 @@ swing_survey() {
 # Runs every self-test even after a failure, so one report covers them all.
 smoke() {
     local failed=() name
-    for name in camera-test wall-test parts-test net-test pvp-test trade-test magic-test; do
+    for name in camera-test wall-test parts-test floors-test net-test pvp-test trade-test magic-test; do
         echo "== $name"
         "${name//-/_}" || failed+=("$name")
     done
@@ -976,7 +1012,7 @@ smoke() {
         echo "smoke FAILED: ${failed[*]}"
         return 1
     fi
-    echo "smoke passed (camera-test, wall-test, parts-test, net-test, pvp-test, trade-test, magic-test)"
+    echo "smoke passed (camera-test, wall-test, parts-test, floors-test, net-test, pvp-test, trade-test, magic-test)"
 }
 
 case "${1:-help}" in
@@ -991,6 +1027,9 @@ case "${1:-help}" in
     camera-test) camera_test ;;
     wall-test) wall_test ;;
     parts-test) parts_test ;;
+    floors-test) floors_test ;;
+    ways-dump) shift; ways_dump "$@" ;;
+    level-list) shift; python "$ROOT/Tools/level_list.py" "$@" ;;
     smoke) smoke ;;
     playtest) shift; playtest "$@" ;;
     swing-survey) swing_survey ;;

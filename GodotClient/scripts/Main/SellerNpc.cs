@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using EverdawnKit.Characters;
 using Godot;
 using WarriorsOfEverdawn.Character;
+using WarriorsOfEverdawn.Core.Level;
 using WarriorsOfEverdawn.Core.Trade;
 using WarriorsOfEverdawn.Player;
 using WarriorsOfEverdawn.Util;
@@ -45,6 +46,7 @@ public partial class SellerNpc : Node3D
         }
 
         var npc = new SellerNpc { Name = spot.Seller.Id, Seller = spot.Seller, Position = spot.Position };
+        npc.AddToGroup(ArenaMap.OnAFloor);
         var body = CharacterBody.Build(look);
 
         // KayKit models face +Z, which is the way a layout's yaw points.
@@ -60,10 +62,11 @@ public partial class SellerNpc : Node3D
         return npc;
     }
 
+    // Across the ground, on the seller's floor: from another floor no seller is in reach.
     public float DistanceTo(Vector3 position)
     {
         var offset = position - GlobalPosition;
-        return new Vector2(offset.X, offset.Z).Length();
+        return Floors.SameLevel(position.Y, GlobalPosition.Y) ? new Vector2(offset.X, offset.Z).Length() : float.PositiveInfinity;
     }
 
     public override void _Process(double delta)

@@ -39,7 +39,7 @@ public partial class SellerLabels : Control
             // A box outside a container keeps its size when its content shrinks.
             entry.Box.ResetSize();
             var over = Overhead.Point(camera, seller.GlobalPosition, SellerNpc.NameHeight, SellerNpc.Girth);
-            entry.Box.Visible = !camera.IsPositionBehind(over);
+            entry.Box.Visible = seller.Visible && !camera.IsPositionBehind(over);
             var at = camera.UnprojectPosition(over);
             entry.Box.Position = new Vector2(at.X - entry.Box.Size.X / 2f, at.Y - entry.Box.Size.Y);
         }

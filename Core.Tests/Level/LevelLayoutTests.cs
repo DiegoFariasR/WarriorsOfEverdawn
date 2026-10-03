@@ -110,6 +110,31 @@ public class LevelLayoutTests
     }
 
     [Fact]
+    public void A_ramp_is_a_solid_shape_and_an_area_may_name_its_level()
+    {
+        string ramp = Minimal.Replace("\"solid\": true", "\"solid\": true, \"shape\": \"ramp\"")
+            .Replace("\"name\": \"safe\",", "\"name\": \"cover\", \"level\": 1,");
+
+        var layout = LevelLayout.Parse(ramp, "ramp");
+
+        Assert.True(layout.Placements[0].Ramp);
+        Assert.False(layout.Placements[0].FollowsMesh);
+        Assert.Equal(1, layout.Areas.Single().Level);
+        Assert.Equal(0, LevelLayout.Parse(Minimal, "minimal").Areas.Single().Level);
+    }
+
+    [Fact]
+    public void A_placement_is_on_the_level_its_height_says()
+    {
+        string upstairs = Minimal.Replace("\"position\": [4, 0, -8]", $"\"position\": [4, {Floors.Storey}, -8]")
+            .Replace("\"position\": [1, 0, 2]", $"\"position\": [1, {-Floors.Storey}, 2]");
+
+        var layout = LevelLayout.Parse(upstairs, "upstairs");
+
+        Assert.Equal(new[] { 1, -1 }, layout.Placements.Select(p => p.Level));
+    }
+
+    [Fact]
     public void An_area_holds_the_points_within_its_corners_and_on_its_edges()
     {
         var area = new LayoutArea("safe", new Vector2(-2f, 1f), new Vector2(3f, 5f));
@@ -202,8 +227,8 @@ public class LevelLayoutTests
         Assert.All(town.AreasNamed("room").Concat(town.AreasNamed("door")), a => Assert.Contains(a with { Name = "safe" }, safe));
     }
 
-    // What burns in a fortress lights the ground about it: every light is at a piece, above the ground, and reaches
-    // further than the piece is wide.
+    // What burns in a fortress lights the floor about it: every light is at a piece, above the floor it is on, and
+    // reaches further than the piece is wide.
     [Fact]
     public void Both_fortresses_are_lit_by_what_burns_in_them()
     {
@@ -214,7 +239,7 @@ public class LevelLayoutTests
             Assert.NotEmpty(layout.Lights);
             Assert.All(layout.Lights, light =>
             {
-                Assert.True(light.Energy > 0f && light.Range > 1f && light.Position.Y > 0f, $"{name}: {light}");
+                Assert.True(light.Energy > 0f && light.Range > 1f && light.Position.Y > Floors.HeightOf(Floors.FloorUnder(light.Position.Y)), $"{name}: {light}");
                 Assert.Contains(layout.Placements, p => Vector2.Distance(new Vector2(p.Position.X, p.Position.Z), new Vector2(light.Position.X, light.Position.Z)) < 2f);
             });
         }

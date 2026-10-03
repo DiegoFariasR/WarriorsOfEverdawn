@@ -99,6 +99,16 @@ public sealed record LaunchOptions
     // --parts-check: puts every part of the catalogue on a figure and quits, saying whether each came out right.
     public bool PartsCheck { get; init; }
 
+    // --floors-check: walks the player up into the town's storeys and down into the crypt, clears the crypt and
+    // quits, saying whether each floor was reached and hidden or shown as it should be.
+    public bool FloorsCheck { get; init; }
+
+    // --ways-dump <x0,z0,x1,z1 or all>: prints the navigation mesh's polygons in that area (with all, only those that
+    // go through the air) and quits, 1 when any goes through the air.
+    public bool WaysDump { get; init; }
+
+    public Godot.Rect2? WaysArea { get; init; }
+
     // Host only, for test sessions and for looking at an orb: every monster's chance of leaving a magic orb, in place
     // of its own, so a short session is sure to see some.
     public float? OrbChance { get; init; }
@@ -122,8 +132,11 @@ public sealed record LaunchOptions
     // fight has done to it. For the self-test: skeletons die too soon to be frozen by play alone.
     public bool StatusDrill { get; init; }
 
-    // Host only, for looking at a place: players start on this spot of the ground instead of in the town.
+    // Host only, for looking at a place: players start on this spot of the ground instead of in the town, or on a
+    // layout's marker: the index-th of that name across both layouts, the town's first (--start-at upstairs:1).
     public Godot.Vector3? StartAt { get; init; }
+
+    public (string Name, int Index)? StartAtMarker { get; init; }
 
     public static LaunchOptions Parse(string[] args)
     {
@@ -139,6 +152,8 @@ public sealed record LaunchOptions
                 "--camera-check" => options with { CameraCheck = true },
                 "--wall-check" => options with { WallCheck = true },
                 "--parts-check" => options with { PartsCheck = true },
+                "--floors-check" => options with { FloorsCheck = true },
+                "--ways-dump" => options with { WaysDump = true, WaysArea = AreaAfter(args, ref i) },
                 "--pvp" => options with { Pvp = true },
                 "--no-enemies" => options with { NoEnemies = true },
                 "--quit-after" => options with { QuitAfter = FloatAfter(args, ref i) },
@@ -162,7 +177,7 @@ public sealed record LaunchOptions
                 "--magic-barriers" => options with { MagicLineup = Array.Empty<Element>(), MagicBarriers = true },
                 "--gold-lineup" => options with { GoldLineup = FloatAfter(args, ref i) },
                 "--look-lineup" => options with { LookLineup = ValueAfter(args, ref i).Split(',', StringSplitOptions.RemoveEmptyEntries) },
-                "--start-at" => options with { StartAt = GroundSpotAfter(args, ref i) },
+                "--start-at" => StartAtAfter(args, ref i, options),
                 "--orb-chance" => options with { OrbChance = ChanceAfter(args, ref i) },
                 "--start-gold" => options with { StartGold = PositiveIntAfter(args, ref i) },
                 "--start-orbs" => options with { StartOrbs = PositiveIntAfter(args, ref i) },
@@ -222,16 +237,46 @@ public sealed record LaunchOptions
         return chance is >= 0f and <= 1f ? chance : throw new ArgumentException($"{flag} needs a chance from 0 to 1, got {chance}");
     }
 
-    private static Godot.Vector3 GroundSpotAfter(string[] args, ref int i)
+    // x0,z0,x1,z1 on the ground, or all of it (null).
+    private static Godot.Rect2? AreaAfter(string[] args, ref int i)
     {
         string flag = args[i];
         string value = ValueAfter(args, ref i);
-        string[] parts = value.Split(',');
-        return parts.Length == 2
-            && float.TryParse(parts[0], NumberStyles.Float, CultureInfo.InvariantCulture, out float x)
-            && float.TryParse(parts[1], NumberStyles.Float, CultureInfo.InvariantCulture, out float z)
-            ? new Godot.Vector3(x, 0f, z)
-            : throw new ArgumentException($"{flag} needs a spot on the ground as x,z, got '{value}'");
+        if (value == "all")
+        {
+            return null;
+        }
+
+        var parts = value.Split(',').Select(p => float.TryParse(p, NumberStyles.Float, CultureInfo.InvariantCulture, out float f) ? f : (float?)null).ToList();
+        if (parts.Count != 4 || parts.Any(p => p == null))
+        {
+            throw new ArgumentException($"{flag} needs an area as x0,z0,x1,z1 or 'all', got '{value}'");
+        }
+
+        var from = new Godot.Vector2(Math.Min(parts[0]!.Value, parts[2]!.Value), Math.Min(parts[1]!.Value, parts[3]!.Value));
+        var to = new Godot.Vector2(Math.Max(parts[0]!.Value, parts[2]!.Value), Math.Max(parts[1]!.Value, parts[3]!.Value));
+        return new Godot.Rect2(from, to - from);
+    }
+
+    // A spot as x,z on the ground or x,y,z on a floor, or a marker as name or name:index.
+    private static LaunchOptions StartAtAfter(string[] args, ref int i, LaunchOptions options)
+    {
+        string flag = args[i];
+        string value = ValueAfter(args, ref i);
+        string wanted = $"{flag} needs a spot as x,z on the ground or x,y,z on a floor, or a marker as name or name:index, got '{value}'";
+        if (value.Length > 0 && char.IsLetter(value[0]))
+        {
+            var named = value.Split(':');
+            int index = 0;
+            return named.Length == 1 || (named.Length == 2 && int.TryParse(named[1], NumberStyles.None, CultureInfo.InvariantCulture, out index))
+                ? options with { StartAtMarker = (named[0], index) }
+                : throw new ArgumentException(wanted);
+        }
+
+        var parts = value.Split(',').Select(p => float.TryParse(p, NumberStyles.Float, CultureInfo.InvariantCulture, out float f) ? f : (float?)null).ToList();
+        return parts.All(p => p != null) && parts.Count is 2 or 3
+            ? options with { StartAt = parts.Count == 2 ? new Godot.Vector3(parts[0]!.Value, 0f, parts[1]!.Value) : new Godot.Vector3(parts[0]!.Value, parts[1]!.Value, parts[2]!.Value) }
+            : throw new ArgumentException(wanted);
     }
 
     private static IReadOnlyList<Element> ElementsAfter(string[] args, ref int i)

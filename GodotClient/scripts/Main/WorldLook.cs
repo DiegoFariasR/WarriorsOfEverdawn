@@ -18,6 +18,9 @@ public static class WorldLook
     private static readonly Color SkyAbove = new(0.42f, 0.50f, 0.64f);
     private static readonly Color Horizon = new(0.70f, 0.80f, 0.90f);
 
+    // Under the ground there is no sky: past the crypt's walls, where the hidden ground would be, is dark.
+    private static readonly Color Void = new(0.02f, 0.02f, 0.025f);
+
     // The shade is the sky's: cooler than the sun, so a figure's lit side reads warm against its own shadow.
     private static readonly Color Shade = new(0.93f, 0.95f, 1f);
 
@@ -100,5 +103,13 @@ public static class WorldLook
         sun.DirectionalShadowMaxDistance = ShadowsWithin;
         sun.ShadowOpacity = 0.55f;
         sun.ShadowBlur = 1.5f;
+    }
+
+    // The dark under the ground in place of the sky, and back. Metal mirrors whichever is there.
+    public static void Underground(Environment environment, bool below)
+    {
+        environment.BackgroundMode = below ? Environment.BGMode.Color : Environment.BGMode.Sky;
+        environment.BackgroundColor = Void;
+        environment.ReflectedLightSource = below ? Environment.ReflectionSource.Bg : Environment.ReflectionSource.Sky;
     }
 }

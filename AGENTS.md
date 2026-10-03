@@ -99,7 +99,8 @@ Two occurrences = copy is fine. Three = extract a helper unless the shapes diver
 | `./dev.sh camera-test` | Headless; in every camera mode, W must move the character up the screen and D right; the HUD sits on screen without overlaps |
 | `./dev.sh wall-test` | Headless; every kind of bolt, ball and arrow is loosed at a fortress wall from afar and from against it, and must end at the wall's face; the line of sight spells go by is read across the wall and along it |
 | `./dev.sh parts-test` | Headless; every part of the character catalogue is put on a figure in its slot and must come out skinned to the rig and sized as its slot says; 200 figures are drawn at random from each pool and dressed |
-| `./dev.sh smoke` | `camera-test`, `wall-test`, `parts-test`, `net-test`, `pvp-test`, `trade-test` and `magic-test` in turn; the regression gate for client changes |
+| `./dev.sh floors-test` | Headless; the player walks up into each of the town's storeys and down into the crypt: every way is found and walked, what is above is hidden and nothing else, and the crypt's guards keep to it, come for the player, fall and leave a treasure the player takes |
+| `./dev.sh smoke` | `camera-test`, `wall-test`, `parts-test`, `floors-test`, `net-test`, `pvp-test`, `trade-test` and `magic-test` in turn; the regression gate for client changes |
 | `./dev.sh playtest` | `net-test` run for 2.5 minutes with a player taken down on cue: every net-test gate, plus waves keep coming, the dead and damage numbers are removed on time, the node count stays flat across waves, and a downed player stays put and gets back up at full HP. `--screenshots N` captures frames through the session. For changes to anything that lives across a session |
 | `./dev.sh swing-survey` | Each weapon skill's clip followed through the hand: when the weapon moves fastest, when it reaches furthest, and how far, standing and moving. Where Core's hit times come from |
 | `./dev.sh screenshot` | A bot plays solo in an off-screen, minimized window; saves `_staging/screenshot.png` after `--at` seconds, or a series with `--frames N --interval S`; `--camera 1-4`, `--zoom F`, `--no-ui`, `--no-enemies`, `--weapon <id>`, `--back-weapon <id>`. Read the image to check what the game draws |
@@ -110,7 +111,9 @@ Two occurrences = copy is fine. Three = extract a helper unless the shapes diver
 | `./dev.sh gold-lineup` | Every pile gold falls in, one coin to ten, in a row on the ground, in the same off-screen window as `screenshot`; saves `_staging/gold-lineup-low.png` (as from behind a player) and `_staging/gold-lineup-high.png` (as the cameras that look down see them) |
 | `./dev.sh gold-piles` | Rebuilds the gold pile models (two to ten coins) from the one coin, with Blender in the background; run `./dev.sh import` after |
 | `./dev.sh level-fortresses` | Regenerates the two fortress layouts from `Tools/level_fortresses.py` (deterministic; `--seed N`); run after changing the generator, then `level-audit` |
-| `./dev.sh level-audit` | Audits `GodotClient/config/levels/*.layout.json` without Godot: missing files, solids run into each other, a marker or a gate blocked, pieces off the ground |
+| `./dev.sh level-audit` | Audits `GodotClient/config/levels/*.layout.json` without Godot: missing files, solids run into each other, a marker or a gate blocked, stairs with nowhere to step off at either end, pieces off the ground |
+| `./dev.sh level-list <town\|fortress> [x0,z0,x1,z1] [--room -1\|1]` | Lists what a layout has in an area (placements with boxes, markers, areas), in world coordinates or in a room's `(u, v)` |
+| `./dev.sh ways-dump [x0,z0,x1,z1]` | Headless; prints the navigation mesh's polygons in the area, or only those that go through the air between floors; exit 1 when any does |
 | `./dev.sh health` | Drift dashboard: formatting, doc references, pending refactors, agent and skill docs, headless timeouts, level layouts |
 | `./dev.sh run`, `./dev.sh host`, `./dev.sh join [address]`, `./dev.sh editor` | User only; blocked for AI sessions |
 

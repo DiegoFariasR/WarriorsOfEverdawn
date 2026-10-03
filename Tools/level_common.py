@@ -109,12 +109,38 @@ def turned(x, z, yaw):
     return (x * c + z * s, -x * s + z * c)
 
 
+def scales(scale):
+    """A piece's scale along its own x, y and z, from one number or three."""
+    return (scale,) * 3 if isinstance(scale, (int, float)) else tuple(scale)
+
+
 def footprint_rect(res, position, yaw, scale):
     """The piece's box on the ground as (centre x, centre z, half extent along its own x, along its own z, yaw)."""
     lo, hi = bounds(res)
-    cx, cz = (lo[0] + hi[0]) / 2 * scale, (lo[2] + hi[2]) / 2 * scale
+    sx, _, sz = scales(scale)
+    cx, cz = (lo[0] + hi[0]) / 2 * sx, (lo[2] + hi[2]) / 2 * sz
     dx, dz = turned(cx, cz, yaw)
-    return (position[0] + dx, position[2] + dz, (hi[0] - lo[0]) / 2 * scale, (hi[2] - lo[2]) / 2 * scale, yaw)
+    return (position[0] + dx, position[2] + dz, (hi[0] - lo[0]) / 2 * sx, (hi[2] - lo[2]) / 2 * sz, yaw)
+
+
+def height_span(res, y, scale):
+    """(bottom, top) of a piece standing at height y."""
+    lo, hi = bounds(res)
+    sy = scales(scale)[1]
+    return (y + lo[1] * sy, y + hi[1] * sy)
+
+
+def spans_overlap(a, b, slack=0.0):
+    return a[0] + slack < b[1] and b[0] + slack < a[1]
+
+
+# Core/Level/Floors.cs: one storey, and how far below its own floor a level begins.
+STOREY = 4.0
+LEVEL_BELOW = STOREY * 0.375
+
+
+def level_of(y):
+    return math.floor((y + LEVEL_BELOW) / STOREY)
 
 
 def rect_corners(rect):

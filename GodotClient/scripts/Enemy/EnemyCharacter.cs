@@ -5,6 +5,7 @@ using EverdawnKit.Characters;
 using Godot;
 using WarriorsOfEverdawn.Character;
 using WarriorsOfEverdawn.Core.Combat;
+using WarriorsOfEverdawn.Core.Level;
 using WarriorsOfEverdawn.Core.Stats;
 using WarriorsOfEverdawn.Main;
 using WarriorsOfEverdawn.Player;
@@ -106,6 +107,9 @@ public partial class EnemyCharacter : CharacterBody3D
     // Seconds since the attack shown here began; it keeps counting after the attack ends.
     public float AttackShownTime => _attackShownTime;
 
+    // One of the crypt's guards, not of a wave (EnemyDirector).
+    public bool IsGuard => Name.ToString().StartsWith(EnemyDirector.GuardPrefix, StringComparison.Ordinal);
+
     public static EnemyCharacter Create(string name, EnemyDefinition definition, Vector3 position, float yaw)
     {
         var look = CombatVisuals.LookFor(definition);
@@ -120,6 +124,8 @@ public partial class EnemyCharacter : CharacterBody3D
             Hp = definition.MaxHp,
             CollisionLayer = CollisionLayers.Enemies,
             CollisionMask = CollisionLayers.World | CollisionLayers.Players | CollisionLayers.Enemies | CollisionLayers.Ward,
+            FloorSnapLength = Gravity.FloorSnap,
+            FloorMaxAngle = Gravity.SteepestFloor,
             _health = new Health(definition.MaxHp),
             _shownYaw = yaw,
             _attackClip = CombatVisuals.ClipFor(definition.Attack),
@@ -220,7 +226,7 @@ public partial class EnemyCharacter : CharacterBody3D
         // shove it along.
         if (!_status.Lost)
         {
-            Velocity = velocity;
+            Velocity = Gravity.With(velocity, this, delta);
             MoveAndSlide();
         }
 
@@ -263,7 +269,8 @@ public partial class EnemyCharacter : CharacterBody3D
             return Vector3.Zero;
         }
 
-        var toTarget = new Vector3(decision.Target.Position.X, 0f, decision.Target.Position.Y) - GlobalPosition;
+        // Its targets are on its own floor, so its way there is sought on that floor.
+        var toTarget = new Vector3(decision.Target.Position.X, GlobalPosition.Y, decision.Target.Position.Y) - GlobalPosition;
         float targetYaw = Yaw.Of(toTarget);
         switch (decision.Action)
         {
@@ -323,7 +330,7 @@ public partial class EnemyCharacter : CharacterBody3D
             bool parried = false;
             foreach (var player in GetTree().GetNodesInGroup(PlayerCharacter.Group).OfType<PlayerCharacter>())
             {
-                if (!player.IsDowned && !map.IsSafe(player.NetPosition)
+                if (!player.IsDowned && !map.IsSafe(player.NetPosition) && Floors.SameLevel(GlobalPosition.Y, player.NetPosition.Y)
                     && MeleeArc.Hits(me, NetYaw, Definition.Attack, Yaw.ToGround(player.NetPosition), BodySize.Radius))
                 {
                     parried |= player.Vitals.TakeAttack(AttackDamage(), GlobalPosition, DamageTypes.MaskOf(Definition.Attack.Types)) == GuardOutcome.Parried;
@@ -350,12 +357,13 @@ public partial class EnemyCharacter : CharacterBody3D
     // What its blow deals as it is now: less while it is dizzy.
     private int AttackDamage() => (int)MathF.Round(Definition.Attack.Damage * _status.Dealt(Definition.Attack.Type));
 
-    // The players a skeleton may go for: up, and not inside the allied town.
+    // The players a skeleton may go for: up, not inside the allied town, and on its own floor. The crypt's dead keep
+    // to the crypt, and the waves to the ground.
     private IEnumerable<EnemyTarget> LivingPlayers()
     {
         var map = ArenaMap.In(GetTree());
         return GetTree().GetNodesInGroup(PlayerCharacter.Group).OfType<PlayerCharacter>()
-            .Where(p => !p.IsDowned && !map.IsSafe(p.GlobalPosition))
+            .Where(p => !p.IsDowned && !map.IsSafe(p.GlobalPosition) && Floors.SameLevel(GlobalPosition.Y, p.GlobalPosition.Y))
             .Select(p => new EnemyTarget(p.PeerId, Yaw.ToGround(p.GlobalPosition)));
     }
 
@@ -439,8 +447,12 @@ public partial class EnemyCharacter : CharacterBody3D
     [Rpc(MultiplayerApi.RpcMode.Authority, CallLocal = true, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
     private void ShowHit(int amount, bool staggered, int types, int leaning)
     {
-        FloatingText.Spawn(this, amount.ToString(), DamageTypeColours.Number(types),
-            scale: leaning > 0 ? WeakHitScale : leaning < 0 ? ResistedHitScale : 1f);
+        if (SeenFloating)
+        {
+            FloatingText.Spawn(this, amount.ToString(), DamageTypeColours.Number(types),
+                scale: leaning > 0 ? WeakHitScale : leaning < 0 ? ResistedHitScale : 1f);
+        }
+
         Flash.Flash();
         if (staggered && _oneShot != _attackClip && _oneShot != _attackFollowUp && _oneShot != RigAnimations.SkeletonSpawn)
         {
@@ -450,8 +462,16 @@ public partial class EnemyCharacter : CharacterBody3D
 
     // A burn's or a wound's bite: a number, smaller than a hit's, and no blink or flinch.
     [Rpc(MultiplayerApi.RpcMode.Authority, CallLocal = true, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
-    private void ShowTick(int amount, int type) =>
-        FloatingText.Spawn(this, amount.ToString(), DamageTypeColours.Number((DamageType)type), scale: TickScale);
+    private void ShowTick(int amount, int type)
+    {
+        if (SeenFloating)
+        {
+            FloatingText.Spawn(this, amount.ToString(), DamageTypeColours.Number((DamageType)type), scale: TickScale);
+        }
+    }
+
+    // What floats over this skeleton is drawn through floors, so only while it is on the camera's subject's floor.
+    private bool SeenFloating => ArenaMap.In(GetTree()).OnSubjectsFloor(GlobalPosition);
 
     [Rpc(MultiplayerApi.RpcMode.Authority, CallLocal = true, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
     private void ShowParried()

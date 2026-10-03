@@ -1,4 +1,4 @@
-[gd_scene load_steps=10 format=3]
+[gd_scene load_steps=7 format=3]
 
 [ext_resource type="Script" path="res://scripts/Main/Arena.cs" id="1_arena"]
 [ext_resource type="Script" path="res://scripts/Main/ArenaCamera.cs" id="2_camera"]
@@ -14,15 +14,6 @@ sky = SubResource("Sky")
 ambient_light_source = 3
 tonemap_mode = 2
 
-[sub_resource type="PlaneMesh" id="GroundMesh"]
-size = Vector2(70, 80)
-
-[sub_resource type="StandardMaterial3D" id="GroundMaterial"]
-albedo_color = Color(0.36, 0.42, 0.3, 1)
-
-[sub_resource type="BoxShape3D" id="GroundShape"]
-size = Vector3(70, 1, 80)
-
 [node name="Arena" type="Node3D"]
 script = ExtResource("1_arena")
 
@@ -32,16 +23,6 @@ environment = SubResource("Environment")
 [node name="Sun" type="DirectionalLight3D" parent="."]
 transform = Transform3D(0.866, 0, -0.5, -0.383, 0.6428, -0.6634, 0.3214, 0.766, 0.5567, 0, 10, 0)
 shadow_enabled = true
-
-[node name="Ground" type="StaticBody3D" parent="."]
-
-[node name="Mesh" type="MeshInstance3D" parent="Ground"]
-mesh = SubResource("GroundMesh")
-surface_material_override/0 = SubResource("GroundMaterial")
-
-[node name="Shape" type="CollisionShape3D" parent="Ground"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.5, 0)
-shape = SubResource("GroundShape")
 
 [node name="Players" type="Node3D" parent="."]
 

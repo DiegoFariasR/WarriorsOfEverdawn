@@ -22,6 +22,7 @@ public partial class Arena : Node3D
     private ArenaCamera _camera = null!;
     private Hud _hud = null!;
     private ArenaMap _map = null!;
+    private Vector3? _startAt;
     private LaunchOptions _options = null!;
     private NetSelfTest? _selfTest;
     private int _nextSpawnSlot;
@@ -45,7 +46,8 @@ public partial class Arena : Node3D
             GD.Print("[window] --ai-playtest: minimized, no focus");
         }
 
-        WorldLook.Apply(GetNode<WorldEnvironment>("WorldEnvironment"), GetNode<DirectionalLight3D>("Sun"), GetNode<Camera3D>("Camera"));
+        var world = GetNode<WorldEnvironment>("WorldEnvironment");
+        WorldLook.Apply(world, GetNode<DirectionalLight3D>("Sun"), GetNode<Camera3D>("Camera"));
         _players = GetNode<Node3D>("Players");
         _spawner = GetNode<MultiplayerSpawner>("PlayerSpawner");
         _camera = GetNode<ArenaCamera>("Camera");
@@ -55,9 +57,10 @@ public partial class Arena : Node3D
         _enemySpawner.SpawnFunction = Callable.From<Variant, Node>(BuildEnemy);
         try
         {
-            _map = new ArenaMap { Name = ArenaMap.NodeName, Camera = _camera };
+            _map = new ArenaMap { Name = ArenaMap.NodeName, Camera = _camera, Atmosphere = world.Environment };
             AddChild(_map);
             _map.Build();
+            _startAt = _options.StartAt ?? (_options.StartAtMarker is { } marker ? _map.MarkerSpot(marker.Name, marker.Index) : null);
         }
         catch (Exception e) when (e is InvalidOperationException or FormatException)
         {
@@ -144,6 +147,16 @@ public partial class Arena : Node3D
         if (_options.PartsCheck)
         {
             AddChild(new PartsSelfTest { Name = "PartsSelfTest" });
+        }
+
+        if (_options.FloorsCheck)
+        {
+            AddChild(new FloorsSelfTest(_players) { Name = "FloorsSelfTest" });
+        }
+
+        if (_options.WaysDump)
+        {
+            AddChild(new WaysDump(_options.WaysArea) { Name = "WaysDump" });
         }
 
         if (_options.QuitAfter > 0f)
@@ -260,7 +273,7 @@ public partial class Arena : Node3D
 
     private void SpawnPlayerFor(long peerId)
     {
-        _spawner.Spawn(new Godot.Collections.Array { peerId, _options.StartAt ?? _map.PlayerSpawnFor(_nextSpawnSlot++) });
+        _spawner.Spawn(new Godot.Collections.Array { peerId, _startAt ?? _map.PlayerSpawnFor(_nextSpawnSlot++) });
     }
 
     // Runs on every peer: on the host through Spawn(), on clients when the spawn replicates.

@@ -1,5 +1,6 @@
 using Godot;
 using WarriorsOfEverdawn.Core.Combat;
+using WarriorsOfEverdawn.Main;
 using WarriorsOfEverdawn.Theme;
 using WarriorsOfEverdawn.Util;
 
@@ -37,7 +38,12 @@ public partial class StatusShow : Node3D
             if (gained.HasFlag(lost))
             {
                 CallOuts++;
-                FloatingText.Spawn(GetParent<Node3D>(), $"{StatusLooks.NameOf(lost)}!", StatusLooks.ColourOf(lost));
+                var body = GetParent<Node3D>();
+                // Drawn through floors, so only over a body on the camera's subject's floor.
+                if (ArenaMap.In(GetTree()).OnSubjectsFloor(body.GlobalPosition))
+                {
+                    FloatingText.Spawn(body, $"{StatusLooks.NameOf(lost)}!", StatusLooks.ColourOf(lost));
+                }
             }
         }
 

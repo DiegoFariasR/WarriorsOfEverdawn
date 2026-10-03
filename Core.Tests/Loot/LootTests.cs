@@ -125,6 +125,27 @@ public class LootTests
     }
 
     [Fact]
+    public void Piles_lie_each_a_different_way_and_the_same_way_on_every_machine()
+    {
+        const int Drops = 200;
+        var yaws = Enumerable.Range(0, Drops).Select(LootRules.PileYaw).ToList();
+
+        Assert.All(yaws, yaw => Assert.InRange(yaw, 0f, 2f * MathF.PI));
+        Assert.Equal(yaws, Enumerable.Range(0, Drops).Select(LootRules.PileYaw));
+
+        // No two of them within a degree of each other: nothing lies as its neighbour does.
+        var sorted = yaws.OrderBy(y => y).ToList();
+        Assert.All(sorted.Zip(sorted.Skip(1)), pair => Assert.True(pair.Second - pair.First > MathF.PI / 180f));
+        Assert.Equal(LootRules.PileTurnStep, LootRules.PileYaw(1), precision: 5);
+    }
+
+    [Fact]
+    public void A_drop_with_a_negative_number_is_refused()
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() => LootRules.PileYaw(-1));
+    }
+
+    [Fact]
     public void There_is_a_model_for_every_number_of_coins_a_pile_shows()
     {
         string props = Path.Combine(RepoRoot(), "GodotClient", "assets", "props");

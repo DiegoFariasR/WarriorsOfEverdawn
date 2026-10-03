@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using Godot;
+using WarriorsOfEverdawn.Core.Level;
 using WarriorsOfEverdawn.Core.Loot;
 using WarriorsOfEverdawn.Enemy;
 using WarriorsOfEverdawn.Player;
@@ -25,6 +26,9 @@ public partial class Loot : Node3D
     private const float PileScale = 0.9f;
 
     private const string OneCoin = "res://assets/props/Money_Coins_Stack_Single.glb";
+
+    // A treasure's orbs lie this far from its gold.
+    private const float TreasureOrbsApart = 0.7f;
 
     // Godot's Randf can return exactly 1, which a roll never is.
     private const float BelowOne = 0.999999f;
@@ -86,7 +90,8 @@ public partial class Loot : Node3D
             }
 
             // The position each player last reported, as for hits on players (Docs/Design/multiplayer.md).
-            var taker = players.FirstOrDefault(p => !p.IsDowned && Flat(p.NetPosition - lying.Loot.Position) <= LootRules.PickupRadius);
+            var taker = players.FirstOrDefault(p => !p.IsDowned && Floors.SameLevel(p.NetPosition.Y, lying.Loot.Position.Y)
+                && Flat(p.NetPosition - lying.Loot.Position) <= LootRules.PickupRadius);
             if (taker == null)
             {
                 continue;
@@ -128,7 +133,7 @@ public partial class Loot : Node3D
             player.Vitals.EarnSouls(enemy.Definition.Souls);
         }
 
-        var at = new Vector3(enemy.GlobalPosition.X, 0f, enemy.GlobalPosition.Z);
+        var at = enemy.GlobalPosition;
         int gold = enemy.Definition.Gold.Roll(Roll());
         if (gold > 0)
         {
@@ -138,6 +143,20 @@ public partial class Loot : Node3D
         if (LootRules.DropsOrb(OrbChance ?? enemy.Definition.OrbChance, Roll()))
         {
             Rpc(MethodName.Place, _nextId++, (int)LootKind.Orb, 1, at);
+        }
+    }
+
+    // Host only: a treasure's gold in one pile at the spot, and its orbs over it, a little apart.
+    public void LeaveTreasure(Vector3 at, Cost treasure)
+    {
+        if (treasure.Gold > 0)
+        {
+            Rpc(MethodName.Place, _nextId++, (int)LootKind.Gold, treasure.Gold, at);
+        }
+
+        for (int orb = 0; orb < treasure.Orbs; orb++)
+        {
+            Rpc(MethodName.Place, _nextId++, (int)LootKind.Orb, 1, at + Yaw.Forward(LootRules.PileYaw(orb + 1)) * TreasureOrbsApart);
         }
     }
 
@@ -156,17 +175,19 @@ public partial class Loot : Node3D
         var model = ModelFor(loot);
         model.Name = $"{loot.Kind}{id}";
         model.Position = at;
+        model.AddToGroup(ArenaMap.OnAFloor);
         AddChild(model);
 
         _lying[id] = new Lying(loot, model);
         Dropped?.Invoke(loot);
     }
 
-    // The pile that much gold lies in, as it is drawn on the ground.
-    public static Node3D Pile(int gold)
+    // The pile that much gold lies in, as it is drawn on the ground, turned that far round.
+    public static Node3D Pile(int gold, float yaw)
     {
         var pile = Assets.InstantiateAtOrigin(PileModel(LootRules.CoinsShown(gold)));
         pile.Scale = Vector3.One * PileScale;
+        pile.Rotation = new Vector3(0f, yaw, 0f);
         return pile;
     }
 
@@ -175,7 +196,7 @@ public partial class Loot : Node3D
         switch (loot.Kind)
         {
             case LootKind.Gold:
-                return Pile(loot.Amount);
+                return Pile(loot.Amount, LootRules.PileYaw(loot.Id));
             case LootKind.Orb:
                 return MagicOrb.Create();
             default:
@@ -194,7 +215,8 @@ public partial class Loot : Node3D
 
         lying.Model.QueueFree();
         Taken?.Invoke(lying.Loot, byPeer);
-        if (PlayerCharacter.Find(GetTree(), byPeer) is { } taker)
+        // What floats over the taker is drawn through floors, so only while it is on the camera's subject's floor.
+        if (PlayerCharacter.Find(GetTree(), byPeer) is { } taker && ArenaMap.In(GetTree()).OnSubjectsFloor(taker.GlobalPosition))
         {
             if (lying.Loot.Kind == LootKind.Orb)
             {

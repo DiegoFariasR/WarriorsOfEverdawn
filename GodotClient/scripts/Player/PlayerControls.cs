@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Godot;
 using WarriorsOfEverdawn.Core.Combat;
+using WarriorsOfEverdawn.Core.Level;
 using WarriorsOfEverdawn.Enemy;
 using WarriorsOfEverdawn.Main;
 using WarriorsOfEverdawn.Util;
@@ -580,6 +581,7 @@ public sealed class BotControls : IPlayerControls
     private static Vector3? TowardLoot(PlayerCharacter player)
     {
         var nearest = Loot.In(player.GetTree()).OnGround
+            .Where(p => Floors.SameLevel(p.Position.Y, player.GlobalPosition.Y))
             .OrderBy(p => p.Position.DistanceSquaredTo(player.GlobalPosition))
             .FirstOrDefault();
         if (nearest == null)
@@ -615,7 +617,7 @@ public sealed class BotControls : IPlayerControls
 
     private static IEnumerable<EnemyCharacter> MeleeSkeletons(PlayerCharacter player) =>
         player.GetTree().GetNodesInGroup(EnemyCharacter.Group).OfType<EnemyCharacter>().Where(e =>
-            !e.IsDead && e.Definition.Attack.Projectile == null
+            !e.IsDead && e.Definition.Attack.Projectile == null && Floors.SameLevel(e.GlobalPosition.Y, player.GlobalPosition.Y)
             && e.GlobalPosition.DistanceTo(player.GlobalPosition) - BodySize.Radius <= e.Definition.Attack.Range + GuardReach);
 
     private static EnemyCharacter? NearestMeleeSkeleton(PlayerCharacter player) =>
@@ -645,11 +647,12 @@ public sealed class BotControls : IPlayerControls
             .FirstOrDefault();
     }
 
-    // Living skeletons, and in PvP every other player who is up.
+    // Living skeletons on the bot's floor, and in PvP every other player who is up.
     private static IEnumerable<Node3D> Hostiles(PlayerCharacter player)
     {
         var tree = player.GetTree();
-        IEnumerable<Node3D> skeletons = tree.GetNodesInGroup(EnemyCharacter.Group).OfType<EnemyCharacter>().Where(e => !e.IsDead);
+        IEnumerable<Node3D> skeletons = tree.GetNodesInGroup(EnemyCharacter.Group).OfType<EnemyCharacter>()
+            .Where(e => !e.IsDead && Floors.SameLevel(e.GlobalPosition.Y, player.GlobalPosition.Y));
         if (!SessionRules.Pvp)
         {
             return skeletons;
