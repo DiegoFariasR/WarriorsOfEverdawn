@@ -36,6 +36,7 @@ public partial class Lineup : Node3D
     // What --look-lineup shows for each thing it is given: the game's own figures, or this many drawn from a pool.
     private const string Cast = "cast";
     private const string Bare = ":bare";
+    private const string Tagged = "tags:";
     private const int RolledPerPool = 8;
 
     // How far in front of the row the weapon lies.
@@ -121,9 +122,10 @@ public partial class Lineup : Node3D
     };
 
     // Figures by what they are, each thing named giving one or more: "cast" the player, the enemies and the sellers
-    // as the game has them; a pool's name ("townsfolk", or "townsfolk@40" to start at that seed) eight figures
-    // drawn from it, each named by its seed; a character of the catalogue ("Druid") that character as it was made,
-    // with everything it can wear, or with nothing on ("Druid:bare").
+    // as the game has them; a pool's name ("townsfolk", or "townsfolk@40" to start at that seed), or a pool of the
+    // kit's tags ("tags:human/orc/warrior"), eight figures drawn from it, each named by its seed; a character of the
+    // catalogue ("Druid") that character as it was made, with everything it can wear, or with nothing on
+    // ("Druid:bare").
     public static Lineup OfLooks(IReadOnlyList<string> shown) => new(shown.SelectMany(Figures).ToList(), ArmourApart)
     {
         Name = "LookLineup",
@@ -141,11 +143,13 @@ public partial class Lineup : Node3D
         }
 
         string[] pool = shown.Split('@');
-        if (LookPools.All.Any(p => p.Name == pool[0]))
+        var drawn = LookPools.All.FirstOrDefault(p => p.Name == pool[0])
+            ?? (pool[0].StartsWith(Tagged, StringComparison.Ordinal) ? new LookPool(pool[0], pool[0][Tagged.Length..].Split('/', StringSplitOptions.RemoveEmptyEntries)) : null);
+        if (drawn != null)
         {
             int first = pool.Length > 1 ? int.Parse(pool[1], System.Globalization.CultureInfo.InvariantCulture) : 0;
             return Enumerable.Range(first, RolledPerPool)
-                .Select(seed => Standing($"{pool[0]} {seed}", LookRandomizer.Roll(CharacterBody.Catalog, LookPools.ByName(pool[0]), seed)));
+                .Select(seed => Standing($"{pool[0]} {seed}", LookRandomizer.Roll(CharacterBody.Catalog, CharacterBody.Tags, drawn, seed)));
         }
 
         var catalog = CharacterBody.Catalog;
@@ -153,7 +157,7 @@ public partial class Lineup : Node3D
         string origin = bare ? shown[..^Bare.Length] : shown;
         if (!catalog.Origins.Contains(origin))
         {
-            throw new ArgumentException($"'{shown}' is not '{Cast}', a pool ({string.Join(", ", LookPools.All.Select(p => p.Name))}) or a character of the catalogue");
+            throw new ArgumentException($"'{shown}' is not '{Cast}', a pool ({string.Join(", ", LookPools.All.Select(p => p.Name))}), '{Tagged}' and tags, or a character of the catalogue");
         }
 
         // As it was made: its faceless head with its face where it has one, and all it can wear.

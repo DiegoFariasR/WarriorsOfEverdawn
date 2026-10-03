@@ -156,7 +156,7 @@ public partial class Breakable : StaticBody3D, IStruck
 
         if (shown)
         {
-            var splinters = new Splinters(_piece.Meshes.FirstOrDefault()?.MaterialOverride, Transform, _piece.Size) { Name = $"{Name}Splinters" };
+            var splinters = new Splinters(Transform, _piece.Size) { Name = $"{Name}Splinters" };
             GetParent().AddChild(splinters);
         }
 
@@ -177,7 +177,14 @@ public partial class Splinters : Node3D
 
     private static readonly Color DustColour = new(0.62f, 0.56f, 0.48f, 0.7f);
 
-    private readonly Material? _wood;
+    // Chips are drawn in the crates' wood, a light plank and a dark one, and not in the kit's texture: that is a
+    // sheet of colour swatches, and a chip's box laid over the whole of it came out in every colour at once.
+    private static readonly StandardMaterial3D[] Wood =
+    {
+        new() { AlbedoColor = new Color(0.72f, 0.43f, 0.22f), Roughness = 0.9f },
+        new() { AlbedoColor = new Color(0.52f, 0.3f, 0.15f), Roughness = 0.9f },
+    };
+
     private readonly Transform3D _box;
     private readonly Vector3 _size;
     private readonly List<(MeshInstance3D Mesh, Vector3 Velocity, Vector3 Spin)> _chips = new();
@@ -186,9 +193,8 @@ public partial class Splinters : Node3D
     // Splinters on this machine at this moment, for the self-tests: each frees itself when it is over.
     public static int Alive { get; private set; }
 
-    public Splinters(Material? wood, Transform3D box, Vector3 size)
+    public Splinters(Transform3D box, Vector3 size)
     {
-        _wood = wood;
         _box = box;
         _size = size;
     }
@@ -214,7 +220,7 @@ public partial class Splinters : Node3D
             var chip = new MeshInstance3D
             {
                 Mesh = new BoxMesh { Size = new Vector3(random.RandfRange(0.15f, 0.4f), random.RandfRange(0.06f, 0.14f), random.RandfRange(0.3f, 0.7f)) },
-                MaterialOverride = _wood,
+                MaterialOverride = Wood[i % Wood.Length],
                 Position = at,
                 Rotation = new Vector3(random.Randf(), random.Randf(), random.Randf()) * Mathf.Tau,
             };

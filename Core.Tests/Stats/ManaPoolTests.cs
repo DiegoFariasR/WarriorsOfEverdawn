@@ -44,4 +44,17 @@ public class ManaPoolTests
     {
         Assert.Throws<ArgumentOutOfRangeException>(() => new ManaPool(-1));
     }
+
+    [Fact]
+    public void Raised_its_maximum_and_what_it_holds_grow_by_as_much()
+    {
+        var pool = new ManaPool(Max);
+        pool.TrySpend(Cost);
+
+        pool.Raise(Max + StatRules.ManaPerWis);
+
+        Assert.Equal(Max + StatRules.ManaPerWis, pool.Max);
+        Assert.Equal(Max - Cost + StatRules.ManaPerWis, pool.Current);
+        Assert.Throws<ArgumentOutOfRangeException>(() => pool.Raise(Max));
+    }
 }

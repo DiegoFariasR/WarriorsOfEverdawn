@@ -165,15 +165,19 @@ public partial class PlayerCharacter : CharacterBody3D
 
     public bool IsDowned { get; private set; }
 
-    public CharacterStats Stats { get; } = PlayerRules.KnightStats;
+    public CharacterStats Stats => Vitals.Stats;
 
-    public int MaxMana => StatRules.MaxMana(Stats);
-
-    // Owned by the player's own machine, which is where skills start.
+    // Owned by the player's own machine, which is where skills start. The pool grows with WIS the frame after a point
+    // goes into it.
     public int Mana => (int)_mana.Current;
+
+    public int MaxMana => _mana.Max;
 
     // Slower while chilled, as its run is.
     public float AttackSpeed => StatRules.AttackSpeed(Stats) * Vitals.Speed;
+
+    // AGI's share of MoveSpeed's speeds, less while chilled.
+    public float MoveSpeedFactor => StatRules.MoveSpeedFactor(Stats) * Vitals.Speed;
 
     // The weapon this machine shows the player holding; null with an empty hand.
     public WeaponDefinition? Weapon => _weapon;
@@ -378,6 +382,11 @@ public partial class PlayerCharacter : CharacterBody3D
         }
 
         _clock += (float)delta;
+        if (_mana.Max != StatRules.MaxMana(Stats))
+        {
+            _mana.Raise(StatRules.MaxMana(Stats));
+        }
+
         _mana.Regenerate(StatRules.ManaRegenPerSecond * (float)delta);
         Controls.Update(this, delta);
         if (IsResting)
@@ -454,7 +463,7 @@ public partial class PlayerCharacter : CharacterBody3D
         if (amount > 0f)
         {
             _legs = LegDirectionSelector.Select(Yaw.Of(move) - AimYaw, _legs).Direction;
-            velocity = move / move.Length() * MoveSpeed.For(_legs, ActiveSkill, _guard.IsUp ? _weapon?.Guard : null) * amount * Vitals.Speed;
+            velocity = move / move.Length() * MoveSpeed.For(_legs, ActiveSkill, _guard.IsUp ? _weapon?.Guard : null) * amount * MoveSpeedFactor;
         }
 
         // On ice it slides, as a skeleton does: it gains and loses speed slowly (GroundSurfaces).

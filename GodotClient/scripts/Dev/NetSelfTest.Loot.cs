@@ -57,13 +57,14 @@ public partial class NetSelfTest
         _drinkHealedMost = Mathf.Max(_drinkHealedMost, healed);
     }
 
-    // Souls only go to players in the game when a monster dies.
+    // Souls and XP only go to players in the game when a monster dies.
     private void CountDeathForLoot(EnemyCharacter enemy)
     {
         if (LocalPlayer() != null)
         {
             _deathsSinceHere++;
             _soulsSinceHere += enemy.Definition.Souls;
+            _xpSinceHere += enemy.Definition.Xp;
         }
     }
 

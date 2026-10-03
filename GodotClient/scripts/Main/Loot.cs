@@ -13,11 +13,11 @@ namespace WarriorsOfEverdawn.Main;
 // Something on the ground to be walked over: a pile of gold of Amount coins, a magic orb or a potion's charge (Amount 1).
 public sealed record GroundLoot(int Id, LootKind Kind, int Amount, Vector3 Position);
 
-// What monsters leave behind. The host decides all of it: every player gets a monster's souls as it dies; its gold
-// falls in a pile where it died, now and then with a magic orb or a charge of the health potion over it, and each
-// goes, when any player walks up to it, to every player. Co-op among friends, so nobody races anybody for it. A
-// charge is picked up only while someone has room for it, so none is wasted. Present on every machine at the same
-// path, for its RPCs. Design: Docs/Design/combat.md.
+// What monsters leave behind. The host decides all of it: every player gets a monster's souls and XP as it dies; its
+// gold falls in a pile where it died, now and then with a magic orb or a charge of the health potion over it, and each
+// goes, when any player walks up to it, to every player. Co-op among friends, so nobody races anybody for it. A charge
+// is picked up only while someone has room for it, so none is wasted. Present on every machine at the same path, for
+// its RPCs. Design: Docs/Design/combat.md.
 public partial class Loot : Node3D
 {
     public const string NodeName = "Loot";
@@ -138,6 +138,7 @@ public partial class Loot : Node3D
         foreach (var player in PlayerCharacter.All(GetTree()))
         {
             player.Vitals.EarnSouls(enemy.Definition.Souls);
+            player.Vitals.EarnXp(enemy.Definition.Xp);
         }
 
         var at = enemy.GlobalPosition;

@@ -4,10 +4,11 @@ namespace WarriorsOfEverdawn.Core.Locomotion;
 
 public static class MoveSpeed
 {
-    public const float Run = 5.5f;
+    // A body's of no AGI: AGI adds its share (StatRules.MoveSpeedFactor), so the Knight's 8 runs at 5.5.
+    public const float Run = 5f;
 
     // KayKit has no running-backwards clip, so backpedalling uses the walk clip at walk pace.
-    public const float Backpedal = 2.5f;
+    public const float Backpedal = 2.25f;
 
     public static float For(LegDirection direction) => direction == LegDirection.Backward ? Backpedal : Run;
 

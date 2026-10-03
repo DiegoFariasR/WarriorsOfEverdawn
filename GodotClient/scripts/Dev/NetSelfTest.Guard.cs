@@ -2,6 +2,7 @@ using System.Linq;
 using Godot;
 using WarriorsOfEverdawn.Core.Combat;
 using WarriorsOfEverdawn.Core.Locomotion;
+using WarriorsOfEverdawn.Core.Stats;
 using WarriorsOfEverdawn.Enemy;
 using WarriorsOfEverdawn.Player;
 using WarriorsOfEverdawn.Util;
@@ -67,7 +68,7 @@ public partial class NetSelfTest
         if (_wasGuarding && local.Weapon is { } weapon)
         {
             _guardFrames++;
-            float limit = MoveSpeed.Run * weapon.Guard.MoveSpeedFactor;
+            float limit = MoveSpeed.Run * weapon.Guard.MoveSpeedFactor * StatRules.MoveSpeedFactor(local.Stats);
             _guardSpeedShareMax = Mathf.Max(_guardSpeedShareMax, Yaw.Flat(local.NetVelocity).Length() / limit);
         }
 

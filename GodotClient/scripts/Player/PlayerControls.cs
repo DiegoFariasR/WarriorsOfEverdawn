@@ -65,6 +65,7 @@ public sealed class HumanControls : IPlayerControls
     private readonly ArenaCamera _camera;
     private bool _usingPad;
     private Vector2 _lastMouse;
+    private bool _clickingHud;
 
     public HumanControls(ArenaCamera camera)
     {
@@ -120,9 +121,17 @@ public sealed class HumanControls : IPlayerControls
         GuardHeld = Input.IsActionPressed("guard");
         DropPressed = Input.IsActionJustPressed("weapon_drop");
         PickUpPressed = Input.IsActionJustPressed("weapon_pickup");
+        // A click on one of the HUD's buttons (a point to spend) is no swing, for as long as it is held.
+        if (Input.IsActionJustPressed("attack"))
+        {
+            _clickingHud = player.GetViewport().GuiGetHoveredControl() is BaseButton;
+        }
+
+        _clickingHud &= Input.IsActionPressed("attack");
+
         // The secondary wins when both are held, so holding the primary never blocks a Spin.
         SkillHeld = Input.IsActionPressed("attack_secondary") ? PlayerCharacter.Secondary
-            : Input.IsActionPressed("attack") ? PlayerCharacter.Primary
+            : Input.IsActionPressed("attack") && !_clickingHud ? PlayerCharacter.Primary
             : null;
         if (_camera.Mode.FollowsFacing())
         {

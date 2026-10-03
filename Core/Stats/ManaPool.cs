@@ -16,7 +16,7 @@ public sealed class ManaPool
         Current = max;
     }
 
-    public int Max { get; }
+    public int Max { get; private set; }
 
     public float Current { get; private set; }
 
@@ -34,4 +34,16 @@ public sealed class ManaPool
     }
 
     public void Regenerate(float amount) => Current = Math.Min(Max, Current + amount);
+
+    // WIS rose: the pool and what is in it grow by as much.
+    public void Raise(int max)
+    {
+        if (max < Max)
+        {
+            throw new ArgumentOutOfRangeException(nameof(max), max, $"Max mana only rises, and it is {Max}");
+        }
+
+        Current += max - Max;
+        Max = max;
+    }
 }

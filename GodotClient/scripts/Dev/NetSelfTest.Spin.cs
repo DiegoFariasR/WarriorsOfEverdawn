@@ -3,6 +3,7 @@ using Godot;
 using WarriorsOfEverdawn.Core;
 using WarriorsOfEverdawn.Core.Combat;
 using WarriorsOfEverdawn.Core.Locomotion;
+using WarriorsOfEverdawn.Core.Stats;
 using WarriorsOfEverdawn.Player;
 using WarriorsOfEverdawn.Util;
 
@@ -55,7 +56,7 @@ public partial class NetSelfTest
             float speed = Yaw.Flat(slowing.local.NetVelocity).Length();
             _spinFrames++;
             _spinMaxSpeed = Mathf.Max(_spinMaxSpeed, speed);
-            _spinSpeedLimit = MoveSpeed.Run * slowing.skill.MoveSpeedFactor;
+            _spinSpeedLimit = MoveSpeed.Run * slowing.skill.MoveSpeedFactor * StatRules.MoveSpeedFactor(slowing.local.Stats);
             if (speed > 0.1f)
             {
                 _spinMovingFrames++;

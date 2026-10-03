@@ -12,7 +12,8 @@ using WarriorsOfEverdawn.Util;
 namespace WarriorsOfEverdawn.Player;
 
 // What the host keeps for a player, even though the player's movement is owned by its own peer: its HP, the armour it
-// wears, its health potion, and the gold, souls and magic orbs it has earned and not yet spent.
+// wears, its health potion, the gold, souls and magic orbs it has earned and not yet spent, and its level, XP and
+// stats, which every machine reads (the host its damage, its own machine its mana and run).
 public partial class PlayerVitals : Node
 {
     // A hit of no damage type: the game's own.
@@ -21,12 +22,15 @@ public partial class PlayerVitals : Node
     private static readonly Color BlockColor = new(0.8f, 0.88f, 1f);
     private static readonly Color HealColor = new(0.45f, 1f, 0.45f);
 
+    private const float LevelUpScale = 1.4f;
+
     private readonly Health _health = new(PlayerRules.MaxHp);
     private readonly Purse _purse = new();
     private readonly ArmourWear _wear = new();
     private readonly BarrierPool _barrier = new(Weapons.Barrier.Barrier!);
     private readonly StatusBars _status = new();
     private readonly HealthPotion _potion = new();
+    private readonly Progress _progress = new(PlayerRules.KnightStats);
 
     [Export]
     public int Hp { get; set; } = PlayerRules.MaxHp;
@@ -57,6 +61,28 @@ public partial class PlayerVitals : Node
     [Export]
     public int StatusMask { get; set; }
 
+    [Export]
+    public int Level { get; set; } = LevelRules.FirstLevel;
+
+    // Toward the next level.
+    [Export]
+    public int Xp { get; set; }
+
+    // Points to put into a stat, one a level.
+    [Export]
+    public int Points { get; set; }
+
+    [Export]
+    public int Str { get; set; } = PlayerRules.KnightStats.Str;
+
+    [Export]
+    public int Wis { get; set; } = PlayerRules.KnightStats.Wis;
+
+    [Export]
+    public int Agi { get; set; } = PlayerRules.KnightStats.Agi;
+
+    public CharacterStats Stats => new(Str, Wis, Agi);
+
     public Statuses Statuses => (Statuses)StatusMask;
 
     // Frozen or stunned: it neither moves nor acts.
@@ -85,6 +111,9 @@ public partial class PlayerVitals : Node
     // On every machine: this player drank a charge of its potion, which healed that much.
     public static event Action<PlayerCharacter, int>? Drank;
 
+    // On every machine: this player reached that level.
+    public static event Action<PlayerCharacter, int>? LeveledUp;
+
     // Host only: whether its potion has no room for another charge.
     public bool PotionFull => _potion.IsFull;
 
@@ -96,7 +125,8 @@ public partial class PlayerVitals : Node
         var config = new SceneReplicationConfig().Sending(
             SceneReplicationConfig.ReplicationMode.OnChange,
             PropertyName.Hp, PropertyName.Gold, PropertyName.Souls, PropertyName.Orbs, PropertyName.Armour, PropertyName.Barrier, PropertyName.StatusMask,
-            PropertyName.PotionCharges);
+            PropertyName.PotionCharges, PropertyName.Level, PropertyName.Xp, PropertyName.Points, PropertyName.Str, PropertyName.Wis,
+            PropertyName.Agi);
         vitals.AddChild(new MultiplayerSynchronizer { Name = "Sync", ReplicationConfig = config });
         return vitals;
     }
@@ -252,6 +282,64 @@ public partial class PlayerVitals : Node
     {
         _purse.EarnOrbs(amount);
         Orbs = _purse.Orbs;
+    }
+
+    // Host only.
+    public void EarnXp(int amount)
+    {
+        int gained = _progress.Earn(amount);
+        ShowProgress();
+        if (gained > 0)
+        {
+            Rpc(MethodName.ShowLevelUp, Level);
+        }
+    }
+
+    // Host only, as the player joins, for --start-xp: no machine is there yet to see the levels it reaches.
+    public void StartWithXp(int amount)
+    {
+        _progress.Earn(amount);
+        ShowProgress();
+    }
+
+    // From the player's own machine: a point into the stat.
+    public void Raise(Stat stat) => RpcId(1, MethodName.RequestRaise, (int)stat);
+
+    // The host refuses it without a word when there is no point left, as there is not when a second click comes before
+    // the first one's answer.
+    [Rpc(MultiplayerApi.RpcMode.AnyPeer, CallLocal = true, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
+    private void RequestRaise(int stat)
+    {
+        long sender = Multiplayer.Sender();
+        if (!Multiplayer.IsServer() || sender != Player.PeerId || !Enum.IsDefined((Stat)stat))
+        {
+            GD.PushError($"[Vitals {Player.Name}] stat {stat} raised by peer {sender} on peer {Multiplayer.GetUniqueId()}: only the player raises its own, of STR, WIS or AGI, and only the host decides");
+            return;
+        }
+
+        if (_progress.Spend((Stat)stat))
+        {
+            ShowProgress();
+        }
+    }
+
+    private void ShowProgress()
+    {
+        Level = _progress.Level;
+        Xp = _progress.Xp;
+        Points = _progress.Points;
+        (Str, Wis, Agi) = (_progress.Stats.Str, _progress.Stats.Wis, _progress.Stats.Agi);
+    }
+
+    [Rpc(MultiplayerApi.RpcMode.Authority, CallLocal = true, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
+    private void ShowLevelUp(int level)
+    {
+        if (SeenFloating)
+        {
+            FloatingText.Spawn(Player, $"Level {level}!", UiTheme.GoldHi, scale: LevelUpScale);
+        }
+
+        LeveledUp?.Invoke(Player, level);
     }
 
     // Host only: the player, `distance` from a seller, asks for this. Its cost is taken when it goes through.

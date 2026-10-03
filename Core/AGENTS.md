@@ -10,7 +10,7 @@ A rule belongs in Core when it can be decided from numbers alone: who is hit by 
 |---|---|
 | `Combat/` | Skill and enemy definitions (`Skills`, `Enemies`, `PlayerRules`), hit arcs (`MeleeArc`), hit timing at attack speed (`CombatTiming`), cooldowns, stagger, health, enemy AI decisions (`EnemyBrain`) |
 | `Locomotion/` | Leg direction selection, move speeds, turn rate, dash rules and charges |
-| `Stats/` | STR / WIS / AGI and what they drive (`StatRules`), mana |
+| `Stats/` | STR / WIS / AGI and what they drive (`StatRules`), mana, levels and the points they give (`LevelRules`, `Progress`) |
 | `Characters/` | The pools this game draws random figures from (`LookPools`). The catalogue, a look and the randomizer are the kit's (`GodotClient/kit/core`, namespace `EverdawnKit.Characters`), which Core references |
 | `Level/` | The map's floors, told from a height (`Floors`), and the level layout and its parser (`LevelLayout`) |
 | `Loot/` | What monsters leave (`LootKind`, `GoldDrop`, `LootRules`: pickup, orb chances, how a gold pile looks), costs (`Cost`) and what a player has earned (`Purse`) |

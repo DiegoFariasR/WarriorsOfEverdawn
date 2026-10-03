@@ -121,10 +121,12 @@ public partial class CameraSelfTest : Node
         var screen = new Rect2(Vector2.Zero, GetViewport().GetVisibleRect().Size).Grow(-ScreenMargin);
         var frame = _hud.PlayerFrame.GetGlobalRect();
         var skills = _hud.SkillBar.GetGlobalRect();
-        bool passed = frame.HasArea() && skills.HasArea()
-            && screen.Encloses(frame) && screen.Encloses(skills) && !frame.Intersects(skills);
+        var xp = _hud.XpBar.GetGlobalRect();
+        bool passed = frame.HasArea() && skills.HasArea() && xp.HasArea()
+            && screen.Encloses(frame) && screen.Encloses(skills) && screen.Encloses(xp)
+            && !frame.Intersects(skills) && !frame.Intersects(xp) && !skills.Intersects(xp);
         GD.Print($"[layout-check] screen={screen.Size.X + 2 * ScreenMargin:F0}x{screen.Size.Y + 2 * ScreenMargin:F0} "
-            + $"player_frame={Describe(frame)} skill_bar={Describe(skills)} {(passed ? "ok" : "FAIL")}");
+            + $"player_frame={Describe(frame)} skill_bar={Describe(skills)} xp_bar={Describe(xp)} {(passed ? "ok" : "FAIL")}");
         return passed;
     }
 

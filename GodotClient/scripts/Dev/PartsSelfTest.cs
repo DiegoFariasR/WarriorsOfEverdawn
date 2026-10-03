@@ -109,7 +109,7 @@ public partial class PartsSelfTest : Node
             {
                 try
                 {
-                    var look = LookRandomizer.Roll(catalog, pool, seed);
+                    var look = LookRandomizer.Roll(catalog, CharacterBody.Tags, pool, seed);
                     CharacterBody.Dress(skeleton, look);
                     keys.Add(look.Key);
                     if (CharacterBody.Worn(skeleton) != look.Key)

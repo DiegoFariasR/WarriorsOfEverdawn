@@ -47,7 +47,7 @@ Screenshots (real renderer; off-screen, minimized, unfocused window):
                                      at that height (4 a storey up, -4 the crypt); or a marker: crypt, upstairs:1
                     --orb-chance P   every monster leaves a magic orb P of the time (0 to 1) instead of rarely
                     --potion-chance P   every monster leaves a potion's charge P of the time instead of rarely
-                    --start-gold N   --start-orbs N   --start-armour TIER   the bot starts with that much
+                    --start-gold N   --start-orbs N   --start-xp N   --start-armour TIER   the bot starts with that much
                     --start-spent   the bot starts at a third of its HP, its potion empty and no mana
                     --trade-drill   the bot trades with the seller it starts beside
                     --town-drill    the bot breaks a crate, sits on a bench and lies on a bed
@@ -67,7 +67,8 @@ Measurements:
 Assets:
   look-lineup       Figures in a row, seen from the front; saves _staging/look-lineup.png. [cast] is the player,
                     the enemies and the sellers; [townsfolk] or [skeletons] eight figures drawn at random from that
-                    pool ([townsfolk@40] from seed 40 on); [Druid,Witch] those characters as they were made
+                    pool ([townsfolk@40] from seed 40 on); [tags:human/peasant] eight from a pool of the kit's
+                    tags (GodotClient/kit/config/part_tags.json); [Druid,Witch] those characters as they were made
                     ([Druid:bare] with nothing on)
   ring-lineup       The rings a thrust lays and arrows leave, side on, three moments apart; saves
                     _staging/ring-lineup-1.png to -3.png
@@ -280,7 +281,7 @@ co_op_session() {
     local damage_taken_total=0 lunge_hits_total=0 hangings_faded_total=0 spin_dashes_kept=0 spin_dash_tests=0 spin_dashes_seen=0 one_handed_runners=0 channelled="" log
     for log in $(session_logs); do
         local file="$logs/$log.log"
-        grep -E '^\[(net-check|combat-check|combat-host|anim-check|turn-check|head-check|carry-check|speed-check|skill-check|trail-check|reach-check|flash-check|ui-check|dash-check|spin-dash-check|lunge-check|pickup-check|loot-check|map-check|bot-check|ranged-check|guard-check|status-check|status-host)\]' "$file" | sed "s/^/$log: /"
+        grep -E '^\[(net-check|combat-check|combat-host|anim-check|turn-check|head-check|carry-check|speed-check|skill-check|trail-check|reach-check|flash-check|ui-check|dash-check|spin-dash-check|lunge-check|pickup-check|loot-check|map-check|bot-check|ranged-check|guard-check|status-check|status-host|level-check)\]' "$file" | sed "s/^/$log: /"
 
         local passing
         passing=$(awk '/^\[net-check\]/ {
@@ -335,8 +336,8 @@ co_op_session() {
             "character turned faster than its limit, or the limit never came into play" || failed=1
         gate "$log" "$file" head-check '(v["player_head"] - v["head_expected"]) ^ 2 < 0.0001 && (v["enemy_head"] - v["head_expected"]) ^ 2 < 0.0001 && (v["enemy_headgear"] - v["headgear_expected"]) ^ 2 < 0.0001' \
             "head or headgear meshes not at Everdawn's scales on players and skeletons" || failed=1
-        # Clip seconds per real second while swings play, against the player's attack speed.
-        gate "$log" "$file" speed-check 'v["samples"] + 0 >= 20 && (v["swing_playback_rate"] - v["expected"]) ^ 2 < 0.01' \
+        # Clip seconds per real second while swings play, as a share of the player's attack speed at the time.
+        gate "$log" "$file" speed-check 'v["samples"] + 0 >= 20 && (v["swing_playback_share"] - 1) ^ 2 < 0.002' \
             "swings not playing at the attack speed" || failed=1
         # Spin: used and landing; the player moves while spinning but never above Spin's share of run speed; and the
         # body turns one revolution per cycle in game while the spin plays at full strength (measured 1.00;
@@ -399,6 +400,12 @@ co_op_session() {
         # game, and every one has reached the player or is still on its way.
         gate "$log" "$file" loot-check 'v["souls_risen"] + 0 >= 1 && v["souls_taken_in"] + 0 >= 1 && v["souls_risen"] + 0 == v["souls_died_here"] + 0 && v["souls_risen"] + 0 == v["souls_taken_in"] + v["souls_flying"]' \
             "no soul seen rising for a monster that died, none reaching the player, or one lost on the way" || failed=1
+        # Levels: every player levels up as monsters die and every machine sees it; each bot puts its points into STR, WIS
+        # and AGI in turn with the HUD's buttons, and every player's stats are its start and a point a level, less those
+        # it has yet to put in; the mana pool is as big as WIS makes it, catching up in the physics step after each point
+        # goes in; the HUD shows the level, XP and points.
+        gate "$log" "$file" level-check 'v["level"] + 0 >= 2 && v["level_ups_here"] + 0 >= 1 && v["level_ups_seen"] + 0 >= v["players"] + 0 && v["raises_clicked"] + 0 >= 1 && v["stats_gained"] + 0 == v["level"] - 1 - v["points"] && v["progress_mismatch_frames"] + 0 == 0 && v["hud_mismatch_frames"] + 0 == 0 && v["mana_max_late_frames"] + 0 == 0 && v["mana_max"] + 0 == v["wis"] * v["mana_per_wis"]' \
+            "no level reached or seen, points not spent or not where they went, the mana pool not growing with WIS, or the HUD showing other than the player has" || failed=1
 
         # A dash thrown with the attack button carries a thrust: every bot lunges, every machine sees it, the thrust's hit
         # window closes within two physics frames of the dash ending, and the weapon then reaches as far as the lunge's range.
@@ -456,6 +463,11 @@ co_op_session() {
     # and the gold collected (never more than fell), and one soul for every monster it saw die.
     gate host "$logs/host.log" loot-check 'v["gold_here"] + 0 == v["gold_start"] + v["gold_collected"] && v["gold_collected"] + 0 <= v["gold_dropped"] + 0 && v["orbs_here"] + 0 == v["orbs_collected"] + 0 && v["souls_here"] + 0 == v["deaths_since_here"] + 0' \
         "the host's player has other gold than was collected, or other souls than monsters died" || failed=1
+
+    # The host decides XP, and its player is there from the first monster: its XP, from the first level, is every
+    # monster's it saw die.
+    gate host "$logs/host.log" level-check 'v["xp_total"] + 0 == v["xp_died_here"] + 0' \
+        "the host's player has other XP than the monsters that died gave" || failed=1
 
     # The host decides arrow hits; bots keep moving, but arrows still find them (8 of 11 in the first run).
     gate host "$logs/host.log" ranged-check 'v["arrow_hits"] + 0 >= 1' "no arrow hit a player" || failed=1
@@ -1064,6 +1076,7 @@ screenshot() {
             --potion-chance) args+=(--potion-chance "$2"); shift 2 ;;
             --start-gold) args+=(--start-gold "$2"); shift 2 ;;
             --start-orbs) args+=(--start-orbs "$2"); shift 2 ;;
+            --start-xp) args+=(--start-xp "$2"); shift 2 ;;
             --start-armour) args+=(--start-armour "$2"); shift 2 ;;
             --start-spent) args+=(--start-spent); shift ;;
             --trade-drill) args+=(--trade-drill); shift ;;

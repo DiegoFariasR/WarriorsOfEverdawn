@@ -22,7 +22,7 @@ public partial class NetSelfTest
     private const float SignificantTwist = 20f * Mathf.Pi / 180f;
 
     private readonly Dictionary<LegDirection, (float Sum, int Count)> _torsoSignedByLegs = new();
-    private readonly List<float> _swingRates = new();
+    private readonly List<float> _swingShares = new();
     private float _torsoErrorSum;
     private float _torsoErrorMax;
     private int _torsoSamples;
@@ -58,7 +58,7 @@ public partial class NetSelfTest
         float withoutTwist = _twistedSamples > 0 ? _untwistedErrorSum / _twistedSamples : float.NaN;
         GD.Print($"[anim-check] me={me} torso_vs_aim_mean_deg={Mathf.RadToDeg(mean):F1} torso_vs_aim_max_deg={Mathf.RadToDeg(_torsoErrorMax):F1} samples={_torsoSamples} "
             + $"twist_samples={_twistedSamples} with_twist_deg={Mathf.RadToDeg(withTwist):F1} without_twist_deg={Mathf.RadToDeg(withoutTwist):F1} signed_by_legs={byLegs}");
-        GD.Print($"[speed-check] me={me} ground_speed={_groundSpeeds} swing_playback_rate={Median(_swingRates):F2} expected={LocalPlayer()?.AttackSpeed:F2} samples={_swingRates.Count}");
+        GD.Print($"[speed-check] me={me} ground_speed={_groundSpeeds} swing_playback_share={Median(_swingShares):F3} samples={_swingShares.Count}");
         GD.Print($"[head-check] me={me} head_expected={CharacterBody.HeadScale:F3} headgear_expected={CharacterBody.HeadgearScale:F3} "
             + $"player_head={_playerHead:F3} enemy_head={_enemyHead:F3} enemy_headgear={_enemyHeadgear:F3}");
         GD.Print($"[carry-check] me={me} hands_apart_running={Median(_handsApartRunning):F2} samples={_handsApartRunning.Count} "
@@ -151,8 +151,9 @@ public partial class NetSelfTest
         float position = local.Animator.AttackClipPosition;
         if (_lastSwingPosition is { } last && position > last && position < local.Animator.AttackClipLength - 0.001f)
         {
-            // As a share of what the skill plays at of itself, so a quick skill reads as the attack speed too.
-            _swingRates.Add((position - last) / delta / (local.ActiveSkill?.SwingSpeed ?? 1f));
+            // As a share of what the skill plays at of itself, so a quick skill reads as the attack speed too, and of
+            // the attack speed of the moment: AGI rises as points go into it.
+            _swingShares.Add((position - last) / delta / (local.ActiveSkill?.SwingSpeed ?? 1f) / local.AttackSpeed);
         }
 
         _lastSwingPosition = position;

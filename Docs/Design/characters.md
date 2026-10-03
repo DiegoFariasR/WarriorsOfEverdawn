@@ -63,18 +63,22 @@ A look may name a palette: one of the textures of `kit/textures/characters/`, by
 
 ## Random figures
 
-The kit's `LookRandomizer.Roll(catalogue, pool, seed)` puts a figure together the way Everdawn's character creator randomizes one.
+The kit's `LookRandomizer.Roll(catalogue, tags, pool, seed)` puts a figure together the way Everdawn's character creator randomizes one, from the parts and palettes a pool's tags fit.
 
-- A head, a body, a pair of arms and a pair of legs, each from any character of the pool; arms and legs always as pairs.
+- **Tags** are the kit's (`GodotClient/kit/config/part_tags.json`, the kit's README, "Tags"), the same in both games. Like the subtypes of a creature card, each is a race (`human`, `skeleton`, `orc`), an outfit (`heavy-armour`, `medium-armour`, `light-armour`, `robes`, `peasant`, `noble`), the limbs (`full-armour`) or, now and then, a setting (`christmas`, `modern`). A race is in the head, so a human wears anyone's clothes; a bodily race (`skeleton`, `plant`, `werewolf`...) is in every part, so a skeleton is bones throughout. An outfit is on the body and what is worn over it, `full-armour` on the arms and legs. A part has its character's tags unless it has its own: the Driver is `human`, `modern`, and its head only `human`. Every setting (`modern`, `space`, `christmas`, `anime`, `prehistoric`, `template`) is out of both games' theme and excluded: nothing that has one is ever drawn. A face that is anyone's keeps its race without its character's setting (the Caveman's, Santa's).
+- **A pool** names tags, read as a search of cards by subtype: of each kind it names, one of its tags. `human, skeleton` draws either race, `human, peasant` a human in a peasant's clothes.
+- A head, a body, a pair of arms and a pair of legs, each drawn on its own from the parts the pool fits; arms and legs always as pairs of one character.
 - The face is the head's own: a faceless head with its character's face, a skull with its eyes and jaw. A character's whole head is never drawn when it has a faceless one, which is the same head.
 - By chance (a half each, set per pool) one thing on the head and one thing carried.
-- One palette of the pool's for the whole figure.
+- One palette the pool fits for the whole figure.
 - **The same seed gives the same figure on every machine**, so a host need only send the seed.
 
-| Pool (`Core/Characters/LookPools`) | Drawn from | Palettes |
+| Pool (`Core/Characters/LookPools`) | Tags | What that draws |
 |---|---|---|
-| `townsfolk` | Knight, Barbarian, Mage, Rogue, hooded Rogue, Ranger, Druid, Engineer, Cleric, Lorekeeper, the farmers | The adventurers' textures and their three alternates each |
-| `skeletons` | Skeleton minion, warrior, rogue, mage | The two skeleton textures |
+| `townsfolk` | `human` in `peasant`, `noble`, `robes` or `light-armour`, without `full-armour` | Any human face; the clothes of the farmers, the robed (Mage, Cleric, Druid, Lorekeeper, Witch, Necromancer, the Vampire's) and the lightly armoured (Barbarian, Rogue, hooded Rogue, Ranger, Engineer, Hoarder, Ninja, the Avian's, the Orc's); any arms and legs but plate; in their colours. No knights |
+| `skeletons` | `skeleton` | Skeleton minion, warrior, rogue, mage, in the two skeleton textures |
+
+`./dev.sh look-lineup tags:human/orc/light-armour` draws eight figures from any tags, to see what they give.
 
 A few parts are never drawn on their own (`PartsCatalog.IsHidden`, the list Everdawn's character creator hides too): they belong to another part or do not sit right on a figure they were not made for. Parts of the large rig are never drawn either.
 
@@ -84,7 +88,7 @@ A few parts are never drawn on their own (`PartsCatalog.IsHidden`, the list Ever
 
 `EverdawnKit` is a repository of its own, mounted in both games as a git submodule at `GodotClient/kit`, so both read the same files at the same engine paths (`res://kit/...`). Its `README.md` says what is in it and how a game uses it.
 
-- **From it:** the part models with their import files, the palette textures, the catalogue and the tool that writes it, the bare skeleton, the outline shader, the engine-free code (`kit/core`: catalogue, look, randomizer, head sizes) and the Godot-side code (`kit/godot`: `CharacterBody`, `ToonLook`).
+- **From it:** the part models with their import files, the palette textures, the catalogue and the tool that writes it, the bare skeleton, the outline shader, the engine-free code (`kit/core`: catalogue, tags, look, randomizer, head sizes) and the Godot-side code (`kit/godot`: `CharacterBody`, `ToonLook`).
 - **This game's:** who looks like what, the pools, armour as a change of parts, and everything a figure holds and does.
 - `Core` references `kit/core` as a project. The Godot project compiles `kit/godot` in as source: Godot does not find node scripts in another assembly. `kit/core` and `kit/tests` are left out of it (`WarriorsOfEverdawn.csproj`).
 - A clone needs `git submodule update --init`; `./dev.sh build` says so when the kit is missing.

@@ -17,25 +17,28 @@ public class LookPoolsTests
 
     private static readonly PartsCatalog Catalog = PartsCatalog.Parse(File.ReadAllText(Path.Combine(Kit, "config", "parts_catalog.json")), "parts_catalog.json");
 
+    private static readonly PartTags Tags = PartTags.Parse(File.ReadAllText(Path.Combine(Kit, "config", "part_tags.json")), "part_tags.json", Catalog);
+
     [Fact]
-    public void EveryPoolNamesCharactersOfTheCatalogueAndPalettesThatAreThere()
+    public void EveryPoolNamesTagsOfTheKitAndThePoolsHaveNamesOfTheirOwn()
     {
-        Assert.All(LookPools.All, pool =>
-        {
-            Assert.All(pool.Origins, origin => Assert.Contains(origin, Catalog.Origins));
-            Assert.All(pool.Palettes, palette => Assert.True(File.Exists(Path.Combine(Kit, "textures", "characters", palette + ".png")), palette));
-        });
+        Assert.Empty(Tags.Warnings);
+        Assert.All(LookPools.All, pool => Assert.All(pool.Tags.Concat(pool.Without), tag => Tags.KindOf(tag)));
         Assert.Equal(LookPools.All.Count, LookPools.All.Select(p => p.Name).Distinct().Count());
     }
 
     [Fact]
-    public void EveryPoolGivesFiguresOfItsOwnCharactersAndManyDifferentOnes()
+    public void EveryPoolGivesFiguresOfItsOwnTagsInColoursOfThemAndManyDifferentOnes()
     {
         Assert.All(LookPools.All, pool =>
         {
-            var looks = Enumerable.Range(0, Rolled).Select(seed => LookRandomizer.Roll(Catalog, pool, seed)).ToList();
+            var looks = Enumerable.Range(0, Rolled).Select(seed => LookRandomizer.Roll(Catalog, Tags, pool, seed)).ToList();
 
-            Assert.All(looks, look => Assert.All(look.Parts().SelectMany(p => Catalog.Pieces(p.Part)), part => Assert.Contains(part.Origin, pool.Origins)));
+            Assert.All(looks, look =>
+            {
+                Assert.All(look.Parts().SelectMany(p => Catalog.Pieces(p.Part)), part => Assert.True(Tags.Fits(part, pool), part.Stem));
+                Assert.True(look.Palette != null && Tags.FitsPalette(look.Palette, pool), look.Palette);
+            });
             Assert.True(looks.Select(l => l.Key).Distinct().Count() > Rolled / 2, pool.Name);
         });
     }

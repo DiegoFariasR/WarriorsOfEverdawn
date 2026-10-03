@@ -22,6 +22,9 @@ public static class UiTheme
     // This game's own, for souls wherever they are counted.
     public static readonly Color SoulText = new(0.72f, 0.9f, 1f);
 
+    // This game's own too: Everdawn has no XP bar.
+    public static readonly Color BarXp = new(0.56f, 0.36f, 0.82f);
+
     private static FontVariation? _words;
     private static FontFile? _numbers;
 

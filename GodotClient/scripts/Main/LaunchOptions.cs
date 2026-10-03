@@ -128,6 +128,9 @@ public sealed record LaunchOptions
 
     public int StartOrbs { get; init; }
 
+    // Host only, for trying levels: every player starts with this much XP, and the levels and points it brings.
+    public int StartXp { get; init; }
+
     // Host only, for trying armour: every player starts wearing this tier.
     public int StartArmour { get; init; }
 
@@ -199,6 +202,7 @@ public sealed record LaunchOptions
                 "--potion-chance" => options with { PotionChance = ChanceAfter(args, ref i) },
                 "--start-gold" => options with { StartGold = PositiveIntAfter(args, ref i) },
                 "--start-orbs" => options with { StartOrbs = PositiveIntAfter(args, ref i) },
+                "--start-xp" => options with { StartXp = PositiveIntAfter(args, ref i) },
                 "--start-armour" => options with { StartArmour = ArmourTierAfter(args, ref i) },
                 "--start-spent" => options with { StartSpent = true },
                 "--trade-drill" => options with { TradeDrill = true },

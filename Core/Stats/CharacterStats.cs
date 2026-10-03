@@ -5,10 +5,28 @@ using WarriorsOfEverdawn.Core.Combat;
 
 namespace WarriorsOfEverdawn.Core.Stats;
 
-public readonly record struct CharacterStats(int Str, int Wis, int Agi);
+public enum Stat
+{
+    Str,
+    Wis,
+    Agi,
+}
+
+public readonly record struct CharacterStats(int Str, int Wis, int Agi)
+{
+    public int Total => Str + Wis + Agi;
+
+    public CharacterStats Raised(Stat stat) => stat switch
+    {
+        Stat.Str => this with { Str = Str + 1 },
+        Stat.Wis => this with { Wis = Wis + 1 },
+        Stat.Agi => this with { Agi = Agi + 1 },
+        _ => throw new ArgumentOutOfRangeException(nameof(stat), stat, "No such stat"),
+    };
+}
 
 // First-pass stat effects, to be elaborated: STR scales a weapon's damage and WIS a spell's, AGI scales attack
-// speed, WIS sets max mana.
+// speed and run speed, WIS sets max mana.
 public static class StatRules
 {
     // Everdawn's GameBalance.MpPerWis.
@@ -17,6 +35,7 @@ public static class StatRules
     public const float DamagePerStr = 0.025f;
     public const float DamagePerWis = 0.05f;
     public const float AttackSpeedPerAgi = 0.0125f;
+    public const float MoveSpeedPerAgi = 0.0125f;
     public const float ManaRegenPerSecond = 5f;
 
     public static int MaxMana(CharacterStats stats) => stats.Wis * ManaPerWis;
@@ -66,4 +85,7 @@ public static class StatRules
 
     public static float AttackSpeed(CharacterStats stats) =>
         CombatTiming.BaseAttackSpeed * (1f + stats.Agi * AttackSpeedPerAgi);
+
+    // A share of MoveSpeed's speeds, which are a body's of no AGI, in every direction.
+    public static float MoveSpeedFactor(CharacterStats stats) => 1f + stats.Agi * MoveSpeedPerAgi;
 }

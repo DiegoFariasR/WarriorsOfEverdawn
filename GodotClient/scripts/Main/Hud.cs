@@ -3,14 +3,16 @@ using System.Linq;
 using Godot;
 using WarriorsOfEverdawn.Core.Combat;
 using WarriorsOfEverdawn.Core.Locomotion;
+using WarriorsOfEverdawn.Core.Stats;
 using WarriorsOfEverdawn.Player;
 using WarriorsOfEverdawn.Theme;
 using WarriorsOfEverdawn.Util;
 
 namespace WarriorsOfEverdawn.Main;
 
-// Local player's frame (top left: name, HP, mana, stats), skill bar (bottom centre), mode notices (top centre) and
-// the overhead bars on skeletons and other players, in Everdawn's style. Layout is first-pass. Design: Docs/Design/ui.md.
+// Local player's frame (top left: name, HP, mana, stats and the points to put into them), skill bar and XP bar (bottom
+// centre), mode notices (top centre) and the overhead bars on skeletons and other players, in Everdawn's style. Layout
+// is first-pass. Design: Docs/Design/ui.md.
 public partial class Hud : CanvasLayer
 {
     private const float NoticeTime = 2.5f;
@@ -21,9 +23,17 @@ public partial class Hud : CanvasLayer
     private const float Margin = 16f;
     private const float BarWidth = 260f;
     private const float SlotHeight = 62f;
+    private const float XpBarHeight = 14f;
 
     // The player frame's border and margins either side of its bars.
     private const float FramePadding = 28f;
+
+    // In the order of Stat, which a point raises.
+    private static readonly string[] StatNames = { "STR", "WIS", "AGI" };
+
+    private static StyleBoxFlat RaiseBox { get; } = UiTheme.Panel(UiTheme.WoodDk, UiTheme.Gold, radius: 3, margin: 4f, borderWidth: 1);
+
+    private static StyleBoxFlat RaiseHoverBox { get; } = UiTheme.Panel(UiTheme.Wood, UiTheme.GoldHi, radius: 3, margin: 4f, borderWidth: 2);
 
     private static readonly (int Skill, string Key)[] SkillSlots =
     {
@@ -65,6 +75,12 @@ public partial class Hud : CanvasLayer
     private Label _guardName = null!;
     private ColorRect _guardDim = null!;
     private Label _backWeapon = null!;
+    private ProgressBar _xp = null!;
+    private Label _xpText = null!;
+    private Control _pointsRow = null!;
+    private Label _pointsText = null!;
+    private readonly Button[] _raise = new Button[StatNames.Length];
+    private int _shownLevel;
 
     public PlayerCharacter? Player { get; set; }
 
@@ -81,6 +97,17 @@ public partial class Hud : CanvasLayer
     public Control PlayerFrame { get; private set; } = null!;
 
     public Control SkillBar { get; private set; } = null!;
+
+    public Control XpBar { get; private set; } = null!;
+
+    public int ShownLevel => _shownLevel;
+
+    public int ShownXp => (int)_xp.Value;
+
+    public bool PointsShown => _pointsRow.Visible;
+
+    // What a click on it does: a point into the stat.
+    public Button RaiseButton(Stat stat) => _raise[(int)stat];
 
     public int ShownHp => (int)_health.Value;
 
@@ -114,8 +141,7 @@ public partial class Hud : CanvasLayer
         AddChild(SeatPrompt);
         PlayerFrame = BuildPlayerFrame();
         AddChild(PlayerFrame);
-        SkillBar = BuildSkillBar();
-        AddChild(SkillBar);
+        AddChild(BuildBottom());
 
         _notice.HorizontalAlignment = HorizontalAlignment.Center;
         _notice.AnchorRight = 1f;
@@ -169,6 +195,7 @@ public partial class Hud : CanvasLayer
         _statValues[1].Text = Player.Stats.Wis.ToString();
         _statValues[2].Text = Player.Stats.Agi.ToString();
         _statValues[3].Text = Player.Vitals.Armour.ToString();
+        ShowProgress(Player.Vitals);
         _gold.Text = Player.Vitals.Gold.ToString();
         _souls.Text = Player.Vitals.Souls.ToString();
         _orbs.Text = Player.Vitals.Orbs.ToString();
@@ -211,6 +238,22 @@ public partial class Hud : CanvasLayer
         }
     }
 
+    private void ShowProgress(PlayerVitals vitals)
+    {
+        int toNext = LevelRules.ToNext(vitals.Level);
+        _xp.MaxValue = toNext;
+        _xp.Value = vitals.Xp;
+        _xpText.Text = $"Level {vitals.Level}   {vitals.Xp} / {toNext} XP";
+        if (_shownLevel != 0 && vitals.Level > _shownLevel)
+        {
+            ShowNotice($"Level {vitals.Level}  -  a point to put into STR, WIS or AGI");
+        }
+
+        _shownLevel = vitals.Level;
+        _pointsRow.Visible = vitals.Points > 0;
+        _pointsText.Text = vitals.Points == 1 ? "1 point" : $"{vitals.Points} points";
+    }
+
     private Control BuildPlayerFrame()
     {
         var frame = new PanelContainer { Position = new Vector2(Margin, Margin), MouseFilter = Control.MouseFilterEnum.Ignore };
@@ -239,7 +282,7 @@ public partial class Hud : CanvasLayer
         stats.AddThemeConstantOverride("separation", 14);
 
         // ARM is the tier of armour worn, from 0.
-        string[] names = { "STR", "WIS", "AGI", "ARM" };
+        var names = StatNames.Append("ARM").ToArray();
         for (int i = 0; i < names.Length; i++)
         {
             var stat = new HBoxContainer();
@@ -251,6 +294,7 @@ public partial class Hud : CanvasLayer
         }
 
         column.AddChild(stats);
+        column.AddChild(BuildPointsRow());
 
         // Earned, with nothing to spend them on yet.
         var purse = new HBoxContainer();
@@ -269,9 +313,37 @@ public partial class Hud : CanvasLayer
         return frame;
     }
 
-    private Control BuildSkillBar()
+    // Shown while there are points to spend: a button per stat, which puts one into it.
+    private Control BuildPointsRow()
     {
-        var bar = new HBoxContainer
+        var row = new HBoxContainer { Visible = false };
+        row.AddThemeConstantOverride("separation", 8);
+        _pointsRow = row;
+        _pointsText = UiTheme.MakeLabel("", UiTheme.Numbers, 15, UiTheme.GoldHi);
+        row.AddChild(_pointsText);
+        for (int i = 0; i < StatNames.Length; i++)
+        {
+            var stat = (Stat)i;
+            var raise = new Button { Text = $"+ {StatNames[i]}", FocusMode = Control.FocusModeEnum.None };
+            raise.AddThemeFontOverride("font", UiTheme.Words);
+            raise.AddThemeFontSizeOverride("font_size", 12);
+            raise.AddThemeColorOverride("font_color", UiTheme.GoldHi);
+            raise.AddThemeColorOverride("font_hover_color", Colors.White);
+            raise.AddThemeStyleboxOverride("normal", RaiseBox);
+            raise.AddThemeStyleboxOverride("hover", RaiseHoverBox);
+            raise.AddThemeStyleboxOverride("pressed", RaiseHoverBox);
+            raise.Pressed += () => Player?.Vitals.Raise(stat);
+            _raise[i] = raise;
+            row.AddChild(raise);
+        }
+
+        return row;
+    }
+
+    // The skill bar, and under it, as wide, the XP bar.
+    private Control BuildBottom()
+    {
+        var bottom = new VBoxContainer
         {
             AnchorLeft = 0.5f,
             AnchorRight = 0.5f,
@@ -282,6 +354,20 @@ public partial class Hud : CanvasLayer
             OffsetBottom = -Margin,
             MouseFilter = Control.MouseFilterEnum.Ignore,
         };
+        bottom.AddThemeConstantOverride("separation", 6);
+        SkillBar = BuildSkillBar();
+        bottom.AddChild(SkillBar);
+
+        var (xpRoot, xp, xpText) = UiTheme.MakeValueBar(UiTheme.BarXp, new Vector2(0f, XpBarHeight), 11);
+        (_xp, _xpText) = (xp, xpText);
+        XpBar = xpRoot;
+        bottom.AddChild(xpRoot);
+        return bottom;
+    }
+
+    private Control BuildSkillBar()
+    {
+        var bar = new HBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
         bar.AddThemeConstantOverride("separation", 8);
 
         for (int i = 0; i < SkillSlots.Length; i++)

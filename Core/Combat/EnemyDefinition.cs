@@ -16,6 +16,9 @@ public sealed record EnemyDefinition(string Id, int MaxHp, float MoveSpeed, floa
     // Given to every player as it dies.
     public int Souls { get; init; } = 1;
 
+    // Given to every player as it dies, as its souls are.
+    public int Xp { get; init; }
+
     // How often it leaves a magic orb beside its gold, from 0 (never) to 1 (always).
     public float OrbChance { get; init; }
 
@@ -40,6 +43,7 @@ public static class Enemies
     public static readonly EnemyDefinition SkeletonMinion = new("skeleton-minion", MaxHp: 40, MoveSpeed: 2.6f, AggroRange: Sight, AttackCooldown: 1.6f, Skills.MinionChop)
     {
         Gold = new GoldDrop(2, 4),
+        Xp = 10,
         OrbChance = 0.02f,
         Resistances = Skeletal,
     };
@@ -47,6 +51,7 @@ public static class Enemies
     public static readonly EnemyDefinition SkeletonWarrior = new("skeleton-warrior", MaxHp: 70, MoveSpeed: 2.2f, AggroRange: Sight, AttackCooldown: 2.2f, Skills.WarriorChop)
     {
         Gold = new GoldDrop(6, 10),
+        Xp = 20,
         OrbChance = 0.06f,
         Resistances = Skeletal,
     };
@@ -56,6 +61,7 @@ public static class Enemies
     {
         KeepAway = 5f,
         Gold = new GoldDrop(3, 6),
+        Xp = 12,
         OrbChance = 0.03f,
         Resistances = Skeletal,
     };

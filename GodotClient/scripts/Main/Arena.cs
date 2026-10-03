@@ -332,6 +332,7 @@ public partial class Arena : Node3D
         {
             player.Vitals.EarnGold(_options.GoldAtStart);
             player.Vitals.EarnOrbs(_options.StartOrbs);
+            player.Vitals.StartWithXp(_options.StartXp);
             player.Vitals.Wear(Armours.AtTier(_options.StartArmour));
             if (_options.StartSpent)
             {

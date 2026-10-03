@@ -48,6 +48,7 @@ public partial class NetSelfTest : Node
         EnemyCharacter.Parried += OnEnemyParried;
         EnemyCharacter.Died += CountDeathForLoot;
         PlayerVitals.Drank += OnDrank;
+        PlayerVitals.LeveledUp += OnLeveledUp;
         TrackMagic();
         TrackStatus();
         TrackTown();
@@ -71,6 +72,7 @@ public partial class NetSelfTest : Node
         Arrows.HitPlayer -= OnArrowHit;
         PlayerVitals.Guarded -= OnGuarded;
         PlayerVitals.Drank -= OnDrank;
+        PlayerVitals.LeveledUp -= OnLeveledUp;
         UntrackMagic();
         UntrackStatus();
         UntrackTown();
@@ -142,6 +144,7 @@ public partial class NetSelfTest : Node
         MeasureArrows();
         MeasureMagic((float)delta);
         MeasureStatus((float)delta);
+        MeasureLevel((float)delta);
     }
 
     public void PrintSummary()
@@ -171,6 +174,7 @@ public partial class NetSelfTest : Node
         PrintBotCheck(me);
         PrintMagicCheck(me);
         PrintStatusCheck(me);
+        PrintLevelCheck(me);
     }
 
     private void Track(PlayerCharacter player)

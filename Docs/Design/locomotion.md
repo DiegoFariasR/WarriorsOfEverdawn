@@ -87,7 +87,7 @@ KayKit's short-legged characters take small strides, so their clips cover little
 
 | Clip | Authored ground speed | Moving at | Plays at |
 |---|---|---|---|
-| `Running_A` | 3.26 | 5.5 | 1.7x |
+| `Running_A` | 3.26 | 5.5 (the Knight's AGI 8) | 1.7x |
 | `Running_Strafe_Left` / `_Right` | 3.84 | 5.5 | 1.4x |
 | `Walking_Backwards` | 0.77 | 2.5 | 3.2x |
 | `Skeletons_Walking` | 0.74 | 2.6 (minion), 2.2 (warrior) | 3.5x, 3.0x |
@@ -96,7 +96,7 @@ Swings play at `CombatTiming.AttackSpeed` (2x, [combat.md](combat.md)). Idle, sp
 
 ## To tune by eye
 
-- `MoveSpeed.Run` (5.5) and `MoveSpeed.Backpedal` (2.5) are first guesses; the legs follow either. Backpedal and the skeleton walk play above 3x, which may look like quick little steps; lowering those speeds calms the legs (1.5 would give about 2x).
+- `MoveSpeed.Run` (5) and `MoveSpeed.Backpedal` (2.25) are first guesses, for a body of no AGI: each point of AGI adds 1.25% to both (`StatRules.MoveSpeedFactor`), so the Knight's 8 run at 5.5 and backpedal at 2.5, and a point put into AGI on levelling up ([ui.md](ui.md), "Levels") runs faster still; the legs follow whatever the speed. Backpedal and the skeleton walk play above 3x, which may look like quick little steps; lowering those speeds calms the legs (1.5 would give about 2x).
 - Leg crossfade 0.15 s, body turn rate, attack fade in/out.
 
 ## Open questions
