@@ -73,6 +73,10 @@ public partial class Bolts : Node3D
         {
             node.AddChild(new SpellTrail { Colour = ElementLooks.For(element).Primary, Radius = skill.Projectile.Radius * TrailShare, Into = this });
         }
+        else if (IsArrow(skill))
+        {
+            node.AddChild(new RingWake { Colour = caster.Trail.Colour });
+        }
         _flights[(caster.PeerId, id)] = new BoltFlight(caster, skill, chest, from, direction, node);
         Loosed?.Invoke(caster, skill);
     }

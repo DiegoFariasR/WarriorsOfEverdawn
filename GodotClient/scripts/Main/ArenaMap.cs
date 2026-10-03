@@ -27,6 +27,9 @@ public partial class ArenaMap : Node3D
     // A layout's marker named this and a seller's id is where that seller stands.
     private const string SellerMarker = "seller-";
 
+    // Where a training dummy stands (TrainingDummy), facing the marker's way.
+    private const string DummyMarker = "training-dummy";
+
     // The areas that make up the ground inside a fortress's walls.
     private static readonly string[] InsideAreas = { "courtyard", "room", "door" };
 
@@ -85,6 +88,9 @@ public partial class ArenaMap : Node3D
 
     public static ArenaMap In(SceneTree tree) => tree.CurrentScene.GetNode<ArenaMap>(NodeName);
 
+    // The town's layout and the fortress's, in that order.
+    public IReadOnlyList<LevelLayout> Layouts { get; private set; } = Array.Empty<LevelLayout>();
+
     // Called once the map is in the scene, not from _Ready: an exception thrown there is logged by the engine and
     // the game carries on without a map, where this one stops the arena.
     public void Build()
@@ -93,6 +99,7 @@ public partial class ArenaMap : Node3D
         var fortress = LevelLayoutNode.Load(FortressPath);
         AddChild(town);
         AddChild(fortress);
+        Layouts = new[] { town.Layout, fortress.Layout };
         _occluders.AddRange(town.Occluders.Concat(fortress.Occluders));
         _hangings.AddRange(town.Hangings.Concat(fortress.Hangings));
         _markers = town.Layout.Markers.Concat(fortress.Layout.Markers).ToList();
@@ -130,6 +137,23 @@ public partial class ArenaMap : Node3D
             var body = new StaticBody3D { Name = $"{spot.Seller.Id}Body", Position = spot.Position, CollisionLayer = CollisionLayers.World, CollisionMask = 0 };
             body.AddChild(CharacterRig.CreateCapsule());
             AddChild(body);
+        }
+
+        // So are the training dummies, the same on every machine by their order in the layout.
+        int dummies = 0;
+        foreach (var marker in town.Layout.Markers.Where(m => m.Name == DummyMarker))
+        {
+            AddChild(TrainingDummy.Create($"Dummy{dummies++}", ToGodot(marker.Position), marker.Yaw));
+        }
+
+        // And the crates and barrels that break, numbered alike on every machine by their order in the layouts.
+        int breakables = 0;
+        foreach (var layout in new[] { town, fortress })
+        {
+            foreach (var piece in layout.Breakables)
+            {
+                AddChild(Breakable.Create($"Breakable{breakables++}", piece with { Box = layout.Transform * piece.Box }));
+            }
         }
 
         BakeWays();

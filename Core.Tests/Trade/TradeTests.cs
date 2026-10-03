@@ -546,6 +546,36 @@ public class TradeTests
     }
 
     [Fact]
+    public void The_innkeeper_offers_a_rest_for_gold_alone_to_anyone_whatever_they_carry()
+    {
+        foreach (var buyer in new[] { Anyone, new Buyer(new WeaponSets(null, null), ArmourTier: Armours.MaxTier) })
+        {
+            var offer = Assert.Single(Sellers.Innkeeper.ItemsFor(buyer));
+
+            Assert.Equal(TradeKind.Rest, offer.Kind);
+            Assert.Equal(TradeRules.RestCost, offer.Cost);
+            Assert.Equal(0, offer.Cost.Orbs);
+            Assert.True(offer.GivesSomething);
+            Assert.Null(offer.Unavailable);
+        }
+
+        Assert.Contains(Sellers.Innkeeper, Sellers.All);
+    }
+
+    [Fact]
+    public void A_rest_takes_its_gold_each_time_and_hands_nothing_over()
+    {
+        var purse = PurseWith(gold: TradeRules.RestCost.Gold * 2);
+
+        Assert.Equal(BuyOutcome.Bought, TradeRules.Buy(purse, TradeRules.Rest, 0f, down: false));
+        Assert.Equal(BuyOutcome.Bought, TradeRules.Buy(purse, TradeRules.Rest, 0f, down: false));
+        Assert.Equal(BuyOutcome.CannotAfford, TradeRules.Buy(purse, TradeRules.Rest, 0f, down: false));
+        Assert.Equal(0, purse.Gold);
+        Assert.Equal((Carrying, (WeaponDefinition?)null), TradeRules.After(Carrying, TradeRules.Rest));
+        Assert.Equal(BuyOutcome.Down, TradeRules.Buy(PurseWith(gold: TradeRules.RestCost.Gold), TradeRules.Rest, 0f, down: true));
+    }
+
+    [Fact]
     public void An_offer_that_gives_nothing_is_not_sold()
     {
         var purse = PurseWith(gold: 1000);

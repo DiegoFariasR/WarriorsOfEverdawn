@@ -91,6 +91,41 @@ public class LevelLayoutTests
     }
 
     [Fact]
+    public void A_solid_that_blocks_as_its_box_can_be_breakable_and_nothing_else_can()
+    {
+        string breakable = Minimal.Replace("\"solid\": true", "\"solid\": true, \"breakable\": true");
+
+        Assert.False(LevelLayout.Parse(Minimal, "minimal").Placements[0].Breakable);
+        Assert.True(LevelLayout.Parse(breakable, "breakable").Placements[0].Breakable);
+        Assert.Throws<FormatException>(() => LevelLayout.Parse(breakable.Replace("\"breakable\": true", "\"breakable\": true, \"shape\": \"mesh\""), "shaped"));
+        Assert.Throws<FormatException>(() => LevelLayout.Parse(Minimal.Replace("\"scale\": [1.5, 1.5, 1.5]", "\"scale\": [1.5, 1.5, 1.5], \"breakable\": true"), "loose"));
+    }
+
+    // Gold on the ground is there to be picked up (Loot): coins laid as a prop could not be, and would mislead.
+    [Fact]
+    public void No_coins_lie_about_either_fortress_as_props()
+    {
+        foreach (string name in Fortresses)
+        {
+            Assert.DoesNotContain(Load(name).Placements, p => p.Asset.Contains("Coins", StringComparison.Ordinal));
+        }
+    }
+
+    // Crates and barrels, in the town to try and in the fortress to break in a fight.
+    [Fact]
+    public void Each_fortress_has_crates_and_barrels_to_break_each_one_a_solid()
+    {
+        foreach (string name in Fortresses)
+        {
+            var breakables = Load(name).Placements.Where(p => p.Breakable).ToList();
+
+            Assert.NotEmpty(breakables);
+            Assert.All(breakables, p => Assert.True(p.Solid && !p.FollowsMesh && !p.Ramp));
+            Assert.All(breakables, p => Assert.Matches("^(crates|box|barrel)", p.Asset));
+        }
+    }
+
+    [Fact]
     public void A_solid_blocks_as_its_box_unless_it_follows_its_mesh()
     {
         string doorway = Minimal.Replace("\"solid\": true", "\"solid\": true, \"shape\": \"mesh\"");
@@ -229,17 +264,33 @@ public class LevelLayoutTests
             var rooms = layout.AreasNamed("room").ToList();
             var doors = layout.AreasNamed("door").ToList();
 
-            Assert.Equal(2, rooms.Count);
-            Assert.Contains(rooms, r => r.Max.X < courtyard.Min.X);
-            Assert.Contains(rooms, r => r.Min.X > courtyard.Max.X);
+            Assert.Single(rooms, r => r.Max.X < courtyard.Min.X);
+            Assert.Single(rooms, r => r.Min.X > courtyard.Max.X);
             Assert.Equal(rooms.Count, doors.Count);
             Assert.Equal(rooms.Count, layout.Placements.Count(p => p.FollowsMesh));
 
             // A doorway's clear ground reaches from the courtyard into its room, and each room has a spot to stand on.
-            Assert.All(rooms, r => Assert.Contains(doors, d => d.Max.X > r.Min.X && d.Min.X < r.Max.X && d.Max.X > courtyard.Min.X && d.Min.X < courtyard.Max.X));
+            Assert.All(rooms, r => Assert.Contains(doors, d => Overlap(d, r) && Overlap(d, courtyard)));
             Assert.All(rooms, r => Assert.Single(layout.MarkersNamed("room"), m => r.Contains(new Vector2(m.X, m.Z))));
         }
     }
+
+    // The enchanter's: off the back wall, away from the gate, with the enchanter in it.
+    [Fact]
+    public void The_town_has_a_room_off_its_back_wall_too_the_enchanters()
+    {
+        var town = Load("allied-town");
+        var courtyard = Assert.Single(town.AreasNamed("courtyard"));
+        var gate = Assert.Single(town.AreasNamed("gate"));
+        bool gateNorth = gate.Max.Y < courtyard.Max.Y;
+
+        var back = Assert.Single(town.AreasNamed("room"), r => gateNorth ? r.Min.Y > courtyard.Max.Y : r.Max.Y < courtyard.Min.Y);
+        var (_, enchanter) = Assert.Single(town.MarkersStarting("seller-"), s => s.Who == Sellers.Enchanter.Id);
+        Assert.True(back.Contains(new Vector2(enchanter.Position.X, enchanter.Position.Z)));
+        Assert.Equal(2, Load("enemy-fortress").AreasNamed("room").Count());
+    }
+
+    private static bool Overlap(LayoutArea a, LayoutArea b) => a.Min.X < b.Max.X && b.Min.X < a.Max.X && a.Min.Y < b.Max.Y && b.Min.Y < a.Max.Y;
 
     [Fact]
     public void The_towns_rooms_and_doorways_are_safe_ground_too()

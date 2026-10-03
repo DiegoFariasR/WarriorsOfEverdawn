@@ -77,7 +77,7 @@ public partial class ArenaMap
             CellSize = 0.25f,
             CellHeight = 0.25f,
             GeometryParsedGeometryType = NavigationMesh.ParsedGeometryType.StaticColliders,
-            GeometryCollisionMask = CollisionLayers.World,
+            GeometryCollisionMask = CollisionLayers.Solid,
             // Partitioned by watershed (the default), a floor over a flight of stairs and the floor under it can come
             // out as one region, with polygons from one to the other through the air; layers never overlap.
             SamplePartitionType = NavigationMesh.SamplePartitionTypeEnum.Layers,

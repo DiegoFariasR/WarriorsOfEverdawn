@@ -10,12 +10,13 @@ using WarriorsOfEverdawn.Util;
 
 namespace WarriorsOfEverdawn.Main;
 
-// Something on the ground to be walked over: a pile of gold of Amount coins, or a magic orb (Amount 1).
+// Something on the ground to be walked over: a pile of gold of Amount coins, a magic orb or a potion's charge (Amount 1).
 public sealed record GroundLoot(int Id, LootKind Kind, int Amount, Vector3 Position);
 
 // What monsters leave behind. The host decides all of it: every player gets a monster's souls as it dies; its gold
-// falls in a pile where it died, now and then with a magic orb over it, and each goes, when any player walks up to
-// it, to every player. Co-op among friends, so nobody races anybody for it. Present on every machine at the same
+// falls in a pile where it died, now and then with a magic orb or a charge of the health potion over it, and each
+// goes, when any player walks up to it, to every player. Co-op among friends, so nobody races anybody for it. A
+// charge is picked up only while someone has room for it, so none is wasted. Present on every machine at the same
 // path, for its RPCs. Design: Docs/Design/combat.md.
 public partial class Loot : Node3D
 {
@@ -33,6 +34,7 @@ public partial class Loot : Node3D
     private const float BelowOne = 0.999999f;
 
     private static readonly Color OrbText = new(0.85f, 0.95f, 1f);
+    private static readonly Color PotionText = new(1f, 0.45f, 0.45f);
 
     // An orb falls with its monster's gold and is picked up in the same step: its text goes over the gold's.
     private const float OrbTextAbove = 0.7f;
@@ -56,6 +58,10 @@ public partial class Loot : Node3D
 
     // Host only, for test sessions: every monster's chance of an orb, in place of its own (--orb-chance).
     public float? OrbChance { get; set; }
+
+    // Host only, for test sessions: every monster's chance of a potion's charge, in place of its orb chance
+    // (--potion-chance).
+    public float? PotionChance { get; set; }
 
     public static Loot In(SceneTree tree) => tree.CurrentScene.GetNode<Loot>(NodeName);
 
@@ -90,7 +96,7 @@ public partial class Loot : Node3D
 
             // The position each player last reported, as for hits on players (Docs/Design/multiplayer.md).
             var taker = players.FirstOrDefault(p => !p.IsDowned && Yaw.AcrossFloor(p.NetPosition, lying.Loot.Position) <= LootRules.PickupRadius);
-            if (taker == null)
+            if (taker == null || (lying.Loot.Kind == LootKind.PotionCharge && players.All(p => p.Vitals.PotionFull)))
             {
                 continue;
             }
@@ -113,6 +119,9 @@ public partial class Loot : Node3D
                 break;
             case LootKind.Orb:
                 vitals.EarnOrbs(loot.Amount);
+                break;
+            case LootKind.PotionCharge:
+                vitals.EarnPotionCharge();
                 break;
             default:
                 throw new InvalidOperationException($"Nothing is earned from loot of kind {loot.Kind}");
@@ -138,9 +147,15 @@ public partial class Loot : Node3D
             Rpc(MethodName.Place, _nextId++, (int)LootKind.Gold, gold, at);
         }
 
-        if (LootRules.DropsOrb(OrbChance ?? enemy.Definition.OrbChance, Roll()))
+        if (LootRules.Drops(OrbChance ?? enemy.Definition.OrbChance, Roll()))
         {
             Rpc(MethodName.Place, _nextId++, (int)LootKind.Orb, 1, at);
+        }
+
+        // A charge is as rare as an orb, on a roll of its own, and lies a little apart from it.
+        if (LootRules.Drops(PotionChance ?? enemy.Definition.OrbChance, Roll()))
+        {
+            Rpc(MethodName.Place, _nextId++, (int)LootKind.PotionCharge, 1, at + Yaw.Forward(LootRules.PileYaw(_nextId)) * TreasureOrbsApart);
         }
     }
 
@@ -197,6 +212,8 @@ public partial class Loot : Node3D
                 return Pile(loot.Amount, LootRules.PileYaw(loot.Id));
             case LootKind.Orb:
                 return MagicOrb.Create();
+            case LootKind.PotionCharge:
+                return PotionDrop.Create();
             default:
                 throw new InvalidOperationException($"No model for loot of kind {loot.Kind}");
         }
@@ -219,6 +236,10 @@ public partial class Loot : Node3D
             if (lying.Loot.Kind == LootKind.Orb)
             {
                 FloatingText.Spawn(taker, "+1 orb", OrbText, OrbTextAbove);
+            }
+            else if (lying.Loot.Kind == LootKind.PotionCharge)
+            {
+                FloatingText.Spawn(taker, "+1 potion", PotionText, OrbTextAbove * 2f);
             }
             else
             {

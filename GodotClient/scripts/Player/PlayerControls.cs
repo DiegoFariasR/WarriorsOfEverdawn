@@ -3,6 +3,7 @@ using System.Linq;
 using Godot;
 using WarriorsOfEverdawn.Core.Combat;
 using WarriorsOfEverdawn.Core.Level;
+using WarriorsOfEverdawn.Core.Loot;
 using WarriorsOfEverdawn.Enemy;
 using WarriorsOfEverdawn.Main;
 using WarriorsOfEverdawn.Util;
@@ -41,6 +42,9 @@ public interface IPlayerControls
 
     // Pressed this frame: trade with the seller in reach.
     bool InteractPressed { get; }
+
+    // Pressed this frame: drink a charge of the health potion.
+    bool DrinkPressed { get; }
 
     // While set (a window is open over the game) the controls ask for nothing: the character stands where it is.
     bool Suspended { get; set; }
@@ -87,6 +91,8 @@ public sealed class HumanControls : IPlayerControls
 
     public bool InteractPressed { get; private set; }
 
+    public bool DrinkPressed { get; private set; }
+
     public bool Suspended { get; set; }
 
     // Input as Input.GetVector gives it: x right, y down (so W is -y). Read across the screen: up it is where the
@@ -101,12 +107,13 @@ public sealed class HumanControls : IPlayerControls
             Move = Vector3.Zero;
             AimYaw = null;
             SkillHeld = null;
-            DashPressed = WeaponNextPressed = SwapSetsPressed = GuardHeld = DropPressed = PickUpPressed = InteractPressed = false;
+            DashPressed = WeaponNextPressed = SwapSetsPressed = GuardHeld = DropPressed = PickUpPressed = InteractPressed = DrinkPressed = false;
             return;
         }
 
         var move = Input.GetVector("move_left", "move_right", "move_forward", "move_back");
         InteractPressed = Input.IsActionJustPressed("interact");
+        DrinkPressed = Input.IsActionJustPressed("drink");
         DashPressed = Input.IsActionJustPressed("dash");
         WeaponNextPressed = Input.IsActionJustPressed("weapon_next");
         SwapSetsPressed = Input.IsActionJustPressed("weapon_swap");
@@ -161,6 +168,9 @@ public sealed class HumanControls : IPlayerControls
 public sealed class BotControls : IPlayerControls
 {
     private const float MoveTurnRate = 0.6f;
+
+    // The bot drinks a potion's charge once down to this share of its HP.
+    private const float DrinksBelow = 0.5f;
     private const float AimTurnRate = -0.9f;
     private const float CycleLength = 5f;
     private const float StandStillFrom = 3.8f;
@@ -300,12 +310,21 @@ public sealed class BotControls : IPlayerControls
 
     public bool InteractPressed { get; private set; }
 
+    public bool DrinkPressed { get; private set; }
+
     public bool Suspended { get; set; }
 
     // What the bot is about, for the self-tests' [bot-check].
     public string Activity { get; private set; } = "starting";
 
-    // The self-tests' trade drill: presses the trade button on the bot's next step.
+    // The self-tests' drills, while the bot is suspended: where it walks, which way it aims and the skill it holds.
+    public Vector3 DrillMove { get; set; }
+
+    public float? DrillAim { get; set; }
+
+    public int? DrillSkill { get; set; }
+
+    // The self-tests' drills: presses E on the bot's next step.
     public void Interact() => _interactDue = true;
 
     // The weapon the bot counts as its own from here on: the one it bought, in place of the one it started with.
@@ -320,13 +339,14 @@ public sealed class BotControls : IPlayerControls
         PickUpPressed = false;
         InteractPressed = _interactDue;
         _interactDue = false;
+        DrinkPressed = !Suspended && player.Vitals.PotionCharges > 0 && player.Vitals.Hp <= PlayerRules.MaxHp * DrinksBelow;
         // Standing still, the bot still presses the trade button when the drill asks: the drill holds it by the
         // seller until the window opens.
         if (Suspended)
         {
-            Move = Vector3.Zero;
-            AimYaw = null;
-            SkillHeld = null;
+            Move = DrillMove;
+            AimYaw = DrillAim;
+            SkillHeld = DrillSkill;
             DashPressed = SwapSetsPressed = GuardHeld = false;
             return;
         }
@@ -577,10 +597,13 @@ public sealed class BotControls : IPlayerControls
         return Yaw.Flat(_trackedVelocity);
     }
 
+    // Not a potion's charge while every player's potion is full: nobody takes it then (Loot), and a bot that went for
+    // one stood on it, out of the fight, until a hostile came close.
     private static Vector3? TowardLoot(PlayerCharacter player)
     {
+        bool chargesTaken = PlayerCharacter.All(player.GetTree()).Any(p => p.Vitals.PotionCharges < HealthPotion.MaxCharges);
         var nearest = Loot.In(player.GetTree()).OnGround
-            .Where(p => Floors.SameLevel(p.Position.Y, player.GlobalPosition.Y))
+            .Where(p => Floors.SameLevel(p.Position.Y, player.GlobalPosition.Y) && (p.Kind != LootKind.PotionCharge || chargesTaken))
             .OrderBy(p => p.Position.DistanceSquaredTo(player.GlobalPosition))
             .FirstOrDefault();
         if (nearest == null)

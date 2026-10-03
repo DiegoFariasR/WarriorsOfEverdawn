@@ -12,9 +12,9 @@ using WarriorsOfEverdawn.Theme;
 namespace WarriorsOfEverdawn.Main;
 
 // The window for trading with a seller, the same for every seller: who they are and what they trade, what the player
-// carries to pay with, numbered slots in rows (TradeRules.Slots, filled or empty), and beside them what the chosen one
-// is, what it costs, what having it would do, and the button that gets it. Mouse, keys or controller: click a slot,
-// press its number (the first nine) or walk to it with the arrows; E, Enter or the button buys (or sells, at a seller
+// carries to pay with, slots in rows (TradeRules.Slots, filled or empty), and beside them what the chosen one is,
+// what it costs, what having it would do, and the button that gets it. Mouse, keys or controller: click a slot or walk
+// to it with the arrows; E, Enter or the button buys (or sells, at a seller
 // who pays); Esc closes. What a seller offers can depend on what the player carries (the blacksmith works on the
 // player's own weapons, the merchant pays for them), so the slots are read afresh as that changes. It only asks:
 // Market carries the request to the host. Design: Docs/Design/trade.md.
@@ -172,6 +172,7 @@ public partial class ShopPanel : Control
             TradeKind.Enchantment => $"Enchanted: {item.Name}",
             TradeKind.Attunement => $"Now: {item.Name}",
             TradeKind.Purchase => $"Bought: {item.Name}",
+            TradeKind.Rest => "Rested: your health, mana and potion are full",
             _ => item.Armour != null ? $"Now wearing: {item.Name}" : $"Made better: {item.Name}",
         }, good: true);
     }
@@ -183,6 +184,7 @@ public partial class ShopPanel : Control
         TradeKind.Improvement => "Improve",
         TradeKind.Enchantment => "Enchant",
         TradeKind.Attunement => "Attune",
+        TradeKind.Rest => "Rest",
         _ => "Buy",
     };
 
@@ -239,11 +241,7 @@ public partial class ShopPanel : Control
             return;
         }
 
-        if (@event is InputEventKey { Pressed: true } key && SlotOf(key.PhysicalKeycode) is { } slot)
-        {
-            Choose(slot);
-        }
-        else if (@event.IsActionPressed("ui_cancel"))
+        if (@event.IsActionPressed("ui_cancel"))
         {
             Close();
         }
@@ -287,6 +285,11 @@ public partial class ShopPanel : Control
         if (item.Armour != null)
         {
             return $"Worn at once, in place of the {Armours.AtTier(buyer.ArmourTier).Name}";
+        }
+
+        if (item.Kind == TradeKind.Rest)
+        {
+            return "All of it at once, here and now";
         }
 
         if (item.Weapon == null)
@@ -346,6 +349,11 @@ public partial class ShopPanel : Control
                 : "The blacksmith asks for these to make weapons and armour better";
         }
 
+        if (item.Kind == TradeKind.Rest)
+        {
+            return $"HP to full ({PlayerRules.MaxHp})\nMana to full\nPotion to all {HealthPotion.MaxCharges} charges";
+        }
+
         if (item.Weapon == null)
         {
             return item.Unavailable ?? "";
@@ -362,12 +370,6 @@ public partial class ShopPanel : Control
             + (item.Kind == TradeKind.Enchantment && item.Weapon.Enchantment is { } element
                 ? $"\n{GroundWeaponLabels.EnchantedOf(element)}"
                 : $"\nLevel {item.Weapon.Level} of {WeaponDefinition.MaxLevel}");
-    }
-
-    private static int? SlotOf(Key key)
-    {
-        int number = key is >= Key.Key1 and <= Key.Key9 ? (int)(key - Key.Key1) : key is >= Key.Kp1 and <= Key.Kp9 ? (int)(key - Key.Kp1) : -1;
-        return number >= 0 && number < TradeRules.Slots ? number : null;
     }
 
     private static Vector2I? StepOf(InputEvent @event) =>
@@ -488,7 +490,7 @@ public partial class ShopPanel : Control
         body.AddChild(BuildSlots());
         body.AddChild(BuildDetail());
 
-        var hint = UiTheme.MakeLabel("1-9 or arrows: choose      E / Enter: trade      Esc: close", UiTheme.Words, 12, UiTheme.GoldDk);
+        var hint = UiTheme.MakeLabel("Arrows: choose      E / Enter: trade      Esc: close", UiTheme.Words, 12, UiTheme.GoldDk);
         hint.HorizontalAlignment = HorizontalAlignment.Center;
         column.AddChild(hint);
         return window;
@@ -542,7 +544,6 @@ public partial class ShopPanel : Control
             var content = new VBoxContainer { MouseFilter = MouseFilterEnum.Ignore };
             content.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect, LayoutPresetMode.Minsize, 6);
             content.AddThemeConstantOverride("separation", 0);
-            content.AddChild(UiTheme.MakeLabel((i + 1).ToString(), UiTheme.Numbers, 12, UiTheme.GoldDk));
             var name = Wrapped(UiTheme.MakeLabel(EmptySlot, UiTheme.Words, 13, UiTheme.TextMain));
             name.HorizontalAlignment = HorizontalAlignment.Center;
             name.SizeFlagsVertical = SizeFlags.ExpandFill;

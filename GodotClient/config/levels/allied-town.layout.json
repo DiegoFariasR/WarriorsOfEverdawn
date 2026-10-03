@@ -12,18 +12,11 @@
   "Campfire_Base": "res://assets/props/Campfire_Base.glb",
   "Campfire_Logs": "res://assets/props/Campfire_Logs.glb",
   "bench": "res://assets/dungeon/bench.glb",
+  "crates_stacked": "res://assets/dungeon/crates_stacked.glb",
+  "barrel_large": "res://assets/dungeon/barrel_large.glb",
   "table_long": "res://assets/dungeon/table_long.glb",
   "anvil": "res://assets/props/anvil.glb",
-  "Trainingdummy": "res://assets/props/Trainingdummy.glb",
   "trunk_medium_A": "res://assets/dungeon/trunk_medium_A.glb",
-  "Money_Coins_Pile_10": "res://assets/props/Money_Coins_Pile_10.glb",
-  "Money_Coins_Pile_6": "res://assets/props/Money_Coins_Pile_6.glb",
-  "Money_Coins_Pile_3": "res://assets/props/Money_Coins_Pile_3.glb",
-  "Money_Coins_Stack_Single": "res://assets/props/Money_Coins_Stack_Single.glb",
-  "shrine_candles": "res://assets/props/shrine_candles.glb",
-  "rug_rectangle_stripes_A": "res://assets/props/rug_rectangle_stripes_A.glb",
-  "barrel_large": "res://assets/dungeon/barrel_large.glb",
-  "crates_stacked": "res://assets/dungeon/crates_stacked.glb",
   "keg": "res://assets/dungeon/keg.glb",
   "box_large": "res://assets/dungeon/box_large.glb",
   "barrel_small_stack": "res://assets/dungeon/barrel_small_stack.glb",
@@ -42,11 +35,18 @@
   "sword_shield": "res://assets/dungeon/sword_shield.glb",
   "grindstone": "res://assets/props/grindstone.glb",
   "shelves": "res://assets/dungeon/shelves.glb",
+  "barrel_large_decorated": "res://assets/dungeon/barrel_large_decorated.glb",
   "table_small": "res://assets/dungeon/table_small.glb",
   "chair": "res://assets/dungeon/chair.glb",
   "stool": "res://assets/dungeon/stool.glb",
   "rug_rectangle_A": "res://assets/props/rug_rectangle_A.glb",
-  "bed_A_single": "res://assets/dungeon/bed_A_single.glb"
+  "bed_A_single": "res://assets/dungeon/bed_A_single.glb",
+  "Potionstation_decorated": "res://assets/props/Potionstation_decorated.glb",
+  "bookcase_double_decoratedA": "res://assets/dungeon/bookcase_double_decoratedA.glb",
+  "table_small_decorated_A": "res://assets/dungeon/table_small_decorated_A.glb",
+  "candle_triple": "res://assets/dungeon/candle_triple.glb",
+  "rug_rectangle_stripes_A": "res://assets/props/rug_rectangle_stripes_A.glb",
+  "shelf_small_candles": "res://assets/dungeon/shelf_small_candles.glb"
  },
  "textures": {
   "res://assets/dungeon/": "res://assets/textures/dungeon/dungeon_texture.png",
@@ -474,7 +474,7 @@
    "solid": true
   },
   {
-   "asset": "wall",
+   "asset": "wall_doorway",
    "position": [
     4.0,
     0.0,
@@ -491,7 +491,49 @@
     1.0,
     1.0
    ],
-   "solid": true
+   "solid": true,
+   "shape": "mesh",
+   "view": "around"
+  },
+  {
+   "asset": "wall_endcap",
+   "position": [
+    6.0,
+    0.0,
+    30.0
+   ],
+   "rotation": [
+    0.0,
+    1.0,
+    0.0,
+    0.0
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "view": "overhead"
+  },
+  {
+   "asset": "wall_endcap",
+   "position": [
+    2.0,
+    0.0,
+    30.0
+   ],
+   "rotation": [
+    0.0,
+    0.0,
+    0.0,
+    -1.0
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "view": "overhead"
   },
   {
    "asset": "wall",
@@ -534,7 +576,7 @@
    "solid": true
   },
   {
-   "asset": "wall_window_open",
+   "asset": "wall",
    "position": [
     -4.0,
     0.0,
@@ -554,7 +596,7 @@
    "solid": true
   },
   {
-   "asset": "wall",
+   "asset": "wall_window_open",
    "position": [
     -4.0,
     0.0,
@@ -634,7 +676,7 @@
    "solid": true
   },
   {
-   "asset": "wall_window_open",
+   "asset": "wall",
    "position": [
     -10.0,
     0.0,
@@ -654,7 +696,7 @@
    "solid": true
   },
   {
-   "asset": "wall",
+   "asset": "wall_window_open",
    "position": [
     10.0,
     0.0,
@@ -818,7 +860,7 @@
    "view": "overhead"
   },
   {
-   "asset": "wall_archedwindow_open",
+   "asset": "wall",
    "position": [
     10.0,
     0.0,
@@ -838,7 +880,7 @@
    "solid": true
   },
   {
-   "asset": "wall_window_open",
+   "asset": "wall_archedwindow_open",
    "position": [
     -10.0,
     0.0,
@@ -1000,9 +1042,9 @@
   {
    "asset": "Campfire_Base",
    "position": [
-    3.883,
+    5.883,
     0.0,
-    21.392
+    16.392
    ],
    "rotation": [
     0.0,
@@ -1019,9 +1061,9 @@
   {
    "asset": "Campfire_Logs",
    "position": [
-    3.925,
+    5.925,
     0.0,
-    21.412
+    16.412
    ],
    "rotation": [
     0.0,
@@ -1038,9 +1080,29 @@
   {
    "asset": "bench",
    "position": [
-    3.5,
+    7.0,
     0.0,
-    21.4
+    18.8
+   ],
+   "rotation": [
+    0.0,
+    1.0,
+    0.0,
+    0.0
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "solid": true
+  },
+  {
+   "asset": "bench",
+   "position": [
+    4.8,
+    0.0,
+    17.0
    ],
    "rotation": [
     0.0,
@@ -1054,6 +1116,48 @@
     1.0
    ],
    "solid": true
+  },
+  {
+   "asset": "crates_stacked",
+   "position": [
+    5.151,
+    0.0,
+    21.574
+   ],
+   "rotation": [
+    0.0,
+    0.997564,
+    0.0,
+    -0.069756
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "solid": true,
+   "breakable": true
+  },
+  {
+   "asset": "barrel_large",
+   "position": [
+    7.4,
+    0.0,
+    21.7
+   ],
+   "rotation": [
+    0.0,
+    1.0,
+    0.0,
+    0.0
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "solid": true,
+   "breakable": true
   },
   {
    "asset": "table_long",
@@ -1136,26 +1240,6 @@
    "solid": true
   },
   {
-   "asset": "Trainingdummy",
-   "position": [
-    -7.9,
-    0.0,
-    24.4
-   ],
-   "rotation": [
-    0.0,
-    0.866025,
-    0.0,
-    0.5
-   ],
-   "scale": [
-    1.0,
-    1.0,
-    1.0
-   ],
-   "solid": true
-  },
-  {
    "asset": "trunk_medium_A",
    "position": [
     -8.7,
@@ -1167,161 +1251,6 @@
     0.707107,
     0.0,
     0.707107
-   ],
-   "scale": [
-    1.0,
-    1.0,
-    1.0
-   ],
-   "solid": true
-  },
-  {
-   "asset": "Money_Coins_Pile_10",
-   "position": [
-    -7.819,
-    0.0,
-    26.818
-   ],
-   "rotation": [
-    0.0,
-    0.34202,
-    0.0,
-    -0.939693
-   ],
-   "scale": [
-    0.9,
-    0.9,
-    0.9
-   ]
-  },
-  {
-   "asset": "Money_Coins_Pile_6",
-   "position": [
-    -7.673,
-    0.0,
-    25.71
-   ],
-   "rotation": [
-    0.0,
-    -0.67559,
-    0.0,
-    -0.737277
-   ],
-   "scale": [
-    0.9,
-    0.9,
-    0.9
-   ]
-  },
-  {
-   "asset": "Money_Coins_Pile_3",
-   "position": [
-    -7.115,
-    0.0,
-    27.071
-   ],
-   "rotation": [
-    0.0,
-    0.976296,
-    0.0,
-    -0.21644
-   ],
-   "scale": [
-    0.9,
-    0.9,
-    0.9
-   ]
-  },
-  {
-   "asset": "Money_Coins_Stack_Single",
-   "position": [
-    -7.1,
-    0.0,
-    25.0
-   ],
-   "rotation": [
-    0.0,
-    0.819152,
-    0.0,
-    -0.573576
-   ],
-   "scale": [
-    0.9,
-    0.9,
-    0.9
-   ]
-  },
-  {
-   "asset": "shrine_candles",
-   "position": [
-    8.4,
-    0.0,
-    18.1
-   ],
-   "rotation": [
-    0.0,
-    0.707107,
-    0.0,
-    -0.707107
-   ],
-   "scale": [
-    1.0,
-    1.0,
-    1.0
-   ],
-   "solid": true
-  },
-  {
-   "asset": "rug_rectangle_stripes_A",
-   "position": [
-    6.4,
-    0.0,
-    18.1
-   ],
-   "rotation": [
-    0.0,
-    1.0,
-    0.0,
-    0.0
-   ],
-   "scale": [
-    1.0,
-    1.0,
-    1.0
-   ]
-  },
-  {
-   "asset": "barrel_large",
-   "position": [
-    7.9,
-    0.0,
-    16.0
-   ],
-   "rotation": [
-    0.0,
-    1.0,
-    0.0,
-    0.0
-   ],
-   "scale": [
-    1.0,
-    1.0,
-    1.0
-   ],
-   "solid": true
-  },
-  {
-   "asset": "crates_stacked",
-   "position": [
-    5.551,
-    0.0,
-    15.874
-   ],
-   "rotation": [
-    0.0,
-    0.997564,
-    0.0,
-    -0.069756
    ],
    "scale": [
     1.0,
@@ -1368,7 +1297,8 @@
     1.0,
     1.0
    ],
-   "solid": true
+   "solid": true,
+   "breakable": true
   },
   {
    "asset": "barrel_small_stack",
@@ -1388,7 +1318,8 @@
     1.0,
     1.0
    ],
-   "solid": true
+   "solid": true,
+   "breakable": true
   },
   {
    "asset": "trunk_large_A",
@@ -1566,7 +1497,7 @@
   {
    "asset": "torch_mounted",
    "position": [
-    3.0,
+    2.5,
     2.3,
     29.5
    ],
@@ -1738,7 +1669,7 @@
   {
    "asset": "torch_mounted",
    "position": [
-    -3.0,
+    -2.5,
     2.3,
     29.5
    ],
@@ -1782,9 +1713,9 @@
    ],
    "rotation": [
     0.0,
+    0.707107,
     0.0,
-    0.0,
-    1.0
+    -0.707107
    ],
    "scale": [
     1.0,
@@ -1822,7 +1753,7 @@
     0.0,
     0.707107,
     0.0,
-    0.707107
+    -0.707107
    ],
    "scale": [
     1.0,
@@ -1850,7 +1781,7 @@
    ]
   },
   {
-   "asset": "wall_window_open",
+   "asset": "wall_archedwindow_open",
    "position": [
     18.0,
     0.0,
@@ -1890,7 +1821,7 @@
    "solid": true
   },
   {
-   "asset": "wall_window_open",
+   "asset": "wall",
    "position": [
     12.0,
     0.0,
@@ -1930,7 +1861,7 @@
    "solid": true
   },
   {
-   "asset": "wall_archedwindow_open",
+   "asset": "wall_window_open",
    "position": [
     16.0,
     0.0,
@@ -2039,9 +1970,9 @@
    ],
    "rotation": [
     0.0,
+    0.707107,
     0.0,
-    0.0,
-    1.0
+    -0.707107
    ],
    "scale": [
     1.0,
@@ -2079,9 +2010,9 @@
    ],
    "rotation": [
     0.0,
-    0.707107,
     0.0,
-    -0.707107
+    0.0,
+    1.0
    ],
    "scale": [
     1.0,
@@ -2096,6 +2027,66 @@
     11.0,
     4.0,
     19.0
+   ],
+   "rotation": [
+    0.0,
+    0.0,
+    0.0,
+    1.0
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "solid": true
+  },
+  {
+   "asset": "floor_wood_small",
+   "position": [
+    13.0,
+    4.0,
+    25.0
+   ],
+   "rotation": [
+    0.0,
+    0.0,
+    0.0,
+    1.0
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "solid": true
+  },
+  {
+   "asset": "floor_wood_small",
+   "position": [
+    13.0,
+    4.0,
+    23.0
+   ],
+   "rotation": [
+    0.0,
+    0.707107,
+    0.0,
+    -0.707107
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "solid": true
+  },
+  {
+   "asset": "floor_wood_small",
+   "position": [
+    13.0,
+    4.0,
+    21.0
    ],
    "rotation": [
     0.0,
@@ -2115,66 +2106,6 @@
    "position": [
     13.0,
     4.0,
-    25.0
-   ],
-   "rotation": [
-    0.0,
-    0.707107,
-    0.0,
-    0.707107
-   ],
-   "scale": [
-    1.0,
-    1.0,
-    1.0
-   ],
-   "solid": true
-  },
-  {
-   "asset": "floor_wood_small",
-   "position": [
-    13.0,
-    4.0,
-    23.0
-   ],
-   "rotation": [
-    0.0,
-    0.707107,
-    0.0,
-    0.707107
-   ],
-   "scale": [
-    1.0,
-    1.0,
-    1.0
-   ],
-   "solid": true
-  },
-  {
-   "asset": "floor_wood_small",
-   "position": [
-    13.0,
-    4.0,
-    21.0
-   ],
-   "rotation": [
-    0.0,
-    0.707107,
-    0.0,
-    -0.707107
-   ],
-   "scale": [
-    1.0,
-    1.0,
-    1.0
-   ],
-   "solid": true
-  },
-  {
-   "asset": "floor_wood_small",
-   "position": [
-    13.0,
-    4.0,
     19.0
    ],
    "rotation": [
@@ -2239,9 +2170,9 @@
    ],
    "rotation": [
     0.0,
+    0.707107,
     0.0,
-    0.0,
-    1.0
+    0.707107
    ],
    "scale": [
     1.0,
@@ -2261,7 +2192,7 @@
     0.0,
     0.707107,
     0.0,
-    -0.707107
+    0.707107
    ],
    "scale": [
     1.0,
@@ -2342,26 +2273,6 @@
     0.707107,
     0.0,
     -0.707107
-   ],
-   "scale": [
-    1.0,
-    1.0,
-    1.0
-   ],
-   "solid": true
-  },
-  {
-   "asset": "wall_window_open",
-   "position": [
-    12.0,
-    4.0,
-    26.0
-   ],
-   "rotation": [
-    0.0,
-    1.0,
-    0.0,
-    0.0
    ],
    "scale": [
     1.0,
@@ -2375,7 +2286,7 @@
    "position": [
     12.0,
     4.0,
-    18.0
+    26.0
    ],
    "rotation": [
     0.0,
@@ -2393,9 +2304,9 @@
   {
    "asset": "wall",
    "position": [
-    16.0,
+    12.0,
     4.0,
-    26.0
+    18.0
    ],
    "rotation": [
     0.0,
@@ -2415,6 +2326,26 @@
    "position": [
     16.0,
     4.0,
+    26.0
+   ],
+   "rotation": [
+    0.0,
+    1.0,
+    0.0,
+    0.0
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "solid": true
+  },
+  {
+   "asset": "wall",
+   "position": [
+    16.0,
+    4.0,
     18.0
    ],
    "rotation": [
@@ -2519,9 +2450,9 @@
    ],
    "rotation": [
     0.0,
+    0.707107,
     0.0,
-    0.0,
-    1.0
+    -0.707107
    ],
    "scale": [
     1.0,
@@ -2538,9 +2469,9 @@
    ],
    "rotation": [
     0.0,
-    1.0,
+    0.707107,
     0.0,
-    0.0
+    -0.707107
    ],
    "scale": [
     1.0,
@@ -2557,9 +2488,9 @@
    ],
    "rotation": [
     0.0,
-    1.0,
     0.0,
-    0.0
+    0.0,
+    1.0
    ],
    "scale": [
     1.0,
@@ -2644,7 +2575,8 @@
     1.0,
     1.0
    ],
-   "solid": true
+   "solid": true,
+   "breakable": true
   },
   {
    "asset": "barrel_small",
@@ -2664,7 +2596,8 @@
     1.0,
     1.0
    ],
-   "solid": true
+   "solid": true,
+   "breakable": true
   },
   {
    "asset": "torch_mounted",
@@ -2722,7 +2655,8 @@
     1.0,
     1.0
    ],
-   "solid": true
+   "solid": true,
+   "breakable": true
   },
   {
    "asset": "grindstone",
@@ -2762,7 +2696,8 @@
     1.0,
     1.0
    ],
-   "solid": true
+   "solid": true,
+   "breakable": true
   },
   {
    "asset": "barrel_small",
@@ -2782,7 +2717,8 @@
     1.0,
     1.0
    ],
-   "solid": true
+   "solid": true,
+   "breakable": true
   },
   {
    "asset": "shelves",
@@ -2831,9 +2767,9 @@
    ],
    "rotation": [
     0.0,
+    1.0,
     0.0,
-    0.0,
-    -1.0
+    0.0
    ],
    "scale": [
     1.0,
@@ -2850,9 +2786,9 @@
    ],
    "rotation": [
     0.0,
-    0.707107,
+    1.0,
     0.0,
-    0.707107
+    0.0
    ],
    "scale": [
     1.0,
@@ -2888,9 +2824,9 @@
    ],
    "rotation": [
     0.0,
+    1.0,
     0.0,
-    0.0,
-    -1.0
+    0.0
    ],
    "scale": [
     1.0,
@@ -2919,7 +2855,7 @@
    "solid": true
   },
   {
-   "asset": "wall_archedwindow_open",
+   "asset": "wall",
    "position": [
     -18.0,
     0.0,
@@ -2959,7 +2895,7 @@
    "solid": true
   },
   {
-   "asset": "wall_window_open",
+   "asset": "wall",
    "position": [
     -12.0,
     0.0,
@@ -3110,7 +3046,7 @@
     0.0,
     0.707107,
     0.0,
-    0.707107
+    -0.707107
    ],
    "scale": [
     1.0,
@@ -3128,9 +3064,9 @@
    ],
    "rotation": [
     0.0,
-    1.0,
+    0.707107,
     0.0,
-    0.0
+    -0.707107
    ],
    "scale": [
     1.0,
@@ -3148,9 +3084,9 @@
    ],
    "rotation": [
     0.0,
-    1.0,
+    0.707107,
     0.0,
-    0.0
+    0.707107
    ],
    "scale": [
     1.0,
@@ -3168,9 +3104,9 @@
    ],
    "rotation": [
     0.0,
+    1.0,
     0.0,
-    0.0,
-    -1.0
+    0.0
    ],
    "scale": [
     1.0,
@@ -3188,9 +3124,9 @@
    ],
    "rotation": [
     0.0,
-    0.707107,
+    1.0,
     0.0,
-    -0.707107
+    0.0
    ],
    "scale": [
     1.0,
@@ -3208,9 +3144,9 @@
    ],
    "rotation": [
     0.0,
-    0.707107,
     0.0,
-    0.707107
+    0.0,
+    -1.0
    ],
    "scale": [
     1.0,
@@ -3230,7 +3166,7 @@
     0.0,
     0.707107,
     0.0,
-    -0.707107
+    0.707107
    ],
    "scale": [
     1.0,
@@ -3250,7 +3186,7 @@
     0.0,
     0.707107,
     0.0,
-    -0.707107
+    0.707107
    ],
    "scale": [
     1.0,
@@ -3263,6 +3199,46 @@
    "asset": "floor_wood_small",
    "position": [
     -15.0,
+    4.0,
+    19.0
+   ],
+   "rotation": [
+    0.0,
+    1.0,
+    0.0,
+    0.0
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "solid": true
+  },
+  {
+   "asset": "floor_wood_small",
+   "position": [
+    -17.0,
+    4.0,
+    25.0
+   ],
+   "rotation": [
+    0.0,
+    1.0,
+    0.0,
+    0.0
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "solid": true
+  },
+  {
+   "asset": "floor_wood_small",
+   "position": [
+    -17.0,
     4.0,
     19.0
    ],
@@ -3280,46 +3256,6 @@
    "solid": true
   },
   {
-   "asset": "floor_wood_small",
-   "position": [
-    -17.0,
-    4.0,
-    25.0
-   ],
-   "rotation": [
-    0.0,
-    0.707107,
-    0.0,
-    0.707107
-   ],
-   "scale": [
-    1.0,
-    1.0,
-    1.0
-   ],
-   "solid": true
-  },
-  {
-   "asset": "floor_wood_small",
-   "position": [
-    -17.0,
-    4.0,
-    19.0
-   ],
-   "rotation": [
-    0.0,
-    0.707107,
-    0.0,
-    0.707107
-   ],
-   "scale": [
-    1.0,
-    1.0,
-    1.0
-   ],
-   "solid": true
-  },
-  {
    "asset": "wall_window_open",
    "position": [
     -18.0,
@@ -3391,26 +3327,6 @@
     0.707107,
     0.0,
     0.707107
-   ],
-   "scale": [
-    1.0,
-    1.0,
-    1.0
-   ],
-   "solid": true
-  },
-  {
-   "asset": "wall_window_open",
-   "position": [
-    -12.0,
-    4.0,
-    26.0
-   ],
-   "rotation": [
-    0.0,
-    1.0,
-    0.0,
-    0.0
    ],
    "scale": [
     1.0,
@@ -3424,6 +3340,26 @@
    "position": [
     -12.0,
     4.0,
+    26.0
+   ],
+   "rotation": [
+    0.0,
+    1.0,
+    0.0,
+    0.0
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "solid": true
+  },
+  {
+   "asset": "wall",
+   "position": [
+    -12.0,
+    4.0,
     18.0
    ],
    "rotation": [
@@ -3460,7 +3396,7 @@
    "solid": true
   },
   {
-   "asset": "wall",
+   "asset": "wall_window_open",
    "position": [
     -16.0,
     4.0,
@@ -3568,9 +3504,9 @@
    ],
    "rotation": [
     0.0,
+    1.0,
     0.0,
-    0.0,
-    -1.0
+    0.0
    ],
    "scale": [
     1.0,
@@ -3587,9 +3523,9 @@
    ],
    "rotation": [
     0.0,
-    1.0,
+    0.707107,
     0.0,
-    0.0
+    0.707107
    ],
    "scale": [
     1.0,
@@ -3603,44 +3539,6 @@
     -16.0,
     8.0,
     24.0
-   ],
-   "rotation": [
-    0.0,
-    0.0,
-    0.0,
-    -1.0
-   ],
-   "scale": [
-    1.0,
-    1.0,
-    1.0
-   ]
-  },
-  {
-   "asset": "floor_tile_large",
-   "position": [
-    -16.0,
-    8.0,
-    20.0
-   ],
-   "rotation": [
-    0.0,
-    1.0,
-    0.0,
-    0.0
-   ],
-   "scale": [
-    1.0,
-    1.0,
-    1.0
-   ]
-  },
-  {
-   "asset": "trunk_medium_A",
-   "position": [
-    -13.3,
-    0.0,
-    24.4
    ],
    "rotation": [
     0.0,
@@ -3652,15 +3550,33 @@
     1.0,
     1.0,
     1.0
-   ],
-   "solid": true
+   ]
   },
   {
-   "asset": "trunk_medium_A",
+   "asset": "floor_tile_large",
    "position": [
-    -13.3,
+    -16.0,
+    8.0,
+    20.0
+   ],
+   "rotation": [
     0.0,
-    22.0
+    0.707107,
+    0.0,
+    -0.707107
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  {
+   "asset": "barrel_large_decorated",
+   "position": [
+    -13.691,
+    0.0,
+    24.35
    ],
    "rotation": [
     0.0,
@@ -3850,6 +3766,455 @@
     1.0,
     1.0
    ]
+  },
+  {
+   "asset": "floor_tile_large",
+   "position": [
+    8.0,
+    0.0,
+    32.0
+   ],
+   "rotation": [
+    0.0,
+    -0.707107,
+    0.0,
+    -0.707107
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  {
+   "asset": "floor_tile_large",
+   "position": [
+    4.0,
+    0.0,
+    32.0
+   ],
+   "rotation": [
+    0.0,
+    0.707107,
+    0.0,
+    -0.707107
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  {
+   "asset": "floor_tile_large",
+   "position": [
+    8.0,
+    0.0,
+    36.0
+   ],
+   "rotation": [
+    0.0,
+    -0.707107,
+    0.0,
+    -0.707107
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  {
+   "asset": "floor_tile_large",
+   "position": [
+    4.0,
+    0.0,
+    36.0
+   ],
+   "rotation": [
+    0.0,
+    0.707107,
+    0.0,
+    -0.707107
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  {
+   "asset": "wall",
+   "position": [
+    8.0,
+    0.0,
+    38.0
+   ],
+   "rotation": [
+    0.0,
+    1.0,
+    0.0,
+    0.0
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "solid": true
+  },
+  {
+   "asset": "wall_window_open",
+   "position": [
+    4.0,
+    0.0,
+    38.0
+   ],
+   "rotation": [
+    0.0,
+    1.0,
+    0.0,
+    0.0
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "solid": true
+  },
+  {
+   "asset": "wall",
+   "position": [
+    10.0,
+    0.0,
+    32.0
+   ],
+   "rotation": [
+    0.0,
+    0.707107,
+    0.0,
+    -0.707107
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "solid": true
+  },
+  {
+   "asset": "wall_window_open",
+   "position": [
+    2.0,
+    0.0,
+    32.0
+   ],
+   "rotation": [
+    0.0,
+    0.707107,
+    0.0,
+    -0.707107
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "solid": true
+  },
+  {
+   "asset": "wall",
+   "position": [
+    10.0,
+    0.0,
+    36.0
+   ],
+   "rotation": [
+    0.0,
+    0.707107,
+    0.0,
+    -0.707107
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "solid": true
+  },
+  {
+   "asset": "wall_window_open",
+   "position": [
+    2.0,
+    0.0,
+    36.0
+   ],
+   "rotation": [
+    0.0,
+    0.707107,
+    0.0,
+    -0.707107
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "solid": true
+  },
+  {
+   "asset": "pillar",
+   "position": [
+    10.0,
+    0.0,
+    38.0
+   ],
+   "rotation": [
+    0.0,
+    1.0,
+    0.0,
+    0.0
+   ],
+   "scale": [
+    1.2,
+    1.2,
+    1.2
+   ],
+   "solid": true
+  },
+  {
+   "asset": "pillar",
+   "position": [
+    2.0,
+    0.0,
+    38.0
+   ],
+   "rotation": [
+    0.0,
+    1.0,
+    0.0,
+    0.0
+   ],
+   "scale": [
+    1.2,
+    1.2,
+    1.2
+   ],
+   "solid": true
+  },
+  {
+   "asset": "floor_tile_large",
+   "position": [
+    8.0,
+    4.0,
+    32.0
+   ],
+   "rotation": [
+    0.0,
+    -0.707107,
+    0.0,
+    -0.707107
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  {
+   "asset": "floor_tile_large",
+   "position": [
+    4.0,
+    4.0,
+    32.0
+   ],
+   "rotation": [
+    0.0,
+    -0.707107,
+    0.0,
+    -0.707107
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  {
+   "asset": "floor_tile_large",
+   "position": [
+    8.0,
+    4.0,
+    36.0
+   ],
+   "rotation": [
+    0.0,
+    1.0,
+    0.0,
+    0.0
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  {
+   "asset": "floor_tile_large",
+   "position": [
+    4.0,
+    4.0,
+    36.0
+   ],
+   "rotation": [
+    0.0,
+    -0.707107,
+    0.0,
+    -0.707107
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  {
+   "asset": "Potionstation_decorated",
+   "position": [
+    8.75,
+    0.0,
+    26.9
+   ],
+   "rotation": [
+    0.0,
+    0.707107,
+    0.0,
+    -0.707107
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "solid": true
+  },
+  {
+   "asset": "bookcase_double_decoratedA",
+   "position": [
+    2.765,
+    0.0,
+    35.0
+   ],
+   "rotation": [
+    0.0,
+    0.707107,
+    0.0,
+    0.707107
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "solid": true
+  },
+  {
+   "asset": "table_small_decorated_A",
+   "position": [
+    5.577,
+    0.0,
+    36.488
+   ],
+   "rotation": [
+    0.0,
+    0.996195,
+    0.0,
+    -0.087156
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "solid": true
+  },
+  {
+   "asset": "candle_triple",
+   "position": [
+    9.083,
+    0.0,
+    36.835
+   ],
+   "rotation": [
+    0.0,
+    1.0,
+    0.0,
+    0.0
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "solid": true
+  },
+  {
+   "asset": "rug_rectangle_stripes_A",
+   "position": [
+    5.2,
+    0.0,
+    33.6
+   ],
+   "rotation": [
+    0.0,
+    0.707107,
+    0.0,
+    -0.707107
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  {
+   "asset": "shelf_small_candles",
+   "position": [
+    2.5,
+    1.4,
+    32.2
+   ],
+   "rotation": [
+    0.0,
+    0.707107,
+    0.0,
+    0.707107
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  },
+  {
+   "asset": "torch_mounted",
+   "position": [
+    9.5,
+    2.3,
+    36.4
+   ],
+   "rotation": [
+    0.0,
+    0.707107,
+    0.0,
+    -0.707107
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ]
   }
  ],
  "markers": [
@@ -3870,6 +4235,23 @@
    ]
   },
   {
+   "name": "campfire",
+   "position": [
+    7.4,
+    0.0,
+    16.4
+   ]
+  },
+  {
+   "name": "training-dummy",
+   "position": [
+    -7.9,
+    0.0,
+    24.4
+   ],
+   "yaw": 2.0944
+  },
+  {
    "name": "seller-blacksmith",
    "position": [
     6.4,
@@ -3886,15 +4268,6 @@
     26.0
    ],
    "yaw": 1.5708
-  },
-  {
-   "name": "seller-enchanter",
-   "position": [
-    6.6,
-    0.0,
-    18.1
-   ],
-   "yaw": 4.7124
   },
   {
    "name": "room",
@@ -3922,6 +4295,15 @@
    ]
   },
   {
+   "name": "seller-innkeeper",
+   "position": [
+    -13.6,
+    0.0,
+    22.4
+   ],
+   "yaw": 1.5708
+  },
+  {
    "name": "room",
    "position": [
     -12.0,
@@ -3936,6 +4318,23 @@
     4.05,
     19.3
    ]
+  },
+  {
+   "name": "room",
+   "position": [
+    5.2,
+    0.0,
+    32.2
+   ]
+  },
+  {
+   "name": "seller-enchanter",
+   "position": [
+    7.2,
+    0.0,
+    33.9
+   ],
+   "yaw": 4.7124
   },
   {
    "name": "player-spawn",
@@ -4081,6 +4480,28 @@
    ]
   },
   {
+   "name": "door",
+   "min": [
+    3.1,
+    28.5
+   ],
+   "max": [
+    4.9,
+    31.5
+   ]
+  },
+  {
+   "name": "safe",
+   "min": [
+    3.1,
+    28.5
+   ],
+   "max": [
+    4.9,
+    31.5
+   ]
+  },
+  {
    "name": "room",
    "min": [
     10.5,
@@ -4171,15 +4592,49 @@
     26.5
    ],
    "level": 2
+  },
+  {
+   "name": "room",
+   "min": [
+    2.5,
+    30.5
+   ],
+   "max": [
+    9.5,
+    37.5
+   ]
+  },
+  {
+   "name": "safe",
+   "min": [
+    2.5,
+    30.5
+   ],
+   "max": [
+    9.5,
+    37.5
+   ]
+  },
+  {
+   "name": "cover",
+   "min": [
+    1.5,
+    27.0
+   ],
+   "max": [
+    10.5,
+    38.5
+   ],
+   "level": 1
   }
  ],
  "meshes": [],
  "lights": [
   {
    "position": [
-    5.4,
+    7.4,
     0.582,
-    21.4
+    16.4
    ],
    "color": [
     1.0,
@@ -4188,20 +4643,6 @@
    ],
    "energy": 2.2,
    "range": 7.0
-  },
-  {
-   "position": [
-    8.4,
-    1.879,
-    18.1
-   ],
-   "color": [
-    1.0,
-    0.57,
-    0.21
-   ],
-   "energy": 1.0,
-   "range": 3.5
   },
   {
    "position": [
@@ -4247,7 +4688,7 @@
   },
   {
    "position": [
-    3.0,
+    2.5,
     2.929,
     28.884
    ],
@@ -4303,7 +4744,7 @@
   },
   {
    "position": [
-    -3.0,
+    -2.5,
     2.929,
     28.884
    ],
@@ -4362,6 +4803,48 @@
     -13.0,
     6.929,
     19.116
+   ],
+   "color": [
+    1.0,
+    0.342,
+    0.084
+   ],
+   "energy": 1.6,
+   "range": 5.0
+  },
+  {
+   "position": [
+    9.0,
+    0.873,
+    36.8
+   ],
+   "color": [
+    1.0,
+    0.57,
+    0.21
+   ],
+   "energy": 1.0,
+   "range": 3.5
+  },
+  {
+   "position": [
+    2.75,
+    2.094,
+    32.2
+   ],
+   "color": [
+    1.0,
+    0.57,
+    0.21
+   ],
+   "energy": 0.8,
+   "range": 3.0
+  },
+  {
+   "position": [
+    8.884,
+    2.929,
+    36.4
    ],
    "color": [
     1.0,

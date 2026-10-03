@@ -61,6 +61,23 @@ public class BowTests
         Assert.True(volley.Damage * volley.Projectiles > shot.Damage);
     }
 
+    // A narrow V: the middle arrow along the aim, the others either side of it, as far one way as the other.
+    [Fact]
+    public void The_volleys_arrows_fan_out_narrowly_about_the_aim_and_a_magic_volleys_darts_do_not()
+    {
+        var volley = Weapons.Bow.Secondary;
+        const float Aim = 1f;
+        var yaws = Enumerable.Range(0, volley.Projectiles).Select(i => volley.SpreadYaw(Aim, i)).ToList();
+
+        Assert.True(volley.Spread > 0f);
+        Assert.True(volley.Spread * (volley.Projectiles - 1) < 15f * Angles.DegToRad);
+        Assert.Equal(Aim * volley.Projectiles, yaws.Sum(), precision: 4);
+        Assert.All(yaws.Zip(yaws.Skip(1)), pair => Assert.Equal(volley.Spread, pair.Second - pair.First, precision: 4));
+        Assert.Equal(Aim, Weapons.Bow.Primary.SpreadYaw(Aim, 0));
+        Assert.All(Weapons.Staffs.Select(s => s.Primary).Where(p => p.Projectiles > 1), darts =>
+            Assert.Equal(Aim, darts.SpreadYaw(Aim, darts.Projectiles - 1)));
+    }
+
     [Fact]
     public void Arrows_pierce_and_grow_with_str()
     {

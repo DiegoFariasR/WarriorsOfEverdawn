@@ -48,10 +48,12 @@ public partial class ScreenshotCapture : Node
         GetTree().CreateTimer(_options.At).Timeout += Capture;
     }
 
-    // Waits for the frame to finish drawing, so the image is the whole frame rather than whatever was last drawn.
-    private async void Capture()
+    // Draws the frame itself and takes it, so the image is the whole frame as it is now rather than whatever was last
+    // drawn. A minimized window draws few frames of its own, and in some runs none for seconds on end: waiting for
+    // the next one (frame_post_draw) once waited out the run.
+    private void Capture()
     {
-        await ToSignal(RenderingServer.Singleton, "frame_post_draw");
+        RenderingServer.ForceDraw();
         var image = GetViewport().GetTexture().GetImage();
         if (image == null || image.IsEmpty())
         {

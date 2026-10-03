@@ -34,8 +34,17 @@ public partial class PlayerCharacter : CharacterBody3D
     private const float BodyTurnRate = 12f;
     private const float MovingThreshold = 0.2f;
 
+    // A seat's clips move the hips; the body itself is carried onto the seat over this share of the clip down, and
+    // back off it over this share of the clip up. A push of the stick less than this does not get it up.
+    private const float OntoSeatShare = 0.5f;
+    private const float OffSeatShare = 0.6f;
+    private const float GetUpPush = 0.3f;
+
+    // A thrust's rings start this far out from the chest, about where the hand is at full extension.
+    private const float RingsFromHand = 0.5f;
+
     // What a player on its feet runs into; dashing or down, the level alone.
-    private const uint OnFootMask = CollisionLayers.World | CollisionLayers.Enemies;
+    private const uint OnFootMask = CollisionLayers.Solid | CollisionLayers.Enemies;
 
     private static readonly Color TrailTint = new(1f, 0.92f, 0.75f);
 
@@ -75,6 +84,29 @@ public partial class PlayerCharacter : CharacterBody3D
     private SkillDefinition? _active;
     private SkillDefinition? _swing;
     private int _swingButton = -1;
+
+    // Primary swings started on this machine, so each takes the next of the weapon's forms (WeaponDefinition.PrimaryFor).
+    private int _primarySwings;
+
+    // On the owner: when the potion can next be drunk, on this player's clock.
+    private float _drinkReady;
+
+    // Sitting or lying down (Seating): on what, where it gets up to, and how far its body is along its way onto the
+    // seat or off it.
+    private SeatKind? _seated;
+    private Vector3 _getsUpTo;
+    private bool _getUpAsked;
+    // How it was going on foot, which on ice it keeps more of than it wants to.
+    private Vector3 _going;
+
+    // Whether this cycle of a held spell of fire or ice has left its ground yet, and this thrust its rings.
+    private bool _groundLeft;
+    private bool _ringsLaid;
+    private Vector3 _restFrom;
+    private Vector3 _restTo;
+    private float _restMoved;
+    private float _restMoveTime;
+    private float _risingLeft;
     private float _swingElapsed;
     private int _swingHits;
     private float _swingShownTime;
@@ -153,6 +185,9 @@ public partial class PlayerCharacter : CharacterBody3D
 
     public bool IsGuarding => _guard.IsUp;
 
+    // On the owner: seconds until the potion can be drunk again.
+    public float DrinkCooldownLeft => Mathf.Max(0f, _drinkReady - _clock);
+
     public float GuardRecoveryLeft => _guard.RecoveryLeft(GuardClock);
 
     public bool CanRaiseGuard => FreeToGuard && _guard.CanRaise(GuardClock);
@@ -212,6 +247,11 @@ public partial class PlayerCharacter : CharacterBody3D
 
     // On the owner: the seller's window is open over the game.
     public bool IsTrading { get; set; }
+
+    // On a seat, or getting down onto it or up off it: the body is the seat's, and nothing else starts.
+    public bool IsResting => _seated != null || _risingLeft > 0f;
+
+    public SeatKind? Seated => _seated;
 
     // On the owner: it asked the seller in reach to trade.
     public event Action<SellerDefinition>? TradeAsked;
@@ -310,7 +350,7 @@ public partial class PlayerCharacter : CharacterBody3D
         }
 
         // A body on the ground is not shoved about by the skeletons walking over it; they still bump into it.
-        CollisionMask = CollisionLayers.World;
+        CollisionMask = CollisionLayers.Solid;
 
         _animator.PlayDeath();
     }
@@ -340,6 +380,11 @@ public partial class PlayerCharacter : CharacterBody3D
         _clock += (float)delta;
         _mana.Regenerate(StatRules.ManaRegenPerSecond * (float)delta);
         Controls.Update(this, delta);
+        if (IsResting)
+        {
+            Rest((float)delta);
+            return;
+        }
 
         // Frozen or stunned, by the host's word: no step, no dash, no skill, and what it was swinging is over.
         bool lost = Vitals.IsLost;
@@ -412,6 +457,15 @@ public partial class PlayerCharacter : CharacterBody3D
             velocity = move / move.Length() * MoveSpeed.For(_legs, ActiveSkill, _guard.IsUp ? _weapon?.Guard : null) * amount * Vitals.Speed;
         }
 
+        // On ice it slides, as a skeleton does: it gains and loses speed slowly (GroundSurfaces).
+        if (GroundSurfaces.In(GetTree()).IcyUnder(GlobalPosition))
+        {
+            var slid = Surfaces.Slide(Yaw.ToGround(_going), Yaw.ToGround(velocity), (float)delta);
+            velocity = new Vector3(slid.X, 0f, slid.Y);
+        }
+
+        _going = velocity;
+
         // Frozen or stunned, it is not moved at all: left to the physics, skeletons walking into it would shove it.
         if (!lost)
         {
@@ -467,16 +521,91 @@ public partial class PlayerCharacter : CharacterBody3D
             {
                 TradeAsked?.Invoke(seller.Seller);
             }
+            else if (Controls.InteractPressed && Seating.In(GetTree()).InReachOf(GlobalPosition) is { } seat)
+            {
+                Seating.In(GetTree()).Sit(seat);
+            }
+        }
+
+        // Drunk on the move and between swings alike; the host decides whether it heals (PlayerVitals.RequestDrink).
+        if (Controls.DrinkPressed && _clock >= _drinkReady && Vitals.PotionCharges > 0 && Vitals.Hp < PlayerRules.MaxHp && !IsDowned)
+        {
+            _drinkReady = _clock + HealthPotion.Cooldown;
+            Vitals.RpcId(1, PlayerVitals.MethodName.RequestDrink);
         }
 
         if (!held && Controls.SkillHeld is { } button && !_animator.IsAttacking && CanUse(button))
         {
-            var skill = _weapon!.Skill(button);
+            var skill = button == Primary ? _weapon!.PrimaryFor(_primarySwings++) : _weapon!.Skill(button);
             _mana.TrySpend(skill.ManaCost);
             _cooldowns.Start(button, skill, _clock);
             _swingButton = button;
             Rpc(MethodName.StartAttack, skill.Id);
         }
+    }
+
+    // On the owner, on a seat: any step, skill, dash, guard or E gets it up, by the host's leave; while it gets down
+    // or up, nothing does. Its body is carried onto the seat and back off it, as the clips sit it down and stand it up.
+    private void Rest(float delta)
+    {
+        if (_restMoved < _restMoveTime)
+        {
+            _restMoved += delta;
+            GlobalPosition = _restFrom.Lerp(_restTo, Mathf.Min(1f, _restMoved / _restMoveTime));
+        }
+
+        if (_risingLeft <= 0f && !_getUpAsked && (Controls!.Move.LengthSquared() > GetUpPush * GetUpPush || Controls.SkillHeld != null || Controls.DashPressed
+            || Controls.GuardHeld || Controls.InteractPressed))
+        {
+            _getUpAsked = true;
+            Seating.In(GetTree()).GetUp();
+        }
+
+        NetPosition = GlobalPosition;
+        NetVelocity = Vector3.Zero;
+        _shownAimYaw = AimYaw;
+    }
+
+    // On every machine: the host has sat this player down on a seat of that kind. It faces `yaw` and its body goes to
+    // `origin`; it gets up to `from`, where it stood as it asked.
+    internal void OnSat(SeatKind kind, Vector3 origin, float yaw, Vector3 from)
+    {
+        _seated = kind;
+        _getUpAsked = false;
+        _getsUpTo = from;
+        _risingLeft = 0f;
+        float down = kind == SeatKind.Sit ? _animator.Rest(RigAnimations.SitDown, RigAnimations.SitIdle) : _animator.Rest(RigAnimations.LieDown, RigAnimations.LieIdle);
+        _shownAimYaw = yaw;
+        _bodyYaw = yaw;
+        if (IsMultiplayerAuthority())
+        {
+            AimYaw = yaw;
+            CarryBody(origin, down * OntoSeatShare);
+        }
+    }
+
+    // On every machine: the host has got this player up off its seat.
+    internal void OnGotUp()
+    {
+        if (_seated is not { } kind)
+        {
+            return;
+        }
+
+        _seated = null;
+        _risingLeft = _animator.Rise(kind == SeatKind.Sit ? RigAnimations.SitUp : RigAnimations.LieUp);
+        if (IsMultiplayerAuthority())
+        {
+            CarryBody(_getsUpTo, _risingLeft * OffSeatShare);
+        }
+    }
+
+    private void CarryBody(Vector3 to, float over)
+    {
+        _restFrom = GlobalPosition;
+        _restTo = to;
+        _restMoved = 0f;
+        _restMoveTime = Mathf.Max(over, 0.01f);
     }
 
     // On the owner: the weapon sets it carries from now on. The synchronizer takes them to the other machines.
@@ -517,6 +646,12 @@ public partial class PlayerCharacter : CharacterBody3D
 
     // The host paid this player for the weapon in that slot: it is gone, and the slot free.
     internal void OnSold(WeaponSlot slot) => Carry(Sets.Without(slot));
+
+    // The innkeeper's rest: the host has filled the HP and the potion, and the mana, which is this machine's, fills here.
+    internal void OnRested() => _mana.Regenerate(_mana.Max);
+
+    // For --start-spent, on this player's own machine, where its mana is.
+    internal void SpendMana() => _mana.TrySpend((int)_mana.Current);
 
     // Someone else took it first.
     internal void OnPickUpRefused()
@@ -611,8 +746,8 @@ public partial class PlayerCharacter : CharacterBody3D
         while (skill.Projectile != null && _swingLoosed < skill.Projectiles
             && _swingElapsed >= (skill.HitTime + _swingLoosed * skill.VolleyInterval) / _swingSpeed)
         {
+            Rpc(MethodName.LooseBolt, _boltsThrown++, skill.Id, GlobalPosition + Vector3.Up * Bolts.Height, skill.SpreadYaw(AimYaw, _swingLoosed));
             _swingLoosed++;
-            Rpc(MethodName.LooseBolt, _boltsThrown++, skill.Id, GlobalPosition + Vector3.Up * Bolts.Height, AimYaw);
         }
 
         var me = Yaw.ToGround(GlobalPosition);
@@ -621,16 +756,22 @@ public partial class PlayerCharacter : CharacterBody3D
             HitTested?.Invoke(skill, Trail.ReachFrom(GlobalPosition));
         }
 
+        if (skill is { Area: { } held, Surface: not null } && !_groundLeft)
+        {
+            _groundLeft = true;
+            GroundSurfaces.In(GetTree()).Lay(skill, GlobalPosition + Yaw.Forward(AimYaw) * held.Distance);
+        }
+
         // A blow lands on the floor it is struck on, and a spell held on an area on what its caster can see: not on
         // what stands behind a wall.
         var space = GetWorld3D().DirectSpaceState;
         bool Reaches(Node3D body) =>
             Floors.SameLevel(GlobalPosition.Y, body.GlobalPosition.Y) && (skill.Area == null || !Walls.Between(space, GlobalPosition, body.GlobalPosition));
 
-        foreach (var foe in Foes())
+        foreach (var foe in Targets())
         {
             if (!_hitThisSwing.Contains(foe.GetInstanceId())
-                && SkillHits.Catches(me, AimYaw, skill, Yaw.ToGround(foe.GlobalPosition), BodySize.Radius) && Reaches(foe))
+                && SkillHits.Catches(me, AimYaw, skill, Yaw.ToGround(foe.GlobalPosition), RadiusOf(foe)) && Reaches(foe))
             {
                 DealTo(foe, skill);
                 _hitThisSwing.Add(foe.GetInstanceId());
@@ -666,6 +807,7 @@ public partial class PlayerCharacter : CharacterBody3D
         _swingElapsed -= cycle;
         _swingHits = 0;
         _hitThisSwing.Clear();
+        _groundLeft = false;
     }
 
     // On the owner, for Bolts: the first body one of its bolts touches on its way from one point to the next takes the
@@ -675,14 +817,15 @@ public partial class PlayerCharacter : CharacterBody3D
     {
         var projectile = skill.Projectile!;
         float feet = from.Y - Bolts.Height;
-        var touched = Foes()
+        var touched = Targets()
             .Where(f => Floors.SameLevel(feet, f.GlobalPosition.Y)
-                && Projectiles.Hits(Yaw.ToGround(from), Yaw.ToGround(to), Yaw.ToGround(f.GlobalPosition), BodySize.Radius, projectile))
+                && Projectiles.Hits(Yaw.ToGround(from), Yaw.ToGround(to), Yaw.ToGround(f.GlobalPosition), RadiusOf(f), projectile))
             .ToList();
 
-        // A skeleton it touches is struck before any player, whichever is nearer.
+        // A skeleton it touches is struck before any player, and a player before a dummy or a crate, whichever is nearer.
         var struck = touched.OfType<EnemyCharacter>().MinBy(e => e.GlobalPosition.DistanceSquaredTo(from)) as Node3D
-            ?? touched.OfType<PlayerCharacter>().MinBy(p => p.GlobalPosition.DistanceSquaredTo(from));
+            ?? touched.OfType<PlayerCharacter>().MinBy(p => p.GlobalPosition.DistanceSquaredTo(from)) as Node3D
+            ?? touched.Where(t => t is IStruck).MinBy(t => t.GlobalPosition.DistanceSquaredTo(from));
         if (struck == null)
         {
             return false;
@@ -708,13 +851,18 @@ public partial class PlayerCharacter : CharacterBody3D
         var space = GetWorld3D().DirectSpaceState;
         var feet = at - Vector3.Up * Bolts.Height;
         int caught = 0;
-        foreach (var foe in Foes()
+        foreach (var foe in Targets()
             .Where(f => Floors.SameLevel(feet.Y, f.GlobalPosition.Y)
-                && Projectiles.Blasts(spot, skill.BlastRadius, Yaw.ToGround(f.GlobalPosition), BodySize.Radius)
+                && Projectiles.Blasts(spot, skill.BlastRadius, Yaw.ToGround(f.GlobalPosition), RadiusOf(f))
                 && !Walls.Between(space, feet, f.GlobalPosition)))
         {
             DealTo(foe, skill);
             caught++;
+        }
+
+        if (skill.Surface != null)
+        {
+            GroundSurfaces.In(GetTree()).Lay(skill, feet);
         }
 
         BlastCaught?.Invoke(skill, caught);
@@ -742,17 +890,27 @@ public partial class PlayerCharacter : CharacterBody3D
         }
     }
 
-    // On the owner: the host is asked to deal the skill's damage to a foe one of its blows landed on.
-    private void DealTo(Node3D foe, SkillDefinition skill)
+    // What this player's blows, bolts and bursts land on: its foes, and what is struck as a body and fights no one, the
+    // training dummies and the crates and barrels that break.
+    private IEnumerable<Node3D> Targets() => Foes().Concat(Struck.All(GetTree()));
+
+    private static float RadiusOf(Node3D target) => target is IStruck thing ? thing.Radius : BodySize.Radius;
+
+    // On the owner: the host is asked to deal the skill's damage to what one of its blows landed on.
+    private void DealTo(Node3D target, SkillDefinition skill)
     {
-        if (foe is PlayerCharacter other)
+        switch (target)
         {
-            other.Vitals.RpcId(1, PlayerVitals.MethodName.RequestDamage, skill.Id);
-            PlayerHit?.Invoke(other);
-        }
-        else
-        {
-            ((EnemyCharacter)foe).RpcId(1, EnemyCharacter.MethodName.RequestDamage, skill.Id);
+            case PlayerCharacter other:
+                other.Vitals.RpcId(1, PlayerVitals.MethodName.RequestDamage, skill.Id);
+                PlayerHit?.Invoke(other);
+                break;
+            case IStruck thing:
+                thing.AskToStrike(skill.Id);
+                break;
+            default:
+                ((EnemyCharacter)target).RpcId(1, EnemyCharacter.MethodName.RequestDamage, skill.Id);
+                break;
         }
     }
 
@@ -778,7 +936,7 @@ public partial class PlayerCharacter : CharacterBody3D
     {
         var direction = DashRules.Direction(Yaw.ToGround(Controls!.Move), AimYaw);
         bool spinsOn = _swing is { Channeled: true } && Controls.SkillHeld == _swingButton;
-        _lungeArmed = _weapon != null && _swing == _weapon.Primary;
+        _lungeArmed = _weapon != null && _swing != null && (_swing == _weapon.Primary || _swing == _weapon.Alternate);
         _lunged = false;
         if (_swing != null && !spinsOn)
         {
@@ -789,7 +947,7 @@ public partial class PlayerCharacter : CharacterBody3D
         _dashLeft = DashRules.Duration;
         _dashDirection = new Vector3(direction.X, 0f, direction.Y);
         _dashFrom = GlobalPosition;
-        CollisionMask = CollisionLayers.World;
+        CollisionMask = CollisionLayers.Solid;
         Rpc(MethodName.StartDash, _dashDirection, spinsOn);
     }
 
@@ -837,6 +995,7 @@ public partial class PlayerCharacter : CharacterBody3D
 
     private void Present(float delta)
     {
+        _risingLeft = Mathf.Max(0f, _risingLeft - delta);
         ShowWeapons();
         ShowArmour();
         StatusShow.Reflect(IsDowned ? Statuses.None : Vitals.Statuses);
@@ -856,6 +1015,16 @@ public partial class PlayerCharacter : CharacterBody3D
 
         // Driven by the swing's start on this peer, so every player's trail shows on every machine.
         _swingShownTime += delta;
+
+        // A thrust lays its rings at full extension, from the hand out to its point, in the trail's colour; a lunge's
+        // where the dash has carried it by then.
+        if (ActiveSkill is { Thrust: true } thrust && !_ringsLaid && _swingShownTime >= CombatTiming.HitWindowEnd(thrust, _swingSpeed))
+        {
+            _ringsLaid = true;
+            var forward = Yaw.Forward(_shownAimYaw);
+            var chest = GlobalPosition + Vector3.Up * Bolts.Height;
+            PierceRings.In(GetTree()).Row(chest + forward * RingsFromHand, chest + forward * thrust.Range, Trail.Colour);
+        }
         // A spell is no swing of the weapon: it leaves no trail.
         Trail.Recording = ActiveSkill is { Projectile: null, Area: null } swing && (swing.Channeled || WeaponTrail.Shows(swing, _swingShownTime, _swingSpeed));
         ShowMagic();
@@ -944,6 +1113,8 @@ public partial class PlayerCharacter : CharacterBody3D
         _swingLoosed = 0;
         _swingShownTime = 0f;
         _hitThisSwing.Clear();
+        _groundLeft = false;
+        _ringsLaid = false;
         if (skill.Projectile != null && skill.Element != null && !Bolts.IsArrow(skill))
         {
             _circles.Throw(AimYaw, (skill.HitTime + (skill.Projectiles - 1) * skill.VolleyInterval) / speed);

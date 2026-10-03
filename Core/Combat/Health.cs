@@ -40,4 +40,22 @@ public sealed class Health
     }
 
     public void RestoreFull() => Current = Max;
+
+    // Returns what is healed: up to Max, and nothing once dead, since getting up again is no healing.
+    public int Heal(int amount)
+    {
+        if (amount < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(amount), amount, "A heal cannot be negative");
+        }
+
+        if (IsDead)
+        {
+            return 0;
+        }
+
+        int healed = Math.Min(amount, Max - Current);
+        Current += healed;
+        return healed;
+    }
 }

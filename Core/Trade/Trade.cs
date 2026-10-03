@@ -16,6 +16,7 @@ public enum TradeKind
     Sale,
     Enchantment,
     Attunement,
+    Rest,
 }
 
 // One thing a seller offers this buyer, for what it costs: a weapon or a tier of armour. A weapon with no Slot is one
@@ -24,7 +25,8 @@ public enum TradeKind
 // cannot be had just now, when it cannot; what it names then is what the buyer already has.
 //
 // The trade can go the other way: with Pays it is the player who sells and is paid that. What it hands over is then
-// Cost (an orb), or with a Slot and no Weapon the weapon in that slot, which is left empty.
+// Cost (an orb), or with a Slot and no Weapon the weapon in that slot, which is left empty. A rest (TradeKind.Rest)
+// gives no thing: the player is made whole.
 public sealed record TradeItem(string Id, string Name, Cost Cost, WeaponDefinition? Weapon = null, WeaponSlot? Slot = null, string? Unavailable = null)
 {
     public ArmourDefinition? Armour { get; init; }
@@ -43,7 +45,7 @@ public sealed record TradeItem(string Id, string Name, Cost Cost, WeaponDefiniti
     // enchanter's offers, one to an element, are told apart by their element alone.
     public string? Label { get; init; }
 
-    public bool GivesSomething => Weapon != null || Armour != null || IsSale;
+    public bool GivesSomething => Weapon != null || Armour != null || IsSale || As == TradeKind.Rest;
 }
 
 // Someone standing in the town who trades. Line says in a few words what for what. What they offer can depend on
@@ -88,7 +90,11 @@ public static class Sellers
             TradeRules.OrbSale,
         });
 
-    public static IReadOnlyList<SellerDefinition> All { get; } = new[] { Weaponsmith, Blacksmith, Merchant, Enchanter };
+    // A rest, the same for every buyer, whatever it lacks.
+    public static readonly SellerDefinition Innkeeper = new("innkeeper", "Innkeeper", "A rest: your health, mana and potion filled",
+        _ => new[] { TradeRules.Rest });
+
+    public static IReadOnlyList<SellerDefinition> All { get; } = new[] { Weaponsmith, Blacksmith, Merchant, Enchanter, Innkeeper };
 
     public static SellerDefinition ById(string id) =>
         All.FirstOrDefault(s => s.Id == id) ?? throw new KeyNotFoundException($"Unknown seller '{id}'");
@@ -131,6 +137,9 @@ public static class TradeRules
     // element.
     public static readonly Cost EnchantCost = new(Gold: 60, Orbs: 1);
     public static readonly Cost AttuneCost = new(Gold: 30);
+
+    // First pass: the innkeeper's rest.
+    public static readonly Cost RestCost = new(Gold: 10);
 
     // First pass. Each level costs more than the last: this much gold for every level reached, and an orb for every
     // two (one for +1 and +2, two for +3 and +4, up to five for +9 and +10).
@@ -197,6 +206,9 @@ public static class TradeRules
 
     // What the merchant pays for it.
     public static Cost ResaleValue(WeaponDefinition weapon) => new(Gold: (int)(GoldPutInto(weapon) * ResaleShare));
+
+    // The innkeeper's offer: HP and mana back to full and the health potion filled.
+    public static TradeItem Rest { get; } = new("rest", "Rest", RestCost) { As = TradeKind.Rest };
 
     // The merchant's offer for a magic orb: the orb is the cost, gold the pay.
     public static TradeItem OrbSale { get; } = new("orb", "Magic orb", new Cost(Orbs: 1)) { Pays = new Cost(Gold: OrbPrice) };

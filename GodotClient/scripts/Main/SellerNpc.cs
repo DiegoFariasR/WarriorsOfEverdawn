@@ -26,6 +26,9 @@ public partial class SellerNpc : Node3D
         [Sellers.Blacksmith.Id] = CharacterLook.Of("Engineer", "Backpack", "Goggles"),
         [Sellers.Merchant.Id] = CharacterLook.Of("RogueHooded", "Cape", "Mask"),
         [Sellers.Enchanter.Id] = CharacterLook.Of("Mage", "Cape", "Hat"),
+
+        // A villager, bareheaded: the farmer comes with two heads, so the parts are named one by one.
+        [Sellers.Innkeeper.Id] = new("Farmer_B_Head", null, "Farmer_Body", "Farmer_ArmLeft", "Farmer_ArmRight", "Farmer_LegLeft", "Farmer_LegRight"),
     };
 
     public SellerDefinition Seller { get; private set; } = null!;

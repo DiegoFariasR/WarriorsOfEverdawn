@@ -25,6 +25,7 @@ public partial class LevelLayoutNode : Node3D
     private readonly List<Hanging> _hangings = new();
     private readonly List<LevelPiece> _pieces = new();
     private readonly List<LevelLight> _lights = new();
+    private readonly List<BreakablePiece> _breakables = new();
 
     public LevelLayout Layout { get; private set; } = null!;
 
@@ -39,6 +40,9 @@ public partial class LevelLayoutNode : Node3D
     public IReadOnlyList<LevelPiece> Pieces => _pieces;
 
     public IReadOnlyList<LevelLight> Lights => _lights;
+
+    // The pieces blows break, in the layout's order, with no body yet: the game gives each its own (Main/Breakable).
+    public IReadOnlyList<BreakablePiece> Breakables => _breakables;
 
     // Fails loudly: a level that cannot be read is no level to play.
     public static LevelLayoutNode Load(string resPath)
@@ -98,7 +102,12 @@ public partial class LevelLayoutNode : Node3D
                 }
             }
 
-            if (placement.Solid)
+            if (placement.Breakable)
+            {
+                var (box, size) = BoxOf(piece, BoundsOf(piece, meshes));
+                _breakables.Add(new BreakablePiece(piece, meshes, box, size));
+            }
+            else if (placement.Solid)
             {
                 AddSolid(piece, meshes, placement.FollowsMesh, placement.Ramp);
             }
@@ -283,6 +292,9 @@ public sealed record Hanging(IReadOnlyList<Occluder> On, IReadOnlyList<MeshInsta
 // A piece by the floor it is on and where its middle is on the ground, with what draws it.
 // The cameras that draw it (LayoutView) too.
 public sealed record LevelPiece(int Level, Vector2 Ground, IReadOnlyList<MeshInstance3D> Meshes, LayoutView View = LayoutView.All);
+
+// A piece blows break, its meshes, and its box (centred on Box, Size across), which its body is to take.
+public sealed record BreakablePiece(Node3D Piece, IReadOnlyList<MeshInstance3D> Meshes, Transform3D Box, Vector3 Size);
 
 // A light by the floor under it and where it is on the ground.
 public sealed record LevelLight(OmniLight3D Light, int Level, Vector2 Ground);

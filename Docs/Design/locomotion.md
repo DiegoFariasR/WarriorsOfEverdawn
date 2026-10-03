@@ -48,6 +48,7 @@ The `Rig_Medium` skeleton branches at `hips`: `spine` -> `chest` -> `head` and b
 - Base layer: the leg clip from the table above.
 - Stance layer: `Melee_2H_Idle` on the arm bones only, at full weight while moving and none while standing (the idle is that clip). With an empty hand there is no stance, and the standing idle is `Melee_Unarmed_Idle`. Both arms hang off the chest, so their poses keep the hands together on the weapon over the leg clip's chest; without it the leg clips swing the arms as if empty-handed.
 - Attack layer: a one-shot on top, filtered to `spine` and every bone below it.
+- Rest layer: sitting or lying down (`Rest`, `Rise`), over the whole body root and all: the clip down, then the clip held looping, then the clip up, at 1.6 times their pace, fading in and out over 0.2 s; the torso twist fades out with it ([level-layouts.md](level-layouts.md), "Seats").
 - Death layer: `Death_A` over everything while the player is down; the torso twist fades out with it.
 - **Full body when standing still, upper body only while moving**, blended continuously: the lower-body attack weight is the attack weight times a stillness factor that ramps over about 1/8 s. Some attacks drive the swing through the hips, and lose it when cut at the spine:
 

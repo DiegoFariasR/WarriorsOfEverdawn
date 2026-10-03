@@ -34,7 +34,7 @@ public partial class EnemyCharacter : CharacterBody3D
     private const float TickScale = 0.7f;
 
     // Red, so a skeleton's incoming swing reads as a threat.
-    private static readonly Color TrailTint = new(1f, 0.35f, 0.25f);
+    public static readonly Color TrailTint = new(1f, 0.35f, 0.25f);
 
     private Health _health = null!;
     private Node3D _model = null!;
@@ -65,6 +65,9 @@ public partial class EnemyCharacter : CharacterBody3D
     private bool _attackResolved;
     private float _shownYaw;
     private float _attackShownTime = -1f;
+
+    // Host only: how it was going, which on ice it keeps more of than it wants to.
+    private Vector3 _going;
 
     public static event Action<EnemyCharacter>? Died;
 
@@ -132,7 +135,7 @@ public partial class EnemyCharacter : CharacterBody3D
             NetYaw = yaw,
             Hp = definition.MaxHp,
             CollisionLayer = CollisionLayers.Enemies,
-            CollisionMask = CollisionLayers.World | CollisionLayers.Players | CollisionLayers.Enemies | CollisionLayers.Ward,
+            CollisionMask = CollisionLayers.Solid | CollisionLayers.Players | CollisionLayers.Enemies | CollisionLayers.Ward,
             FloorSnapLength = Gravity.FloorSnap,
             FloorMaxAngle = Gravity.SteepestFloor,
             _health = new Health(definition.MaxHp),
@@ -228,6 +231,15 @@ public partial class EnemyCharacter : CharacterBody3D
             velocity = Decide(delta);
         }
 
+        // On ice it slides: it gains and loses speed slowly, so it goes on past where it meant to stop.
+        if (GroundSurfaces.In(GetTree()).IcyUnder(GlobalPosition))
+        {
+            var slid = Surfaces.Slide(Yaw.ToGround(_going), Yaw.ToGround(velocity), delta);
+            velocity = new Vector3(slid.X, 0f, slid.Y);
+        }
+
+        _going = velocity;
+
         // A body frozen or stunned is not moved at all: left to the physics, the crowd walking into it would
         // shove it along.
         if (!_status.Lost)
@@ -240,8 +252,8 @@ public partial class EnemyCharacter : CharacterBody3D
         NetMoving = velocity.LengthSquared() > MovingThreshold * MovingThreshold;
     }
 
-    // Host only: builds its bars as a hit of this type and power would, with no damage done. For the self-tests,
-    // which freeze and stun on cue what a fight seldom leaves standing long enough.
+    // Host only: builds its bars as a hit of this type and power would, with no damage done: a turn on ice
+    // (GroundSurfaces), and the self-tests, which freeze and stun on cue what a fight seldom leaves standing long enough.
     public void BuildStatus(DamageType type, int power)
     {
         _status.Build(type, power, damage: 0, _status.Adjusted(Definition.Resistances));
@@ -558,18 +570,33 @@ public partial class EnemyCharacter : CharacterBody3D
             return;
         }
 
+        TakeHit(attackerId, attacker.Stats, attacker.Vitals.Status, skill, staggers: true);
+    }
+
+    // Host only: a turn on burning ground laid by that player, as a hit of its spell's, or with none by the level (a
+    // hearth's fire) at the hit's own strength: it does not stagger, or a skeleton in the flames would stagger every
+    // turn.
+    public void TakeSurfaceHit(PlayerCharacter? caster, SkillDefinition hit)
+    {
+        if (!IsDead)
+        {
+            TakeHit(caster?.PeerId ?? SurfaceField.Level, caster?.Stats ?? default, caster?.Vitals.Status, hit, staggers: false);
+        }
+    }
+
+    private void TakeHit(long attackerId, CharacterStats stats, StatusBars? dealer, SkillDefinition skill, bool staggers)
+    {
         // By what this kind of body makes of each type the hit is of, as its bars leave it, and by what the
         // attacker's own bars make of its blows. Then the hit builds this body's bars.
-        var dealer = attacker.Vitals.Status;
         var resistances = _status.Adjusted(Definition.Resistances);
-        int dealt = StatRules.Damage(skill, attacker.Stats, resistances, dealer);
-        int leaning = Math.Sign(dealt - StatRules.Damage(skill, attacker.Stats, Resistances.None, dealer));
+        int dealt = StatRules.Damage(skill, stats, resistances, dealer);
+        int leaning = Math.Sign(dealt - StatRules.Damage(skill, stats, Resistances.None, dealer));
         int taken = _health.TakeDamage(dealt);
         Hp = _health.Current;
-        StatRules.Afflict(_status, skill, attacker.Stats, resistances, dealer);
+        StatRules.Afflict(_status, skill, stats, resistances, dealer);
         StatusMask = (int)_status.Active;
         DamageTaken?.Invoke(attackerId, skill, taken, leaning);
-        bool staggered = !_health.IsDead && _stagger.TryApply(_clock);
+        bool staggered = staggers && !_health.IsDead && _stagger.TryApply(_clock);
         Rpc(MethodName.ShowHit, taken, staggered, DamageTypes.MaskOf(skill.Types), leaning);
         if (_health.IsDead)
         {

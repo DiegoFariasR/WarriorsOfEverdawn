@@ -117,6 +117,10 @@ public partial class Market : Node3D
         {
             buyer.OnSold(sold);
         }
+        else if (item.Kind == TradeKind.Rest)
+        {
+            buyer.OnRested();
+        }
 
         Bought?.Invoke(seller, item);
     }

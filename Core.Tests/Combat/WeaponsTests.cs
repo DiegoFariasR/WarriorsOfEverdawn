@@ -34,6 +34,65 @@ public class WeaponsTests
     }
 
     [Fact]
+    public void Every_weapon_of_steel_but_the_bow_strikes_its_primary_in_two_forms_in_turn()
+    {
+        foreach (var weapon in Weapons.Arms.Where(w => w != Weapons.Bow))
+        {
+            var second = weapon.Alternate;
+
+            Assert.NotNull(second);
+            Assert.NotEqual(weapon.Primary.Id, second!.Id);
+            Assert.Equal(weapon.Primary.Name, second.Name);
+            Assert.Equal(weapon.Primary.Damage, second.Damage);
+            Assert.Equal(weapon.Primary.Type, second.Type);
+            Assert.Equal(weapon.Primary.Buildup, second.Buildup);
+            Assert.Equal(weapon.Primary.HalfArc, second.HalfArc);
+            Assert.Contains(second, weapon.Skills);
+            Assert.Equal(new[] { weapon.Primary, second, weapon.Primary, second }, Enumerable.Range(0, 4).Select(weapon.PrimaryFor));
+        }
+    }
+
+    // A thrust is drawn as one (rings along its line); a swing, a Spin, a spell or a shot is not.
+    [Fact]
+    public void The_thrusts_are_the_spears_thrust_in_both_forms_and_every_weapons_lunge()
+    {
+        foreach (var weapon in Weapons.All)
+        {
+            var made = Weapons.AtLevel(weapon, 2);
+            Assert.True(weapon.Lunge.Thrust, weapon.Id);
+            Assert.True(made.Lunge.Thrust, made.Id);
+            Assert.False(weapon.Secondary.Thrust, weapon.Id);
+            Assert.Equal(weapon == Weapons.Spear, weapon.Primary.Thrust);
+            Assert.Equal(weapon == Weapons.Spear, weapon.Alternate?.Thrust ?? false);
+        }
+
+        Assert.All(Weapons.All.SelectMany(w => w.Skills).Where(s => s.Thrust), s => Assert.Null(s.Projectile));
+    }
+
+    [Fact]
+    public void Magic_and_the_bow_strike_their_primary_in_one_form()
+    {
+        foreach (var weapon in Weapons.All.Where(w => w.Element != null).Append(Weapons.Bow))
+        {
+            Assert.Null(weapon.Alternate);
+            Assert.All(Enumerable.Range(0, 4), swing => Assert.Same(weapon.Primary, weapon.PrimaryFor(swing)));
+        }
+    }
+
+    [Fact]
+    public void An_improved_and_enchanted_weapons_second_form_hits_as_hard_as_its_first()
+    {
+        var made = Weapons.Enchanted(Weapons.AtLevel(Weapons.Greatsword, 3), Element.Fire);
+        var second = made.Alternate!;
+
+        Assert.Equal(made.Primary.Damage, second.Damage);
+        Assert.True(second.Damage > Weapons.Greatsword.Alternate!.Damage);
+        Assert.Equal(Element.Fire, second.Element);
+        Assert.Equal(made.Primary.MagicShare, second.MagicShare);
+        Assert.Same(second, new WeaponSets(made, null).SkillById(second.Id));
+    }
+
+    [Fact]
     public void Every_weapon_lunges_with_a_free_thrust_along_a_narrow_line()
     {
         foreach (var weapon in Weapons.All)

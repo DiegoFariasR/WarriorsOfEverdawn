@@ -68,7 +68,7 @@ public partial class SwingSurvey : Node
             var skeleton = CharacterBody.SkeletonOf(body);
             var toBody = body.GlobalTransform.AffineInverse() * skeleton.GlobalTransform;
             var points = CharacterRig.WeaponPoints(hand);
-            foreach (var skill in new[] { weapon.Primary, weapon.Secondary, weapon.Lunge })
+            foreach (var skill in weapon.Skills)
             {
                 Survey(weapon, skill, skeleton, toBody, points);
             }

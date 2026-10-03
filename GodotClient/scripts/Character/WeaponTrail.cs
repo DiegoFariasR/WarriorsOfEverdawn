@@ -61,6 +61,9 @@ public partial class WeaponTrail : MeshInstance3D
     public bool Recording { get; set; }
 
     // The enchantment of the weapon in hand, if any.
+    // What colour it is drawn in: its element's, or warm white.
+    public Color Colour => _element is { } element ? ElementLooks.For(element).Primary : _plainTint;
+
     public Element? Element
     {
         get => _element;

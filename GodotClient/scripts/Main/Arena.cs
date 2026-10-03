@@ -1,6 +1,7 @@
 using System;
 using System.Linq;
 using Godot;
+using WarriorsOfEverdawn.Character;
 using WarriorsOfEverdawn.Core.Combat;
 using WarriorsOfEverdawn.Dev;
 using WarriorsOfEverdawn.Enemy;
@@ -71,7 +72,16 @@ public partial class Arena : Node3D
         AddChild(new Arrows { Name = Arrows.NodeName });
         AddChild(new Bolts { Name = Bolts.NodeName });
         AddChild(new GroundWeapons { Name = GroundWeapons.NodeName });
-        AddChild(new Loot { Name = Loot.NodeName, OrbChance = _options.OrbChance });
+        AddChild(new Loot { Name = Loot.NodeName, OrbChance = _options.OrbChance, PotionChance = _options.PotionChance });
+        var ground = new GroundSurfaces { Name = GroundSurfaces.NodeName };
+        AddChild(ground);
+        ground.Build(_map);
+        AddChild(new PierceRings { Name = PierceRings.NodeName });
+        var wisps = new SoulWisps { Name = SoulWisps.NodeName };
+        AddChild(wisps);
+        var seating = new Seating { Name = Seating.NodeName };
+        AddChild(seating);
+        seating.Build(_map);
         var market = new Market { Name = Market.NodeName };
         AddChild(market);
         market.Build(_map);
@@ -79,6 +89,7 @@ public partial class Arena : Node3D
         _hud.Bars.Camera = _camera;
         _hud.GroundLabels.Camera = _camera;
         AddChild(_hud);
+        wisps.Absorbed += _hud.PulseSouls;
 
         // The window asks, the market carries it to the host and brings back the answer; the player stands still
         // for as long as the window is open.
@@ -94,7 +105,7 @@ public partial class Arena : Node3D
 
         if (_options.Bot)
         {
-            _selfTest = new NetSelfTest(_hud) { Name = "NetSelfTest", GoldAtStart = _options.GoldAtStart, TradeDrill = _options.TradeDrill, BarrierDrill = _options.BarrierDrill, StatusDrill = _options.StatusDrill };
+            _selfTest = new NetSelfTest(_hud) { Name = "NetSelfTest", GoldAtStart = _options.GoldAtStart, TradeDrill = _options.TradeDrill, TownDrill = _options.TownDrill, BarrierDrill = _options.BarrierDrill, StatusDrill = _options.StatusDrill };
             AddChild(_selfTest);
         }
 
@@ -127,6 +138,11 @@ public partial class Arena : Node3D
         if (_options.GoldLineup is { } eyeHeight)
         {
             AddChild(Lineup.OfGold(eyeHeight));
+        }
+
+        if (_options.RingLineup)
+        {
+            AddChild(Lineup.OfRings());
         }
 
         if (_options.SwingSurvey)
@@ -227,6 +243,11 @@ public partial class Arena : Node3D
             RpcId(id, MethodName.ReceiveRules, SessionRules.Pvp);
             GroundWeapons.In(GetTree()).SendAllTo(id);
             Loot.In(GetTree()).SendAllTo(id);
+            Seating.In(GetTree()).SendAllTo(id);
+            foreach (var breakable in Breakable.All(GetTree()))
+            {
+                breakable.SendBrokenTo(id);
+            }
             SpawnPlayerFor(id);
         };
         Multiplayer.PeerDisconnected += id =>
@@ -305,16 +326,27 @@ public partial class Arena : Node3D
             return;
         }
 
+        Seating.In(GetTree()).SeatIfSitting(player);
+
         if (Multiplayer.IsServer())
         {
             player.Vitals.EarnGold(_options.GoldAtStart);
             player.Vitals.EarnOrbs(_options.StartOrbs);
             player.Vitals.Wear(Armours.AtTier(_options.StartArmour));
+            if (_options.StartSpent)
+            {
+                player.Vitals.Spend();
+            }
         }
 
         if (!player.IsMultiplayerAuthority())
         {
             return;
+        }
+
+        if (_options.StartSpent)
+        {
+            player.SpendMana();
         }
 
         // A bot's last swap finishes before a timed session ends (BotControls).

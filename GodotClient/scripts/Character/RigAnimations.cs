@@ -53,6 +53,14 @@ public static class RigAnimations
     public const string MagicShoot = "ranged/Ranged_Magic_Shoot";
     public const string MagicChannel = "ranged/Ranged_Magic_Spellcasting";
 
+    // Sitting on a seat and lying on a bed, each down, held and back up (Core's Seats).
+    public const string SitDown = "sim/Sit_Chair_Down";
+    public const string SitIdle = "sim/Sit_Chair_Idle";
+    public const string SitUp = "sim/Sit_Chair_StandUp";
+    public const string LieDown = "sim/Lie_Down";
+    public const string LieIdle = "sim/Lie_Idle";
+    public const string LieUp = "sim/Lie_StandUp";
+
     private static readonly (string Name, string Path)[] Libraries =
     {
         ("move", "res://assets/animations/Rig_Medium_MovementBasic.glb"),
@@ -61,9 +69,10 @@ public static class RigAnimations
         ("general", "res://assets/animations/Rig_Medium_General.glb"),
         ("special", "res://assets/animations/Rig_Medium_Special.glb"),
         ("ranged", "res://assets/animations/Rig_Medium_CombatRanged.glb"),
+        ("sim", "res://assets/animations/Rig_Medium_Simulation.glb"),
     };
 
-    private static readonly string[] LoopingClips = { Idle, UnarmedIdle, Run, StrafeLeft, StrafeRight, Backpedal, SkeletonIdle, SkeletonWalk, SpinLoop, ForearmGuard, MagicChannel };
+    private static readonly string[] LoopingClips = { Idle, UnarmedIdle, Run, StrafeLeft, StrafeRight, Backpedal, SkeletonIdle, SkeletonWalk, SpinLoop, ForearmGuard, MagicChannel, SitIdle, LieIdle };
 
     public static string GuardFor(WeaponStance stance) => stance == WeaponStance.TwoHanded ? TwoHandedGuard : ForearmGuard;
 

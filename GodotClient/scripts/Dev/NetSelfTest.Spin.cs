@@ -34,7 +34,7 @@ public partial class NetSelfTest
         float turnRatio = _spinTurnExpected > 0f ? Mathf.Abs(_spinTurn) / _spinTurnExpected : float.NaN;
         var weapon = LocalPlayer()?.Weapon ?? Weapons.Default;
         GD.Print($"[skill-check] me={me} weapon={weapon.Id} spins={_spins} spin_revolutions={_spinRevolutions:F1} spin_hits={_hitsBySkill.GetValueOrDefault(weapon.Secondary.Id)} "
-            + $"primary_hits={_hitsBySkill.GetValueOrDefault(weapon.Primary.Id)} spin_turn_ratio={turnRatio:F2} "
+            + $"primary_hits={_hitsBySkill.GetValueOrDefault(weapon.Primary.Id) + (weapon.Alternate is { } alternate ? _hitsBySkill.GetValueOrDefault(alternate.Id) : 0)} spin_turn_ratio={turnRatio:F2} "
             + $"spin_frames={_spinFrames} spin_moving_frames={_spinMovingFrames} spin_max_speed={_spinMaxSpeed:F2} spin_speed_limit={_spinSpeedLimit:F2}");
     }
 

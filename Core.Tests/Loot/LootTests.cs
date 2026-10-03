@@ -85,10 +85,10 @@ public class LootTests
     {
         const float Chance = 0.25f;
 
-        Assert.True(LootRules.DropsOrb(Chance, 0f));
-        Assert.True(LootRules.DropsOrb(Chance, Chance - 0.01f));
-        Assert.False(LootRules.DropsOrb(Chance, Chance));
-        Assert.False(LootRules.DropsOrb(Chance, 0.99f));
+        Assert.True(LootRules.Drops(Chance, 0f));
+        Assert.True(LootRules.Drops(Chance, Chance - 0.01f));
+        Assert.False(LootRules.Drops(Chance, Chance));
+        Assert.False(LootRules.Drops(Chance, 0.99f));
     }
 
     [Fact]
@@ -96,17 +96,17 @@ public class LootTests
     {
         foreach (float roll in new[] { 0f, 0.5f, 0.9999f })
         {
-            Assert.False(LootRules.DropsOrb(0f, roll));
-            Assert.True(LootRules.DropsOrb(1f, roll));
+            Assert.False(LootRules.Drops(0f, roll));
+            Assert.True(LootRules.Drops(1f, roll));
         }
     }
 
     [Fact]
     public void Chances_and_rolls_out_of_range_fail_loudly()
     {
-        Assert.Throws<ArgumentOutOfRangeException>(() => LootRules.DropsOrb(1.1f, 0f));
-        Assert.Throws<ArgumentOutOfRangeException>(() => LootRules.DropsOrb(-0.1f, 0f));
-        Assert.Throws<ArgumentOutOfRangeException>(() => LootRules.DropsOrb(0.5f, 1f));
+        Assert.Throws<ArgumentOutOfRangeException>(() => LootRules.Drops(1.1f, 0f));
+        Assert.Throws<ArgumentOutOfRangeException>(() => LootRules.Drops(-0.1f, 0f));
+        Assert.Throws<ArgumentOutOfRangeException>(() => LootRules.Drops(0.5f, 1f));
     }
 
     [Fact]

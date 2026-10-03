@@ -11,7 +11,8 @@ With no layout named, audits every *.layout.json under GodotClient/config/levels
     area's floor;
   - a flight of stairs (shape "ramp") has no floor at its own height, or no room for a body, straight on past its top
     or its bottom: a flight is walked on and off along its length;
-  - a piece lies off the ground.
+  - a piece lies off the ground;
+  - a piece is breakable but not a solid that blocks as its box does.
 Adapted from Everdawn's Tools/level_audit.py, which checks its side-view battle stages.
 """
 import argparse
@@ -110,6 +111,8 @@ def audit(path, verbose):
                 boxes.append((p["asset"], rect, span))
         elif "shape" in p:
             errors.append(f"{p['asset']} at ({x}, {z}): a shape on a piece that is not solid")
+        if p.get("breakable") and (not p.get("solid") or p.get("shape") is not None):
+            errors.append(f"{p['asset']} at ({x}, {z}): breakable, but not a solid that blocks as its box does")
 
     for i, (name_a, rect_a, span_a) in enumerate(solids):
         for name_b, rect_b, span_b in solids[i + 1:]:

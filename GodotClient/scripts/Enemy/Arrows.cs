@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using Godot;
+using WarriorsOfEverdawn.Character;
 using WarriorsOfEverdawn.Core.Combat;
 using WarriorsOfEverdawn.Main;
 using WarriorsOfEverdawn.Player;
@@ -109,6 +110,7 @@ public partial class Arrows : Node
 
         // Without the toon look a player's arrow wears: whether a skeleton's should is not decided.
         var node = Flight.Arrow(direction, toonLook: false);
+        node.AddChild(new RingWake { Colour = EnemyCharacter.TrailTint });
         AddChild(node);
         _flights[id] = new ArrowFlight(attack, damage, chest, from, direction, node);
         node.GlobalPosition = from;

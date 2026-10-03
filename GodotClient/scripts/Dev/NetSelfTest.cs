@@ -47,8 +47,10 @@ public partial class NetSelfTest : Node
         PlayerVitals.Guarded += OnGuarded;
         EnemyCharacter.Parried += OnEnemyParried;
         EnemyCharacter.Died += CountDeathForLoot;
+        PlayerVitals.Drank += OnDrank;
         TrackMagic();
         TrackStatus();
+        TrackTown();
     }
 
     public override void _Ready()
@@ -68,8 +70,10 @@ public partial class NetSelfTest : Node
         Arrows.Loosed -= OnArrowLoosed;
         Arrows.HitPlayer -= OnArrowHit;
         PlayerVitals.Guarded -= OnGuarded;
+        PlayerVitals.Drank -= OnDrank;
         UntrackMagic();
         UntrackStatus();
+        UntrackTown();
         EnemyCharacter.Parried -= OnEnemyParried;
         EnemyCharacter.Died -= CountDeathForLoot;
     }
@@ -131,6 +135,7 @@ public partial class NetSelfTest : Node
         MeasureLoot();
         MeasureMap();
         MeasureTrade((float)delta);
+        MeasureTown((float)delta);
         MeasureBot((float)delta);
         MeasureSession((float)delta);
         MeasureDowns();
@@ -162,6 +167,7 @@ public partial class NetSelfTest : Node
         PrintLootCheck(me);
         PrintMapCheck(me);
         PrintTradeCheck(me);
+        PrintTownCheck(me);
         PrintBotCheck(me);
         PrintMagicCheck(me);
         PrintStatusCheck(me);

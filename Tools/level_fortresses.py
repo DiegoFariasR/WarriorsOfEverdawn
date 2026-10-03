@@ -53,6 +53,8 @@ DOOR_APPROACH = 1.5
 BODY_RADIUS = 0.5
 # Pieces that make up the walls, floors and stairs may run into each other; everything else solid must stand clear.
 STRUCTURE = ("wall", "pillar", "floor", "stairs")
+# Crates and barrels of wood, which blows break (Core/Level/Breakables): marked so wherever they stand.
+BREAKABLE = ("crates_stacked", "box_large", "barrel_small", "barrel_small_stack", "barrel_large")
 # One storey (Core/Level/Floors.cs), and where on a floor tile what stands on it stands: the tile's top.
 STOREY = lc.STOREY
 FLOOR_TOP = 0.05
@@ -73,6 +75,13 @@ STAIRS_SHORT = 4.5
 STAIRS_NARROWED = 0.8
 # A body's height: a marker needs this much room above it.
 BODY_HEIGHT = 2.2
+# The town's room off its back wall, the enchanter's: about this x, entered through the back wall's segment at
+# ENCHANTER_DOOR, its side walls on the back wall's joints and the left one in line with the courtyard's left wall.
+ENCHANTER_X, ENCHANTER_DOOR = -6.0, -4.0
+# A back room's cover reaches this far into the courtyard. The behind camera (ArenaCamera) stands some 7 m back from a
+# player, more zoomed out: over the room's top, or looking down across it, while the player is still in the back of the
+# courtyard, beyond a cover's own reach (ArenaMap.Floors, 5 m).
+BACK_COVER_REACH = 3.0
 # The crypt under the fortress: (x, d) corners in the fortress's own coordinates, under its left room and the left of
 # its courtyard.
 CRYPT_X, CRYPT_D = (-18.0, -2.0), (-8.0, 8.0)
@@ -94,6 +103,8 @@ BURNING = {
     "Campfire_Logs": ((0.5, 1.0, 0.5), FIRE, 2.2, 7.0),
     "shrine_candles": ((0.5, 1.05, 0.5), CANDLE, 1.0, 3.5),
     "skull_candle": ((0.5, 1.05, 0.5), CANDLE, 1.0, 3.5),
+    "candle_triple": ((0.5, 1.0, 0.5), CANDLE, 1.0, 3.5),
+    "shelf_small_candles": ((0.5, 1.0, 0.5), CANDLE, 0.8, 3.0),
 }
 
 
@@ -157,6 +168,8 @@ class Fort:
         placement = {"asset": name, "position": position, "rotation": lc.yaw_quat(yaw), "scale": [round(s, 3) for s in (sx, sy, sz)]}
         if solid:
             placement["solid"] = True
+            if name in BREAKABLE and shape is None:
+                placement["breakable"] = True
         if shape is not None:
             placement["shape"] = shape
         if view is not None:
@@ -201,12 +214,20 @@ class Fort:
 
     # --- structure ---
 
-    def walls(self):
-        """The four walls with a gate in the middle of the front one, a doorway in each side one, towers at the
-        corners and at the gate."""
+    def walls(self, back_doors=()):
+        """The four walls with a gate in the middle of the front one, a doorway in each side one and in the back one
+        at each x of back_doors (a room's off it, Fort.back_room), towers at the corners and at the gate."""
+        end_long = lc.bounds(DUNGEON.format(WALL_END))[1][0]
         for i in range(ACROSS):
             x = (i - (ACROSS - 1) / 2) * SEGMENT
-            self.put(DUNGEON, self.pick(), x, -self.half_z, solid=True)
+            if x in back_doors:
+                self.put(DUNGEON, "wall_doorway", x, -self.half_z, solid=True, shape="mesh", view="around")
+                # As at the side doorways: two wall ends for the cameras looking straight down, each facing the
+                # opening with its rounded end.
+                for along, yaw in ((-1, 0.0), (1, math.pi)):
+                    self.put(DUNGEON, WALL_END, x + along * (SEGMENT - end_long) / 2, -self.half_z, yaw=yaw, view="overhead")
+            else:
+                self.put(DUNGEON, self.pick(), x, -self.half_z, solid=True)
             if i != ACROSS // 2:
                 self.put(DUNGEON, self.pick(), x, self.half_z, solid=True)
         for i in range(DEEP):
@@ -216,7 +237,6 @@ class Fort:
                     self.put(DUNGEON, "wall_doorway", side * self.half_x, d, yaw=math.pi / 2, solid=True, shape="mesh", view="around")
                     # Seen from straight above, the arch hides the way through under it: those cameras see two wall
                     # ends instead, with the opening between them. Each faces the opening with its rounded end.
-                    end_long = lc.bounds(DUNGEON.format(WALL_END))[1][0]
                     for along, yaw in ((-1, -math.pi / 2), (1, math.pi / 2)):
                         self.put(DUNGEON, WALL_END, side * self.half_x, d + along * (SEGMENT - end_long) / 2, yaw=yaw, view="overhead")
                 else:
@@ -242,6 +262,8 @@ class Fort:
         for side in (-1, 1):
             near, far = side * (self.half_x - DOOR_APPROACH), side * (self.half_x + DOOR_APPROACH)
             self.inside("door", min(near, far), DOOR_D - DOOR_HALF, max(near, far), DOOR_D + DOOR_HALF)
+        for x in back_doors:
+            self.inside("door", x - DOOR_HALF, -self.half_z - DOOR_APPROACH, x + DOOR_HALF, -self.half_z + DOOR_APPROACH)
 
     def floor(self, tile):
         for i in range(ACROSS):
@@ -310,6 +332,34 @@ class Fort:
         inner, outer = room.side * (self.half_x - WALL_THICK / 2), room.side * (self.half_x + out + WALL_THICK / 2)
         for level in (1, 2):
             self.area("cover", min(inner, outer), -along / 2 - WALL_THICK / 2, max(inner, outer), along / 2 + WALL_THICK / 2, level=level)
+
+    def back_room(self, x, floor):
+        """The room off the back wall about `x` (its doorway, given to walls()): its floor, three walls of its own,
+        towers at its outer corners, and a top of stone tiles on its walls, with a level-1 "cover" that hides the top
+        from a player in the room, beside it or in the back of the courtyard."""
+        room = BackRoom(self, x)
+        out, along = ROOM_OUT * SEGMENT, ROOM_ALONG * SEGMENT
+        for i in range(ROOM_OUT):
+            for j in range(ROOM_ALONG):
+                room.put(DUNGEON, floor, (i + 0.5) * SEGMENT, (j - (ROOM_ALONG - 1) / 2) * SEGMENT,
+                         yaw=self.rng.randrange(4) * math.pi / 2)
+        for j in range(ROOM_ALONG):
+            room.put(DUNGEON, self.pick(), out, (j - (ROOM_ALONG - 1) / 2) * SEGMENT, solid=True)
+        for i in range(ROOM_OUT):
+            for end in (-1, 1):
+                room.put(DUNGEON, self.pick(), (i + 0.5) * SEGMENT, end * along / 2, yaw=math.pi / 2, solid=True)
+        for end in (-1, 1):
+            room.put(DUNGEON, "pillar", out, end * along / 2, scale=ROOM_TOWER_SCALE, solid=True)
+        for i in range(ROOM_OUT):
+            for j in range(ROOM_ALONG):
+                room.put(DUNGEON, STOREY_TOP, (i + 0.5) * SEGMENT, (j - (ROOM_ALONG - 1) / 2) * SEGMENT,
+                         yaw=self.rng.randrange(4) * math.pi / 2, y=STOREY)
+
+        (ax, ad), (bx, bd) = room.at(WALL_THICK / 2, -along / 2 + WALL_THICK / 2), room.at(out - WALL_THICK / 2, along / 2 - WALL_THICK / 2)
+        self.inside("room", min(ax, bx), min(ad, bd), max(ax, bx), max(ad, bd))
+        (ax, ad), (bx, bd) = room.at(-BACK_COVER_REACH, -along / 2 - WALL_THICK / 2), room.at(out + WALL_THICK / 2, along / 2 + WALL_THICK / 2)
+        self.area("cover", min(ax, bx), min(ad, bd), max(ax, bx), max(ad, bd), level=1)
+        return room
 
     def crypt(self):
         """The crypt under the fortress's left room and the left of its courtyard, one storey down: its floor, walls and
@@ -425,6 +475,36 @@ class Room:
         self.fort.scatter(res_format, names, [self.at(u, v) for u, v in spots], scale)
 
 
+class BackRoom(Room):
+    """A room off a courtyard's back wall, about x, furnished in its own coordinates.
+
+    (u, v): u metres out from the back wall's middle line, v along it to the left as one walks out of the gate. A yaw
+    of 0 faces a piece's +Z at the courtyard, as in the courtyard itself.
+    """
+
+    def __init__(self, fort, x):
+        super().__init__(fort, side=1)
+        self.x = x
+
+    def at(self, u, v):
+        return (self.x + v, -(self.fort.half_z + u))
+
+    def yaw(self, yaw):
+        return yaw
+
+    def hang(self, name, wall, along, height=0.0, out=0.0):
+        """Hangs a piece on one of the room's own walls: 'outer' (opposite the doorway; along is v), or 'left' and
+        'right' (the side walls, to the left and right as one walks out of the gate; along is u)."""
+        reach, half = ROOM_OUT * SEGMENT, ROOM_ALONG * SEGMENT / 2
+        if wall == "outer":
+            (x, d), yaw = self.at(reach, along), 0.0
+        elif wall == "left":
+            (x, d), yaw = self.at(along, half), -math.pi / 2
+        else:
+            (x, d), yaw = self.at(along, -half), math.pi / 2
+        self.fort.hang(name, x, d, yaw, height, out)
+
+
 def area_rect(area):
     (x0, z0), (x1, z1) = area["min"], area["max"]
     return ((x0 + x1) / 2, (z0 + z1) / 2, (x1 - x0) / 2, (z1 - z0) / 2, 0.0)
@@ -434,43 +514,41 @@ def allied_town(seed):
     f = Fort(TOWN_Z, front=-1, texture=STONE, seed=seed, wall="wall", worn=("wall_window_open", "wall_archedwindow_open"),
              safe=True)
     f.floor("floor_tile_large")
-    f.walls()
+    f.walls(back_doors=(ENCHANTER_DOOR,))
 
     # A statue at the back, facing the gate.
     f.put(PROPS, "paladin_statue", 0.0, -5.6, solid=True)
 
-    # A camp fire with a bench on the left, a long table on the right. The fire's side toward the gate is left open:
-    # the way from the gate to the blacksmith passes it.
-    f.put(PROPS, "Campfire_Base", -5.4, 0.6)
-    f.put(PROPS, "Campfire_Logs", -5.4, 0.6)
-    f.put(DUNGEON, "bench", -3.5, 0.6, yaw=math.pi / 2, solid=True)
+    # A camp fire in the front corner on the blacksmith's side, a bench on two sides of it. Its flames burn whoever
+    # walks into them: at its marker the game lays burning ground that never goes out (GroundSurfaces).
+    f.put(PROPS, "Campfire_Base", -7.4, 5.6)
+    f.put(PROPS, "Campfire_Logs", -7.4, 5.6)
+    f.marker("campfire", -7.4, 5.6)
+    # Wide enough of the walls and of each other for the ways to reach the fire and come back out.
+    f.put(DUNGEON, "bench", -7.0, 3.2, solid=True)
+    f.put(DUNGEON, "bench", -4.8, 5.0, yaw=math.pi / 2, solid=True)
+
+    # Stores where the fire was, and a long table on the right.
+    f.put(DUNGEON, "crates_stacked", -5.2, 0.4, yaw=math.radians(8), solid=True)
+    f.put(DUNGEON, "barrel_large", -7.4, 0.3, solid=True)
     f.put(DUNGEON, "table_long", 6.0, 0.2, solid=True)
     f.put(DUNGEON, "bench", 4.5, 0.2, yaw=math.pi / 2, solid=True)
     f.put(DUNGEON, "bench", 7.5, 0.2, yaw=math.pi / 2, solid=True)
 
-    # Work corners: a forge on the left wall, a training dummy on the right.
+    # Work corners: a forge on the left wall, a training dummy on the right. The dummy is the game's, which takes
+    # blows (Main/TrainingDummy): stood at its marker.
     f.put(PROPS, "anvil", -8.0, -1.6, yaw=math.radians(90), solid=True)
-    f.put(PROPS, "Trainingdummy", 7.9, -2.4, yaw=math.radians(-60), solid=True)
+    f.marker("training-dummy", 7.9, -2.4, yaw=math.radians(-60))
 
     # The blacksmith works at the anvil, facing the courtyard.
     f.marker("seller-blacksmith", -6.4, -1.8, yaw=math.pi / 2)
 
-    # The merchant keeps a stall at the back on the right: a trunk of what it has bought, its takings beside it.
+    # The merchant keeps a stall at the back on the right: a trunk of what it has bought. No coins lie about it: gold
+    # on the ground is there to be picked up, and coins that could not be would mislead.
     f.put(DUNGEON, "trunk_medium_A", 8.7, -4.0, yaw=-math.pi / 2, solid=True)
-    f.put(PROPS, "Money_Coins_Pile_10", 7.8, -4.8, yaw=math.radians(140), scale=0.9)
-    f.put(PROPS, "Money_Coins_Pile_6", 7.7, -3.7, yaw=math.radians(265), scale=0.9)
-    f.put(PROPS, "Money_Coins_Pile_3", 7.1, -5.1, yaw=math.radians(25), scale=0.9)
-    f.put(PROPS, "Money_Coins_Stack_Single", 7.1, -3.0, yaw=math.radians(70), scale=0.9)
     f.marker("seller-merchant", 6.8, -4.0, yaw=-math.pi / 2)
 
-    # The enchanter keeps to the front of the courtyard on the left, by a shrine of candles.
-    f.put(PROPS, "shrine_candles", -8.4, 3.9, yaw=math.pi / 2, solid=True)
-    f.put(PROPS, "rug_rectangle_stripes_A", -6.4, 3.9)
-    f.marker("seller-enchanter", -6.6, 3.9, yaw=math.pi / 2)
-
-    # Stores stacked in the corners, clear of the gate and the doorways.
-    f.put(DUNGEON, "barrel_large", -7.9, 6.0, solid=True)
-    f.put(DUNGEON, "crates_stacked", -5.6, 6.1, yaw=math.radians(8), solid=True)
+    # Stores stacked in the other corners, clear of the gate and the doorways.
     f.put(DUNGEON, "keg", 7.8, 5.9, yaw=math.pi / 2, solid=True)
     f.put(DUNGEON, "box_large", 5.6, 6.3, yaw=math.radians(-12), solid=True)
     f.put(DUNGEON, "barrel_small_stack", 8.4, -5.6, yaw=math.pi / 2, solid=True)
@@ -487,7 +565,8 @@ def allied_town(seed):
         f.on_wall("torch_mounted", side, 0.0, height=2.3, out=ON_FACE)
         f.on_wall("banner_blue", side, 4.0)
         f.on_wall("banner_patternA_blue", "back", sx * 6.0)
-        f.on_wall("torch_mounted", "back", sx * 3.0, height=2.3, out=ON_FACE)
+        # Either side of the middle, clear of the enchanter's doorway on the left.
+        f.on_wall("torch_mounted", "back", sx * 2.5, height=2.3, out=ON_FACE)
     f.on_wall("banner_shield_blue", "back", 0.0)
 
     upstairs = STOREY + FLOOR_TOP
@@ -516,23 +595,39 @@ def allied_town(seed):
     armoury.hang("torch_mounted", "back", 2.0, height=STOREY + 2.3, out=ON_FACE)
     armoury.marker("upstairs", 2.5, -2.75, y=upstairs)
 
-    # The barracks: its stairs up along the far wall, a table and trunks below, the beds upstairs.
-    barracks = f.room(1, "floor_wood_large")
-    f.storey(barracks, "floor_wood_small", "wall_window_open")
-    barracks.put(DUNGEON, "trunk_medium_A", 3.3, -2.4, yaw=math.pi, solid=True)
-    barracks.put(DUNGEON, "trunk_medium_A", 3.3, 0.0, yaw=math.pi, solid=True)
-    barracks.put(DUNGEON, "table_small", 1.4, -2.6, solid=True)
-    barracks.put(DUNGEON, "chair", 2.3, -2.6, solid=True)
-    barracks.put(DUNGEON, "stool", 1.4, -1.5, solid=True)
-    barracks.put(PROPS, "rug_rectangle_A", 2.4, 2.0)
-    barracks.hang("banner_blue", "back", 2.0)
-    barracks.hang("torch_mounted", "gate", 3.0, height=2.3, out=ON_FACE)
-    barracks.marker("room", 2.0, 1.0)
+    # The inn: its stairs up along the far wall; below, the innkeeper by a barrel of ale, a table to sit at; the
+    # beds upstairs.
+    inn = f.room(1, "floor_wood_large")
+    f.storey(inn, "floor_wood_small", "wall_window_open")
+    inn.put(DUNGEON, "barrel_large_decorated", 3.7, -2.4, yaw=math.pi, solid=True)
+    inn.marker("seller-innkeeper", 3.6, -0.4, yaw=0.0)
+    inn.put(DUNGEON, "table_small", 1.4, -2.6, solid=True)
+    inn.put(DUNGEON, "chair", 2.3, -2.6, solid=True)
+    inn.put(DUNGEON, "stool", 1.4, -1.5, solid=True)
+    inn.put(PROPS, "rug_rectangle_A", 2.4, 2.0)
+    inn.hang("banner_blue", "back", 2.0)
+    inn.hang("torch_mounted", "gate", 3.0, height=2.3, out=ON_FACE)
+    inn.marker("room", 2.0, 1.0)
 
     for v in (-1.55, 1.55):
-        barracks.put(DUNGEON, "bed_A_single", 1.55, v, yaw=math.pi / 2, solid=True, y=upstairs)
-    barracks.hang("torch_mounted", "gate", 3.0, height=STOREY + 2.3, out=ON_FACE)
-    barracks.marker("upstairs", 5.4, 2.7, y=upstairs)
+        inn.put(DUNGEON, "bed_A_single", 1.55, v, yaw=math.pi / 2, solid=True, y=upstairs)
+    inn.hang("torch_mounted", "gate", 3.0, height=STOREY + 2.3, out=ON_FACE)
+    inn.marker("upstairs", 5.4, 2.7, y=upstairs)
+
+    # The enchanter's room: its alchemy along one side wall and books along the other, candles and a table by the
+    # outer wall, kept low: the default camera looks across it from that side.
+    enchanter = f.back_room(ENCHANTER_X, "floor_tile_large")
+    enchanter.put(PROPS, "Potionstation_decorated", 3.9, -2.75, yaw=math.pi / 2, solid=True)
+    enchanter.put(DUNGEON, "bookcase_double_decoratedA", 5.0, 3.22, yaw=-math.pi / 2, solid=True)
+    enchanter.put(DUNGEON, "table_small_decorated_A", 6.5, 0.4, yaw=math.radians(10), solid=True)
+    enchanter.put(DUNGEON, "candle_triple", 6.8, -3.0, solid=True)
+    enchanter.put(PROPS, "rug_rectangle_stripes_A", 3.6, 0.8, yaw=math.pi / 2)
+    enchanter.hang("shelf_small_candles", "left", 2.2, height=1.4, out=ON_FACE)
+    enchanter.hang("torch_mounted", "right", 6.4, height=2.3, out=ON_FACE)
+    enchanter.marker("room", 2.2, 0.8)
+
+    # The enchanter stands before the alchemy, facing across the room.
+    enchanter.marker("seller-enchanter", 3.9, -1.2, yaw=math.pi / 2)
 
     # Players start, and get back up, in a ring in front of the statue.
     for i in range(8):
@@ -554,6 +649,11 @@ def enemy_fortress(seed):
         f.put(PROPS, "grave_A_destroyed" if sx < 0 else "grave_A", sx * 6.2, -2.2, yaw=sx * math.radians(-8), solid=True)
     f.put(PROPS, "tree_dead_large", -8.0, 5.9, solid=True)
     f.put(PROPS, "tree_dead_medium", 8.2, 5.8, yaw=math.radians(140), solid=True)
+
+    # Stores against the side walls, between the graves and the doorways, for blows to break in the fight.
+    f.put(DUNGEON, "crates_stacked", -7.6, -0.2, solid=True)
+    f.put(DUNGEON, "barrel_small", 8.6, -0.2, solid=True)
+    f.put(DUNGEON, "barrel_small", 7.5, -0.6, solid=True)
 
     # Skull posts inside the gate; bones underfoot.
     for sx in (-1, 1):

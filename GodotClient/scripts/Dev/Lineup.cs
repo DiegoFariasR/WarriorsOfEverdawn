@@ -46,6 +46,12 @@ public partial class Lineup : Node3D
     private const float SpellApart = 4.4f;
     private const float SpellEyeHeight = 5f;
 
+    // Rings of thrusts and arrows, seen from the side as the drawing they were made from shows them: room across the
+    // frame for an arrow's wake, from a little above the line they lie on.
+    private const float RingsApart = 4.5f;
+    private const float RingsEyeHeight = 1.8f;
+    private const float RingsLookHeight = 1f;
+
     // Longer than any lineup is looked at.
     private const float LineupLasts = 3600f;
 
@@ -173,21 +179,33 @@ public partial class Lineup : Node3D
         void Armed(Node3D body) => Lineup.Armed(body, look);
 
         return new Lineup(
-            new Figure[]
+            new Figure?[]
             {
                 new("Stance", Armed, look.OneHanded ? RigAnimations.UnarmedIdle : RigAnimations.Idle),
                 new(weapon.Guard.Name, Armed, RigAnimations.GuardFor(look.Stance)),
                 new(weapon.Primary.Name, Armed, CombatVisuals.ClipFor(weapon.Primary), weapon.Primary.HitTime),
+                weapon.Alternate is { } second ? new($"{second.Name} 2", Armed, CombatVisuals.ClipFor(second), second.HitTime) : null,
                 new(weapon.Secondary.Name, Armed, CombatVisuals.ClipFor(weapon.Secondary), weapon.Secondary.HitTime),
                 new(weapon.Lunge.Name, Armed, CombatVisuals.ClipFor(weapon.Lunge), weapon.Lunge.SweepEnd ?? weapon.Lunge.HitTime),
                 new("On the back", body => CharacterRig.AttachToBack(body, look), RigAnimations.UnarmedIdle, Turned: true),
-            },
+            }.OfType<Figure>().ToList(),
             WeaponApart,
             weapon)
         {
             Name = "WeaponLineup",
         };
     }
+
+    // A thrust's row of rings, a player's arrow and a skeleton's, laid across the view over and over (RingShow).
+    public static Lineup OfRings() => new(
+        new[] { new Figure("A thrust, a player's arrow, a skeleton's arrow", _ => { }, "") { Thing = () => new RingShow { Name = "RingShow" } } },
+        RingsApart,
+        eyeHeight: RingsEyeHeight,
+        labelHeight: RingsEyeHeight + 0.6f,
+        lookHeight: RingsLookHeight)
+    {
+        Name = "RingLineup",
+    };
 
     // The wands of the elements named (all with none named; more than six run wider than the field can frame).
     // Casting: each holds its spell on an area in front of it, with what it throws hanging at its side. With barrier,

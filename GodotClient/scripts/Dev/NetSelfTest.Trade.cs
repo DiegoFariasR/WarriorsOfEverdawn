@@ -14,7 +14,7 @@ namespace WarriorsOfEverdawn.Dev;
 // the prompt, opens the window (all TradeRules.Slots slots, no bigger than the game's window), gets through it
 // what the seller offers, slot after slot (weapons from the weaponsmith; from the blacksmith the weapon in its hand
 // a level better, the one on its back, then its armour a tier better; to the merchant it sells the weapon in its
-// hand, the one on its back and an orb) for as long as it can pay, is then told by the window that it cannot, asks
+// hand, the one on its back and an orb; from the innkeeper a rest, again and again) for as long as it can pay, is then told by the window that it cannot, asks
 // the host anyway and is refused, and closes it. The weapons in its hand and on its back and the armour it wears are
 // what those trades should leave it with, the gold and orbs it has left are what it started with less what it paid
 // and plus what it was paid, and it stood still throughout. Every player's figure on this machine is dressed in the look of the armour that
@@ -66,6 +66,13 @@ public partial class NetSelfTest
     private Vector3 _tradeStoodAt;
     private float _tradeMoved;
 
+    // At the innkeeper (with --start-spent): the HP and potion it came with, and its mana as it asked for its first rest
+    // and as that rest came, before its mana could have filled of itself.
+    private int _tradeHpStart = -1;
+    private int _tradePotionStart = -1;
+    private int _tradeManaBeforeRest = -1;
+    private int _tradeManaOnRest = -1;
+
     public bool TradeDrill { get; init; }
 
     private void TrackTrade()
@@ -80,6 +87,10 @@ public partial class NetSelfTest
             _tradeExpected = TradeRules.After(_tradeExpected, item).Sets;
 
             _tradeExpectedArmour = item.Armour?.Tier ?? _tradeExpectedArmour;
+            if (item.Kind == TradeKind.Rest && _tradeManaOnRest < 0)
+            {
+                _tradeManaOnRest = LocalPlayer()?.Mana ?? -1;
+            }
         };
         _market.Refused += _ => _tradeRefusedByHost++;
         _market.Sold += (peer, _, _) => _soldTo[peer] = _soldTo.GetValueOrDefault(peer) + 1;
@@ -144,6 +155,8 @@ public partial class NetSelfTest
                 _tradeGoldStart = local.Vitals.Gold;
                 _tradeOrbsStart = local.Vitals.Orbs;
                 _tradeOutfitStart = ArmourLook.Worn(local.Skeleton);
+                _tradeHpStart = local.Vitals.Hp;
+                _tradePotionStart = local.Vitals.PotionCharges;
                 _tradeSlots = shop.SlotCount;
                 _tradeItems = shop.Items.Count;
                 _tradeStep = TradeStep.Buying;
@@ -168,6 +181,11 @@ public partial class NetSelfTest
                 // The offers in slot order, one after another and round again, passing over what cannot be had.
                 int offers = shop.Items.Count;
                 shop.Choose(Enumerable.Range(0, offers).Select(i => (_tradeAsked + i) % offers).FirstOrDefault(i => shop.Items[i].Unavailable == null));
+
+                if (shop.Items[shop.Chosen].Kind == TradeKind.Rest && _tradeManaBeforeRest < 0)
+                {
+                    _tradeManaBeforeRest = local.Mana;
+                }
 
                 // It gets what it can pay for: what the session starts it with is what decides how much that is.
                 if (shop.Buy())
@@ -214,6 +232,9 @@ public partial class NetSelfTest
             + $"outfit_start={_tradeOutfitStart} outfit_here={(local == null ? "none" : ArmourLook.Worn(local.Skeleton))} "
             + $"outfit_wanted={(local == null ? "none" : ArmourLook.OutfitFor(local.Vitals.Armour))} "
             + $"figures={_figuresMost} undressed_frames_on_end={_undressedFramesMost} "
+            + $"hp_start={_tradeHpStart} hp_here={local?.Vitals.Hp} hp_max={PlayerRules.MaxHp} "
+            + $"potion_start={_tradePotionStart} potion_here={local?.Vitals.PotionCharges} potion_max={HealthPotion.MaxCharges} "
+            + $"mana_before_rest={_tradeManaBeforeRest} mana_on_rest={_tradeManaOnRest} mana_max={local?.MaxMana} "
             + $"drill_done={(_tradeStep == TradeStep.Done ? 1 : 0)}");
         if (Multiplayer.IsServer())
         {

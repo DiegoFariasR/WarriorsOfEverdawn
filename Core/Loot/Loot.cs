@@ -9,6 +9,9 @@ public enum LootKind
 {
     Gold,
     Orb,
+
+    // A charge of the health potion (HealthPotion): every player who has room for one gets one.
+    PotionCharge,
 }
 
 // What a purse holds, and so what a cost can be made up of.
@@ -74,8 +77,9 @@ public static class LootRules
     public static float PileYaw(int id) =>
         id >= 0 ? (float)(id * (double)PileTurnStep % (2 * Math.PI)) : throw new ArgumentOutOfRangeException(nameof(id), id, "A drop's number is not negative");
 
-    // Whether a monster that leaves a magic orb `chance` of the time leaves one now. roll is uniform in [0, 1).
-    public static bool DropsOrb(float chance, float roll)
+    // Whether a monster that leaves something `chance` of the time (a magic orb, a potion charge) leaves it now. roll
+    // is uniform in [0, 1).
+    public static bool Drops(float chance, float roll)
     {
         if (chance is < 0f or > 1f)
         {

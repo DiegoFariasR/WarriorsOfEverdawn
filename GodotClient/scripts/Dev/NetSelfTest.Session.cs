@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using Godot;
+using WarriorsOfEverdawn.Character;
 using WarriorsOfEverdawn.Enemy;
 using WarriorsOfEverdawn.Main;
 using WarriorsOfEverdawn.Player;
@@ -13,7 +14,9 @@ namespace WarriorsOfEverdawn.Dev;
 public partial class NetSelfTest
 {
     // What comes and goes with the fight is checked on its own and left out here: skeletons and damage numbers (the two
-    // lifetimes above), gold and orbs on the ground ([loot-check]; what nobody walks over lies there for good), the HP bars
+    // lifetimes above), gold and orbs on the ground and souls on their way ([loot-check]; what nobody walks over lies
+    // there for good), burning ground and ice, the splinters of what broke and the rings of thrusts and arrows (each
+    // over in a few seconds), the HP bars
     // over the living ([ui-check]) and arrows in flight ([ranged-check]). What must stay flat is the rest, at its
     // fewest in each wave: a leak is there at every moment. A player with an empty hand or back is fewer nodes than
     // one carrying both weapons (each is on the model and on every dash ghost), so a sample is taken only while every
@@ -153,7 +156,7 @@ public partial class NetSelfTest
     private static int CountNodes(Node node) => 1 + node.GetChildren(true).Sum(CountNodes);
 
     private static int CountStanding(Node node) =>
-        node is EnemyCharacter ? 0
-        : node is Loot or OverheadBars or Arrows ? 1
+        node is EnemyCharacter or Splinters ? 0
+        : node is Loot or SoulWisps or GroundSurfaces or PierceRings or OverheadBars or Arrows ? 1
         : 1 + node.GetChildren(true).Sum(CountStanding);
 }

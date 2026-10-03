@@ -14,6 +14,8 @@
   "grave_A_destroyed": "res://assets/props/grave_A_destroyed.glb",
   "tree_dead_large": "res://assets/props/tree_dead_large.glb",
   "tree_dead_medium": "res://assets/props/tree_dead_medium.glb",
+  "crates_stacked": "res://assets/dungeon/crates_stacked.glb",
+  "barrel_small": "res://assets/dungeon/barrel_small.glb",
   "post_skull": "res://assets/props/post_skull.glb",
   "banner_shield_red": "res://assets/dungeon/banner_shield_red.glb",
   "banner_red": "res://assets/dungeon/banner_red.glb",
@@ -1143,6 +1145,69 @@
     1.0
    ],
    "solid": true
+  },
+  {
+   "asset": "crates_stacked",
+   "position": [
+    -7.555,
+    0.0,
+    -22.167
+   ],
+   "rotation": [
+    0.0,
+    0.0,
+    0.0,
+    1.0
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "solid": true,
+   "breakable": true
+  },
+  {
+   "asset": "barrel_small",
+   "position": [
+    8.6,
+    0.0,
+    -22.2
+   ],
+   "rotation": [
+    0.0,
+    0.0,
+    0.0,
+    1.0
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "solid": true,
+   "breakable": true
+  },
+  {
+   "asset": "barrel_small",
+   "position": [
+    7.5,
+    0.0,
+    -22.6
+   ],
+   "rotation": [
+    0.0,
+    0.0,
+    0.0,
+    1.0
+   ],
+   "scale": [
+    1.0,
+    1.0,
+    1.0
+   ],
+   "solid": true,
+   "breakable": true
   },
   {
    "asset": "post_skull",

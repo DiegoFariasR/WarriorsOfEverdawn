@@ -8,7 +8,8 @@ using WarriorsOfEverdawn.Util;
 namespace WarriorsOfEverdawn.Character;
 
 // Legs play a directional locomotion clip at the rate that matches the ground speed, with the arms kept in the
-// two-handed stance while a weapon for both hands is held; attacks layer on top at their own speed, a dash over those, and death over everything. The
+// two-handed stance while a weapon for both hands is held; attacks layer on top at their own speed, a dash over those,
+// sitting or lying over the whole body above that, and death over everything. The
 // attack drives the upper body always and the lower body only while standing still, since some swings (Slice, Stab)
 // rotate through the hips. A dash drives the whole body unless it leaves the upper body to a thrust, or all of it
 // to a Spin that carries on through it.
@@ -24,6 +25,10 @@ public sealed class CharacterAnimator
     private const float CancelFade = 0.05f;
     private const float DashFadeIn = 0.03f;
     private const float DashFadeOut = 0.06f;
+    private const float RestBlend = 0.2f;
+
+    // Sitting down and getting up, at KayKit's pace, felt slow: they play this much faster.
+    private const float RestPlayback = 1.6f;
 
     private const string IdleState = "idle";
     private const string UnarmedIdleState = "idle_unarmed";
@@ -74,6 +79,8 @@ public sealed class CharacterAnimator
     private static readonly StringName DashUpperSpeed = "parameters/dash_upper_speed/scale";
     private static readonly StringName LowerAttackSpeed = "parameters/attack_lower_speed/scale";
     private static readonly StringName UpperAttackSpeed = "parameters/attack_upper_speed/scale";
+    private static readonly StringName RestAmount = "parameters/rest_mix/blend_amount";
+    private static readonly StringName RestSeek = "parameters/rest_seek/seek_request";
 
     private readonly AnimationTree _tree;
     // Parked on a valid clip until the first attack; the layer weight is zero until then.
@@ -95,6 +102,13 @@ public sealed class CharacterAnimator
     private float _chestBias;
     private bool _dying;
     private float _deathWeight;
+    private readonly AnimationNodeAnimation _rest = new() { Animation = RigAnimations.Idle };
+    private StringName? _restNext;
+    private float _restTime;
+    private float _restLength;
+    private bool _resting;
+    private bool _rising;
+    private float _restWeight;
     private readonly Dictionary<string, float> _chestYawByState = new();
     private readonly Dictionary<string, float> _groundSpeedByState = new();
 
@@ -108,6 +122,7 @@ public sealed class CharacterAnimator
         RigAnimations.AddTo(_tree);
         model.AddChild(_tree);
         _tree.Set("parameters/death_speed/scale", RigAnimations.PlaybackSpeed);
+        _tree.Set("parameters/rest_speed/scale", RestPlayback);
 
         foreach (var (state, clip, travel) in LegClips)
         {
@@ -207,6 +222,36 @@ public sealed class CharacterAnimator
 
     public void Revive() => _dying = false;
 
+    // Sitting or lying, or getting up, the whole body is the seat's.
+    public bool IsResting => _resting || _restWeight > 0f;
+
+    // Sits or lies down: the clip down, then the clip held, until Rise. How long getting down takes.
+    public float Rest(StringName down, StringName held)
+    {
+        PlayRest(down);
+        _restNext = held;
+        _resting = true;
+        _rising = false;
+        return _restLength / RestPlayback;
+    }
+
+    // Gets up: the clip up, and the body is its own again as it ends. How long that takes.
+    public float Rise(StringName up)
+    {
+        PlayRest(up);
+        _restNext = null;
+        _rising = true;
+        return _restLength / RestPlayback;
+    }
+
+    private void PlayRest(StringName clip)
+    {
+        _rest.Animation = clip;
+        _tree.Set(RestSeek, 0.0);
+        _restTime = 0f;
+        _restLength = (float)_tree.GetAnimation(clip).Length;
+    }
+
     public void Update(float delta, LegDirection? legs, float speed, float twist)
     {
         string state = legs?.ToString() ?? (Stance == WeaponStance.TwoHanded ? IdleState : UnarmedIdleState);
@@ -251,9 +296,31 @@ public sealed class CharacterAnimator
         _tree.Set(DashUpperAmount, dashUpperWeight);
         _deathWeight = Mathf.MoveToward(_deathWeight, _dying ? 1f : 0f, delta / DeathBlend);
         _tree.Set(DeathAmount, _deathWeight);
+        AdvanceRest(delta);
         // A full-body swing (Spin) turns the body itself, so the torso twist toward the aim gives way to it.
         float swingOwnsTorso = _fullBodyAttack ? attackWeight : 0f;
-        Twist.Twist = (twist - _chestBias * (1f - attackWeight)) * (1f - _deathWeight) * (1f - dashUpperWeight) * (1f - swingOwnsTorso);
+        Twist.Twist = (twist - _chestBias * (1f - attackWeight)) * (1f - _deathWeight) * (1f - dashUpperWeight) * (1f - swingOwnsTorso) * (1f - _restWeight);
+    }
+
+    private void AdvanceRest(float delta)
+    {
+        if (_resting)
+        {
+            _restTime += delta * RestPlayback;
+            if (_restNext != null && _restTime >= _restLength)
+            {
+                PlayRest(_restNext);
+                _restNext = null;
+            }
+            else if (_rising && _restTime >= _restLength - RestBlend * RestPlayback)
+            {
+                _resting = false;
+                _rising = false;
+            }
+        }
+
+        _restWeight = Mathf.MoveToward(_restWeight, _resting ? 1f : 0f, delta / RestBlend);
+        _tree.Set(RestAmount, _restWeight);
     }
 
     private AnimationNodeBlendTree BuildTree()
@@ -282,13 +349,23 @@ public sealed class CharacterAnimator
         AddLayer(root, "dash_lower", _dashLower, LowerBones.Where(b => b != "root"), below: "attack_upper_mix");
         AddLayer(root, "dash_upper", _dashUpper, UpperBones, below: "dash_lower_mix");
 
+        // Sitting or lying: the whole body, root and all, which the clips keep where the body stands.
+        root.AddNode("rest", _rest);
+        root.AddNode("rest_seek", new AnimationNodeTimeSeek());
+        root.ConnectNode("rest_seek", 0, "rest");
+        root.AddNode("rest_speed", new AnimationNodeTimeScale());
+        root.ConnectNode("rest_speed", 0, "rest_seek");
+        root.AddNode("rest_mix", new AnimationNodeBlend2());
+        root.ConnectNode("rest_mix", 0, "dash_upper_mix");
+        root.ConnectNode("rest_mix", 1, "rest_speed");
+
         root.AddNode("death", new AnimationNodeAnimation { Animation = RigAnimations.PlayerDeath });
         root.AddNode("death_seek", new AnimationNodeTimeSeek());
         root.ConnectNode("death_seek", 0, "death");
         root.AddNode("death_speed", new AnimationNodeTimeScale());
         root.ConnectNode("death_speed", 0, "death_seek");
         root.AddNode("death_mix", new AnimationNodeBlend2());
-        root.ConnectNode("death_mix", 0, "dash_upper_mix");
+        root.ConnectNode("death_mix", 0, "rest_mix");
         root.ConnectNode("death_mix", 1, "death_speed");
         root.ConnectNode("output", 0, "death_mix");
         return root;

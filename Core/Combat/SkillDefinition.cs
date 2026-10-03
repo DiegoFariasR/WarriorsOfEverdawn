@@ -18,6 +18,9 @@ public sealed record SkillDefinition(string Id, int Damage, float Range, float H
     // for a monster's blow yet: what skeletons do to players beyond damage is not decided.
     public int Buildup { get; init; }
 
+    // Struck point first along a narrow line, not swept in an arc: the spear's Thrust and every lunge.
+    public bool Thrust { get; init; }
+
     // Clip time a sweep's hit window closes. Unset for a single-moment swing. While the window is open, each
     // target is hit at most once.
     public float? SweepEnd { get; init; }
@@ -46,6 +49,13 @@ public sealed record SkillDefinition(string Id, int Damage, float Range, float H
 
     public float VolleyInterval { get; init; }
 
+    // Radians between one projectile's line and the next's, the middle one along the aim: what it looses fans out
+    // in a V. None for a volley that flies along one line.
+    public float Spread { get; init; }
+
+    // The way the index-th projectile it looses flies, from the way the aim points.
+    public float SpreadYaw(float aimYaw, int index) => aimYaw + Spread * (index - (Projectiles - 1) / 2f);
+
     // What a thrown skill bursts into where it ends, be that a body, a wall or the end of its flight: everything
     // within this of the spot takes its damage, the body it struck like the rest and no more. 0 for one that hits
     // only what it touches.
@@ -53,6 +63,10 @@ public sealed record SkillDefinition(string Id, int Damage, float Range, float H
 
     // A spell lands on this instead of in an arc from the caster; Range is then how far its far edge reaches.
     public AreaDefinition? Area { get; init; }
+
+    // What it leaves on the ground where it lands (Surfaces): a staff's ball where it bursts, a held spell under its
+    // area every cycle.
+    public SurfaceEffect? Surface { get; init; }
 
     // The magic it is made of; none for a blow with a plain weapon. Magic grows with WIS where a blow grows with STR.
     public Element? Element { get; init; }
@@ -165,6 +179,7 @@ public static class Skills
         Name = "Thrust",
         Type = DamageType.Pierce,
         Buildup = SwingBuildup,
+        Thrust = true,
     };
 
     public static readonly SkillDefinition SpearSpin = SpinOf("spear-spin", DamageType.Pierce, damage: 10, range: 2.4f, manaCost: 4);
@@ -259,6 +274,45 @@ public static class Skills
 
     public static readonly SkillDefinition HammerLunge = LungeOf("hammer-lunge", DamageType.Blunt, HammerSmash.Damage, range: 2f) with { Buildup = SmashBuildup };
 
+    // Second forms of the primaries (WeaponDefinition.Alternate), struck every other swing: the same blow from
+    // another clip, landing at that clip's own moment and reach (./dev.sh swing-survey), as the first forms do. Each
+    // plays as much faster or slower as takes it as long as its first form's clip, so alternating keeps the weapon's
+    // pace and what it deals. The greatsword and the scythe trade a slice for a chop, the quarterstaff and the warhammer
+    // a chop for a slice, the spear its two-handed thrust for a one-handed one, the sword its diagonal slice for a chop,
+    // the claws their slice for a chop.
+    private const float TwoHandedSliceClip = 1.1f;
+    private const float TwoHandedChopClip = 1.633f;
+    private const float TwoHandedStabClip = 1.6f;
+    private const float OneHandedStabClip = 1.6f;
+    private const float OneHandedSliceClip = 1f;
+    private const float OneHandedChopClip = 1.067f;
+    private const float DualSliceClip = 1.167f;
+    private const float DualChopClip = 1.267f;
+
+    // When the second clips land, as the survey measures them: Melee_2H_Attack_Chop as the quarterstaff's and the
+    // warhammer's, Melee_2H_Attack_Slice as the greatsword's, Melee_1H_Attack_Chop as the skeletons', and
+    // Melee_Dualwield_Attack_Chop 0.503 s in. Ranges as the first forms' are: the weapon's reach at the hit in play,
+    // net-test's reach-check medians. The chops that lunge through the hips reach least in play: the greatsword's
+    // 2.41 standing, 2.08 on the move and 1.78 in play.
+    private const float TwoHandedChopHit = 0.83f;
+    private const float TwoHandedSliceHit = 0.38f;
+    private const float OneHandedChopHit = 0.6f;
+    private const float DualChopHit = 0.503f;
+
+    public static readonly SkillDefinition SliceChop = SecondForm(Slice, TwoHandedSliceClip, TwoHandedChopClip, TwoHandedChopHit, range: 1.8f);
+
+    public static readonly SkillDefinition StaffHitSweep = SecondForm(StaffHit, TwoHandedChopClip, TwoHandedSliceClip, TwoHandedSliceHit, range: 1.7f);
+
+    public static readonly SkillDefinition SpearThrustShort = SecondForm(SpearThrust, TwoHandedStabClip, OneHandedStabClip, OneHandedStabExtended, range: 2.7f);
+
+    public static readonly SkillDefinition ScytheSwingChop = SecondForm(ScytheSwing, TwoHandedSliceClip, TwoHandedChopClip, TwoHandedChopHit, range: 2.85f);
+
+    public static readonly SkillDefinition SwordSlashChop = SecondForm(SwordSlash, OneHandedSliceClip, OneHandedChopClip, OneHandedChopHit, range: 1.75f);
+
+    public static readonly SkillDefinition ClawRakeChop = SecondForm(ClawRake, DualSliceClip, DualChopClip, DualChopHit, range: 1.3f);
+
+    public static readonly SkillDefinition HammerSmashSweep = SecondForm(HammerSmash, TwoHandedChopClip, TwoHandedSliceClip, TwoHandedSliceHit, range: 1.55f);
+
     // The bow, first pass: arrows without end and at no cost in mana, each a hit of its own where it lands, as a
     // staff's bolts are. The Shot looses one, with a moment before the next; the Volley three in quick succession,
     // for mana and a longer wait. Both are loosed with Ranged_Bow_Release, which starts drawn and lets go 0.067 s
@@ -266,6 +320,10 @@ public static class Skills
     // the arrow in the hand.
     private const float BowLoosed = 0.067f;
     private const int ArrowStabDamage = 16;
+
+    // The volley's arrows fan out in a narrow V, this far apart: at the edge of a bow's reach the outer two fly about
+    // a body's width either side of the middle one.
+    private const float VolleySpread = 4f * Angles.DegToRad;
     private const float ArrowStabRange = 1.5f;
 
     public static readonly SkillDefinition BowShot = new("bow-shot", Damage: 18, Projectiles.Arrow.MaxDistance, ThrustHalfArc, BowLoosed)
@@ -285,6 +343,7 @@ public static class Skills
         Projectile = Projectiles.Arrow,
         Projectiles = DartsInVolley,
         VolleyInterval = VolleyGap,
+        Spread = VolleySpread,
         SweepEnd = BowLoosed + (DartsInVolley - 1) * VolleyGap,
         ManaCost = 6,
         Cooldown = 2f,
@@ -388,6 +447,7 @@ public static class Skills
             ManaCost = BurstManaCost,
             Cooldown = BurstCooldown,
             Element = element,
+            Surface = Surfaces.Of(element, Surfaces.BurstPatchRadius),
         };
         return new StaffSkills(Spells[element].Primary, burst, LungeOf($"{id}-staff-lunge", DamageType.Blunt, StaffPokeDamage, StaffPokeRange));
     }
@@ -422,11 +482,23 @@ public static class Skills
             Channeled = true,
             Area = area,
             Element = element,
+            Surface = Surfaces.Of(element, area.Radius),
         };
         return new ElementSpells(primary, channel);
     }
 
     private sealed record ElementSpells(SkillDefinition Primary, SkillDefinition Channel);
+
+    // The second form of a primary: the same blow, swung with a clip `secondClip` long instead of `firstClip`, landing
+    // `hitTime` into it at `range`.
+    private static SkillDefinition SecondForm(SkillDefinition first, float firstClip, float secondClip, float hitTime, float range) =>
+        first with
+        {
+            Id = $"{first.Id}-2",
+            HitTime = hitTime,
+            Range = range,
+            SwingSpeed = first.SwingSpeed * secondClip / firstClip,
+        };
 
     private static SkillDefinition LungeOf(string id, DamageType type, int damage, float range, float extended = StabExtended) =>
         new(id, damage, range, ThrustHalfArc, HitTime: extended * LungeOpens)
@@ -435,6 +507,7 @@ public static class Skills
             Type = type,
             Buildup = LungeBuildup,
             SweepEnd = extended,
+            Thrust = true,
         };
 
     private static SkillDefinition SpinOf(string id, DamageType type, int damage, float range, int manaCost) =>

@@ -28,7 +28,15 @@ public sealed record WeaponDefinition(string Id, string Name, SkillDefinition Pr
     // magic (Weapons.EnchantedShare). It shows in the id and the name: "greatsword~fire", "Greatsword of Fire".
     public Element? Enchantment { get; init; }
 
-    public IEnumerable<SkillDefinition> Skills => new[] { Primary, Secondary, Lunge };
+    // A second form of the primary, for the weapons with a second clip to strike it with: every other swing, the same
+    // blow from another side (PrimaryFor). None for magic and the bow.
+    public SkillDefinition? Alternate { get; init; }
+
+    public IEnumerable<SkillDefinition> Skills => Alternate is { } alternate ? new[] { Primary, Secondary, Lunge, alternate } : new[] { Primary, Secondary, Lunge };
+
+    // The primary's form for the weapon's nth swing of it, counting from 0: the first form, and every other swing the
+    // second where there is one.
+    public SkillDefinition PrimaryFor(int swing) => Alternate != null && swing % 2 == 1 ? Alternate : Primary;
 
     public SkillDefinition Skill(int button) => button switch
     {
@@ -55,32 +63,53 @@ public static class Weapons
     // parries most easily; the spear guards a narrow front; the scythe lets the most through and parries hardest but
     // moves best.
     public static readonly WeaponDefinition Greatsword = new("greatsword", "Greatsword", Skills.Slice, Skills.Spin, Skills.GreatswordLunge,
-        new GuardDefinition(HalfArc: 75f * Angles.DegToRad, DamageTaken: 0f, MoveSpeedFactor: 0.4f, ParryWindow: 0.2f));
+        new GuardDefinition(HalfArc: 75f * Angles.DegToRad, DamageTaken: 0f, MoveSpeedFactor: 0.4f, ParryWindow: 0.2f))
+    {
+        Alternate = Skills.SliceChop,
+    };
 
     public static readonly WeaponDefinition Quarterstaff = new("quarterstaff", "Quarterstaff", Skills.StaffHit, Skills.StaffSpin, Skills.StaffLunge,
-        new GuardDefinition(HalfArc: 100f * Angles.DegToRad, DamageTaken: 0.2f, MoveSpeedFactor: 0.5f, ParryWindow: 0.25f));
+        new GuardDefinition(HalfArc: 100f * Angles.DegToRad, DamageTaken: 0.2f, MoveSpeedFactor: 0.5f, ParryWindow: 0.25f))
+    {
+        Alternate = Skills.StaffHitSweep,
+    };
 
     public static readonly WeaponDefinition Spear = new("spear", "Spear", Skills.SpearThrust, Skills.SpearSpin, Skills.SpearLunge,
-        new GuardDefinition(HalfArc: 60f * Angles.DegToRad, DamageTaken: 0.25f, MoveSpeedFactor: 0.5f, ParryWindow: 0.2f));
+        new GuardDefinition(HalfArc: 60f * Angles.DegToRad, DamageTaken: 0.25f, MoveSpeedFactor: 0.5f, ParryWindow: 0.2f))
+    {
+        Alternate = Skills.SpearThrustShort,
+    };
 
     public static readonly WeaponDefinition Scythe = new("scythe", "Scythe", Skills.ScytheSwing, Skills.ScytheSpin, Skills.ScytheLunge,
-        new GuardDefinition(HalfArc: 70f * Angles.DegToRad, DamageTaken: 0.4f, MoveSpeedFactor: 0.6f, ParryWindow: 0.15f));
+        new GuardDefinition(HalfArc: 70f * Angles.DegToRad, DamageTaken: 0.4f, MoveSpeedFactor: 0.6f, ParryWindow: 0.15f))
+    {
+        Alternate = Skills.ScytheSwingChop,
+    };
 
     // A sword in one hand and a shield in the other, carried, bought, improved and sold as the one weapon it is here.
     // The shield stops everything across the widest front, slows least and parries most easily; the sword pays for
     // it in damage and reach.
     public static readonly WeaponDefinition SwordAndShield = new("sword-and-shield", "Sword and shield", Skills.SwordSlash, Skills.SwordSpin, Skills.SwordLunge,
-        new GuardDefinition(HalfArc: 110f * Angles.DegToRad, DamageTaken: 0f, MoveSpeedFactor: 0.7f, ParryWindow: 0.3f));
+        new GuardDefinition(HalfArc: 110f * Angles.DegToRad, DamageTaken: 0f, MoveSpeedFactor: 0.7f, ParryWindow: 0.3f))
+    {
+        Alternate = Skills.SwordSlashChop,
+    };
 
     // A hammer for both hands: slow, heavy blows that stun. Its guard stops nearly everything and all but roots
     // its wielder.
     public static readonly WeaponDefinition Warhammer = new("warhammer", "Warhammer", Skills.HammerSmash, Skills.HammerSpin, Skills.HammerLunge,
-        new GuardDefinition(HalfArc: 70f * Angles.DegToRad, DamageTaken: 0.1f, MoveSpeedFactor: 0.35f, ParryWindow: 0.15f));
+        new GuardDefinition(HalfArc: 70f * Angles.DegToRad, DamageTaken: 0.1f, MoveSpeedFactor: 0.35f, ParryWindow: 0.15f))
+    {
+        Alternate = Skills.HammerSmashSweep,
+    };
 
     // A claw on each hand, one weapon as a sword and shield are. Light, quick blows at arm's length; a guard of
     // crossed claws that lets a third through and is quick to parry.
     public static readonly WeaponDefinition Claws = new("claws", "Claws", Skills.ClawRake, Skills.ClawSpin, Skills.ClawLunge,
-        new GuardDefinition(HalfArc: 65f * Angles.DegToRad, DamageTaken: 0.35f, MoveSpeedFactor: 0.65f, ParryWindow: 0.25f));
+        new GuardDefinition(HalfArc: 65f * Angles.DegToRad, DamageTaken: 0.35f, MoveSpeedFactor: 0.65f, ParryWindow: 0.25f))
+    {
+        Alternate = Skills.ClawRakeChop,
+    };
 
     // A bow and the arrows for it, which never run out. It deals from further off than anything of steel and less
     // than any of it, and it is the poorest guard there is: a stave of wood held across the body.
@@ -211,6 +240,7 @@ public static class Weapons
                     Primary = Shaped(plain.Primary, enchantment, level),
                     Secondary = Shaped(plain.Secondary, enchantment, level),
                     Lunge = Shaped(plain.Lunge, enchantment, level),
+                    Alternate = plain.Alternate is { } alternate ? Shaped(alternate, enchantment, level) : null,
                 };
                 Made[(plain.Id, enchantment, level)] = made;
             }

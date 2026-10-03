@@ -12,19 +12,21 @@ using WarriorsOfEverdawn.Util;
 namespace WarriorsOfEverdawn.Player;
 
 // What the host keeps for a player, even though the player's movement is owned by its own peer: its HP, the armour it
-// wears, and the gold, souls and magic orbs it has earned and not yet spent.
+// wears, its health potion, and the gold, souls and magic orbs it has earned and not yet spent.
 public partial class PlayerVitals : Node
 {
     // A hit of no damage type: the game's own.
     private static readonly Color DamageColor = new(1f, 0.35f, 0.3f);
     private static readonly Color ParryColor = new(1f, 0.85f, 0.35f);
     private static readonly Color BlockColor = new(0.8f, 0.88f, 1f);
+    private static readonly Color HealColor = new(0.45f, 1f, 0.45f);
 
     private readonly Health _health = new(PlayerRules.MaxHp);
     private readonly Purse _purse = new();
     private readonly ArmourWear _wear = new();
     private readonly BarrierPool _barrier = new(Weapons.Barrier.Barrier!);
     private readonly StatusBars _status = new();
+    private readonly HealthPotion _potion = new();
 
     [Export]
     public int Hp { get; set; } = PlayerRules.MaxHp;
@@ -37,6 +39,10 @@ public partial class PlayerVitals : Node
 
     [Export]
     public int Orbs { get; set; }
+
+    // The health potion's charges left (HealthPotion).
+    [Export]
+    public int PotionCharges { get; set; } = HealthPotion.MaxCharges;
 
     // The tier of armour worn (Armours.AtTier), from 0 for what everyone starts in.
     [Export]
@@ -76,6 +82,12 @@ public partial class PlayerVitals : Node
     // Host only: this player's barrier took that much of a blow.
     public static event Action<PlayerCharacter, int>? BarrierTook;
 
+    // On every machine: this player drank a charge of its potion, which healed that much.
+    public static event Action<PlayerCharacter, int>? Drank;
+
+    // Host only: whether its potion has no room for another charge.
+    public bool PotionFull => _potion.IsFull;
+
     private PlayerCharacter Player => GetParent<PlayerCharacter>();
 
     public static PlayerVitals Create()
@@ -83,7 +95,8 @@ public partial class PlayerVitals : Node
         var vitals = new PlayerVitals { Name = "Vitals" };
         var config = new SceneReplicationConfig().Sending(
             SceneReplicationConfig.ReplicationMode.OnChange,
-            PropertyName.Hp, PropertyName.Gold, PropertyName.Souls, PropertyName.Orbs, PropertyName.Armour, PropertyName.Barrier, PropertyName.StatusMask);
+            PropertyName.Hp, PropertyName.Gold, PropertyName.Souls, PropertyName.Orbs, PropertyName.Armour, PropertyName.Barrier, PropertyName.StatusMask,
+            PropertyName.PotionCharges);
         vitals.AddChild(new MultiplayerSynchronizer { Name = "Sync", ReplicationConfig = config });
         return vitals;
     }
@@ -153,6 +166,80 @@ public partial class PlayerVitals : Node
         Gold = _purse.Gold;
     }
 
+    // Host only: a charge of the potion, if it has room for one. Whether it took it.
+    public bool EarnPotionCharge()
+    {
+        bool took = _potion.AddCharge();
+        PotionCharges = _potion.Charges;
+        return took;
+    }
+
+    // Host only, at the innkeeper's: HP back to full and the potion filled.
+    public void Rest()
+    {
+        if (Player.IsDowned)
+        {
+            GD.PushError($"[Vitals {Player.Name}] rested while down");
+            return;
+        }
+
+        _health.RestoreFull();
+        Hp = _health.Current;
+        _potion.Refill();
+        PotionCharges = _potion.Charges;
+    }
+
+    // Host only, for --start-spent: HP down to a third and every charge of the potion drunk, with none of it healing.
+    public void Spend()
+    {
+        _health.TakeDamage(_health.Max - _health.Max / 3);
+        for (int i = 0; i < HealthPotion.MaxCharges; i++)
+        {
+            _potion.Drink(_health.Max - _health.Current);
+        }
+
+        Hp = _health.Current;
+        PotionCharges = _potion.Charges;
+    }
+
+    // From the player's own machine: it drinks a charge. The host heals it, if it has a charge, is hurt and is up.
+    [Rpc(MultiplayerApi.RpcMode.AnyPeer, CallLocal = true, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
+    public void RequestDrink()
+    {
+        long sender = Multiplayer.Sender();
+        if (!Multiplayer.IsServer() || sender != Player.PeerId)
+        {
+            GD.PushError($"[Vitals {Player.Name}] drink asked by peer {sender} on peer {Multiplayer.GetUniqueId()}: only the player asks, and only the host heals");
+            return;
+        }
+
+        if (Player.IsDowned)
+        {
+            return;
+        }
+
+        int healed = _health.Heal(_potion.Drink(_health.Max - _health.Current));
+        if (healed == 0)
+        {
+            return;
+        }
+
+        Hp = _health.Current;
+        PotionCharges = _potion.Charges;
+        Rpc(MethodName.ShowDrink, healed);
+    }
+
+    [Rpc(MultiplayerApi.RpcMode.Authority, CallLocal = true, TransferMode = MultiplayerPeer.TransferModeEnum.Reliable)]
+    private void ShowDrink(int healed)
+    {
+        if (SeenFloating)
+        {
+            FloatingText.Spawn(Player, $"+{healed}", HealColor);
+        }
+
+        Drank?.Invoke(Player, healed);
+    }
+
     // Host only.
     public void EarnSouls(int amount)
     {
@@ -175,10 +262,16 @@ public partial class PlayerVitals : Node
         Souls = _purse.Souls;
         Orbs = _purse.Orbs;
 
-        // Armour is the host's to hand over, like the purse it is paid from; a weapon goes to the buyer's own machine.
+        // Armour and a rest's HP and potion are the host's to hand over, like the purse they are paid from; a weapon
+        // and a rest's mana go to the buyer's own machine.
         if (outcome == BuyOutcome.Bought && item.Armour is { } armour)
         {
             Armour = armour.Tier;
+        }
+
+        if (outcome == BuyOutcome.Bought && item.Kind == TradeKind.Rest)
+        {
+            Rest();
         }
 
         return outcome;
@@ -252,6 +345,43 @@ public partial class PlayerVitals : Node
             StatRules.Afflict(_status, skill, attacker.Stats, resistances, dealer);
             DamagedByPlayer?.Invoke(attackerId, Player.PeerId, before - _health.Current);
         }
+    }
+
+    // Host only: a turn on burning ground laid by the caster, who may be this player, or with none by the level (a
+    // hearth's fire) at the hit's own strength: a hit of its spell's, which bites past any guard or barrier as a burn
+    // does, the armour taking its share, and builds this player's bars.
+    public void TakeSurfaceHit(PlayerCharacter? caster, SkillDefinition hit)
+    {
+        if (Player.IsDowned)
+        {
+            return;
+        }
+
+        var stats = caster?.Stats ?? default;
+        var dealer = caster?.Vitals.Status;
+        var resistances = _status.Adjusted(Resistances.None);
+        int before = _health.Current;
+        int through = _wear.Through(Armours.AtTier(Armour), StatRules.Damage(hit, stats, resistances, dealer));
+        if (through > 0)
+        {
+            TakeHit(through, DamageTypes.MaskOf(hit.Types));
+        }
+
+        if (before > _health.Current)
+        {
+            StatRules.Afflict(_status, hit, stats, resistances, dealer);
+            if (caster != null && caster != Player)
+            {
+                DamagedByPlayer?.Invoke(caster.PeerId, Player.PeerId, before - _health.Current);
+            }
+        }
+    }
+
+    // Host only: builds this player's bars as a hit of this type and power would, with no damage done: a turn on ice.
+    public void BuildStatus(DamageType type, int power)
+    {
+        _status.Build(type, power, damage: 0, _status.Adjusted(Resistances.None));
+        StatusMask = (int)_status.Active;
     }
 
     // Host only: the player starts a skill. What of it is divine or void builds on the player itself.

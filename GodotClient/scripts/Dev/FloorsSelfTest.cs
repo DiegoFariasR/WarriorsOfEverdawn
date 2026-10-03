@@ -12,15 +12,19 @@ using WarriorsOfEverdawn.Util;
 
 namespace WarriorsOfEverdawn.Dev;
 
-// Attached with --floors-check, skeletons on. No polygon of the ways may go through the air. The player walks the
+// Attached with --floors-check, skeletons on. No polygon of the ways may go through the air. The player walks into the
+// town's camp fire, which burns it on safe ground as anywhere. The player walks the
 // map's ways, as a player would: up into each of the town's storeys and back down, then down into the crypt under the
 // enemy fortress and back up. Each walk must find its way and reach its floor. A storey must be hidden while the
 // player is in the room under it and already as it walks up to the building, and upstairs only its stone top; the ground must be hidden from the crypt and the sky
 // dark there, and nothing hidden from the ground. The crypt's guards must keep to the crypt until the player comes
 // down. All but one that fights hand to hand are cut down before the player goes down, and that one must come for the
 // player on the way and is cut down as it does: it is the floors on trial here, not the fight. Once it falls the
-// treasure must lie at its spot and go to the player who walks to it. The waves are cut down as they rise. Prints
-// [floors-check] lines and quits (exit 1 on failure).
+// treasure must lie at its spot and go to the player who walks to it. Then, out in the field, fire and ice are as
+// dangerous to the player as to anything: burning ground laid as its own at its feet burns it, and on ice laid as its
+// own it starts off slowly and is chilled, and its own fire laid over that ice melts it. The waves are cut down as they
+// rise. Prints [floors-check] lines and quits
+// (exit 1 on failure).
 public partial class FloorsSelfTest : Node
 {
     // The navigation mesh and the bodies reach their servers some steps after they are made.
@@ -38,6 +42,20 @@ public partial class FloorsSelfTest : Node
     // The treasure's orbs lie this far from its spot at most (Loot.LeaveTreasure), and a little more.
     private const float TreasureSpread = 1f;
 
+    // The dummy is struck from this far off, until it has shown this many hits.
+    private const float DummyStandOff = 1.4f;
+    private const int DummyHits = 3;
+    private const float DummyLimit = 8f;
+
+    // Out in the field, before the fortress's gate: the player's own fire is laid at its feet there, then its own ice a
+    // little further out, wide enough to walk about on. On ice, this soon after setting off, it is still slow.
+    private const float FireOutside = 4f;
+    private const float IceOutside = 10f;
+    private const float IceRadius = 3f;
+    private const float IceWalk = 2f;
+    private const float EarlyOnIce = 0.2f;
+    private const float GroundLimit = 8f;
+
     // Blows dealt to a skeleton before giving up on it: far more than any takes.
     private const int MostBlows = 200;
 
@@ -53,6 +71,8 @@ public partial class FloorsSelfTest : Node
     private bool _hiddenOnGroundFloor;
     private bool _cutAwayFromOutside;
     private string? _guardCame;
+    private int _burnedHere;
+    private int _chilledHere;
     private List<int> _treasure = new();
     private int _goldBefore;
     private int _orbsBefore;
@@ -142,6 +162,10 @@ public partial class FloorsSelfTest : Node
             return ($"polygons_through_the_air={faulty.Count}{(faulty.Count > 0 ? $" ({string.Join(",", faulty)}; ./dev.sh ways-dump shows them)" : "")}", faulty.Count == 0);
         });
 
+        GroundSurfaces.Acted += CountActedOn;
+        StrikeTheDummy();
+        BurnedByTheCampfire();
+
         foreach (var (upstairs, i) in _map.Upstairs.Select((u, i) => (u, i)))
         {
             Walk($"up-{i}", upstairs, 1, () =>
@@ -195,6 +219,131 @@ public partial class FloorsSelfTest : Node
                 _player.Vitals.Gold - _goldBefore >= Crypt.Treasure.Gold && _player.Vitals.Orbs - _orbsBefore >= Crypt.Treasure.Orbs)));
         Walk("crypt-up", _map.FortressGate, 0, () =>
             Report("crypt-up-hiding", $"hidden_on_the_ground={_map.HiddenPieces} dark={_map.Underground}", _map.HiddenPieces == 0 && !_map.Underground));
+        Walk("to-the-fire", _map.FortressGate + Vector3.Back * FireOutside, 0);
+        BurnedByItsOwnFire();
+        Walk("to-the-ice", _map.FortressGate + Vector3.Back * IceOutside, 0);
+        SlidOnItsOwnIce();
+        Check("fire-melts-its-ice", () =>
+        {
+            var ground = GroundSurfaces.In(GetTree());
+            bool before = ground.IcyUnder(_player.GlobalPosition);
+            ground.LayFor(_player, Weapons.Staff(Element.Fire).Secondary.Surface!, _player.GlobalPosition);
+            bool after = ground.IcyUnder(_player.GlobalPosition);
+            return ($"ice_before={before} ice_after={after}", before && !after);
+        });
+    }
+
+    // The town's camp fire: walked into, a turn in it burns the player, though the town is safe ground.
+    private void BurnedByTheCampfire()
+    {
+        var fires = _map.Layouts.SelectMany(l => l.MarkersNamed("campfire")).Select(m => new Vector3(m.X, m.Y, m.Z)).ToList();
+        if (fires.Count == 0)
+        {
+            Report("campfire", "no camp fire in the town", ok: false);
+            return;
+        }
+
+        int hpBefore = 0;
+        Walk("to-the-campfire", fires[0], 0);
+        _stages.Enqueue(new Stage("burned-by-the-campfire", () => _burnedHere >= 1, GroundLimit,
+            Start: () =>
+            {
+                hpBefore = _player.Vitals.Hp;
+                _burnedHere = 0;
+            },
+            Finish: () => Report("burned-by-the-campfire", $"turns={_burnedHere} hp={hpBefore}->{_player.Vitals.Hp} on_safe_ground={_map.IsSafe(_player.GlobalPosition)}",
+                _burnedHere >= 1 && _player.Vitals.Hp < hpBefore && _map.IsSafe(_player.GlobalPosition))));
+    }
+
+    // Its own Fireball's ground at its feet, out of the town: two turns in it burn it.
+    private void BurnedByItsOwnFire()
+    {
+        int hpBefore = 0;
+        _stages.Enqueue(new Stage("burned-by-its-own-fire", () => _burnedHere >= 2, GroundLimit,
+            Start: () =>
+            {
+                hpBefore = _player.Vitals.Hp;
+                _burnedHere = 0;
+                var fire = Weapons.Staff(Element.Fire).Secondary.Surface!;
+                GroundSurfaces.In(GetTree()).LayFor(_player, fire, _player.GlobalPosition);
+            },
+            Finish: () => Report("burned-by-its-own-fire", $"turns={_burnedHere} hp={hpBefore}->{_player.Vitals.Hp}",
+                _burnedHere >= 2 && _player.Vitals.Hp < hpBefore)));
+    }
+
+    // Its own ice under it, wide enough to walk off across: it sets off slowly, and staying on it is chilled.
+    private void SlidOnItsOwnIce()
+    {
+        float earlySpeed = -1f;
+        var to = Vector3.Zero;
+        _stages.Enqueue(new Stage("slid-on-its-own-ice",
+            () =>
+            {
+                if (earlySpeed < 0f && _stageFor >= EarlyOnIce)
+                {
+                    earlySpeed = Yaw.Flat(_player.NetVelocity).Length();
+                }
+
+                return _player.Vitals.Statuses.HasFlag(Statuses.Chilled) && earlySpeed >= 0f;
+            },
+            GroundLimit,
+            Start: () =>
+            {
+                var ice = new SurfaceEffect(SurfaceKind.Icy, IceRadius, Surfaces.IcyLasts);
+                GroundSurfaces.In(GetTree()).LayFor(_player, ice, _player.GlobalPosition);
+                to = _player.GlobalPosition + Vector3.Left * IceWalk;
+            },
+            Finish: () =>
+            {
+                float mostEarly = Surfaces.IceGrip * EarlyOnIce * 1.5f;
+                Report("slid-on-its-own-ice", $"speed_after_{EarlyOnIce:F1}s={earlySpeed:F2} at_most={mostEarly:F2} chill_turns={_chilledHere} statuses={_player.Vitals.Statuses}",
+                    earlySpeed <= mostEarly && _chilledHere >= 1);
+            },
+            WalkTo: () => to));
+    }
+
+    private void CountActedOn(SurfaceKind kind, Node3D body)
+    {
+        if (body == _player)
+        {
+            _burnedHere += kind == SurfaceKind.Burning ? 1 : 0;
+            _chilledHere += kind == SurfaceKind.Icy ? 1 : 0;
+        }
+    }
+
+    // The training dummy: walked up to and struck with the weapon in hand through the game's own swing, every hit
+    // shown on it, and it still standing after them.
+    private void StrikeTheDummy()
+    {
+        if (TrainingDummy.All(GetTree()).FirstOrDefault() is not { } dummy)
+        {
+            Report("dummy", "no training dummy in the town", ok: false);
+            return;
+        }
+
+        // From whichever side of it the ways reach: it stands among the courtyard's furniture.
+        var sides = Enumerable.Range(0, 8).Select(i => dummy.GlobalPosition + Yaw.Forward(i * Mathf.Tau / 8f) * DummyStandOff).ToList();
+        var reachable = sides.Where(side => _map.HasWay(_player.GlobalPosition, side)).ToList();
+        if (reachable.Count == 0)
+        {
+            Report("dummy-reached", $"no way to any side of the dummy at {Rounded(dummy.GlobalPosition)}", ok: false);
+            return;
+        }
+
+        Walk("dummy-reached", reachable[0], 0);
+        _stages.Enqueue(new Stage("dummy-struck", () => dummy.HitsShown >= DummyHits, DummyLimit,
+            Start: () =>
+            {
+                _steered.AimYaw = Yaw.Of(dummy.GlobalPosition - _player.GlobalPosition);
+                _steered.SkillHeld = PlayerCharacter.Primary;
+            },
+            Finish: () =>
+            {
+                _steered.SkillHeld = null;
+                _steered.AimYaw = null;
+                Report("dummy-struck", $"hits_shown={dummy.HitsShown} standing={(IsInstanceValid(dummy) && dummy.IsInsideTree() ? 1 : 0)}",
+                    dummy.HitsShown >= DummyHits && IsInstanceValid(dummy) && dummy.IsInsideTree());
+            }));
     }
 
     // A walk to `to` round the walls, by the way the skeletons and the bots take; it must find one, and end on `level`.
@@ -258,6 +407,7 @@ public partial class FloorsSelfTest : Node
 
     private void End()
     {
+        GroundSurfaces.Acted -= CountActedOn;
         GD.Print($"[floors-check] {(_passed ? "passed" : "FAILED")}");
         GetTree().Quit(_passed ? 0 : 1);
         SetPhysicsProcess(false);
@@ -292,14 +442,14 @@ public partial class FloorsSelfTest : Node
 
     private sealed record Stage(string Name, Func<bool> Done, float Limit, Action? Start = null, Action? Finish = null, Func<Vector3>? WalkTo = null);
 
-    // The walk's legs, and nothing else asked for.
+    // The walk's legs, and an aim and a button held while striking the dummy.
     private sealed class Steered : IPlayerControls
     {
         public Vector3 Move { get; set; }
 
-        public float? AimYaw => null;
+        public float? AimYaw { get; set; }
 
-        public int? SkillHeld => null;
+        public int? SkillHeld { get; set; }
 
         public bool DashPressed => false;
 
@@ -314,6 +464,8 @@ public partial class FloorsSelfTest : Node
         public bool PickUpPressed => false;
 
         public bool InteractPressed => false;
+
+        public bool DrinkPressed => false;
 
         public bool Suspended { get; set; }
 

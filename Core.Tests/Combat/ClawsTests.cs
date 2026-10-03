@@ -40,7 +40,8 @@ public class ClawsTests
         Assert.True(Claws.Primary.Range < swings.Min(s => s.Range));
         Assert.Equal(Skills.ClawQuickness, Claws.Primary.SwingSpeed);
         Assert.True(Skills.ClawQuickness > 1f);
-        Assert.All(Weapons.All.Where(w => w != Claws).SelectMany(w => w.Skills), skill => Assert.True(skill.SwingSpeed <= 1f, skill.Id));
+        // A second form plays at whatever speed keeps its first form's pace, so only first forms say how quick a weapon is.
+        Assert.All(Weapons.All.Where(w => w != Claws).SelectMany(w => w.Skills.Where(s => s != w.Alternate)), skill => Assert.True(skill.SwingSpeed <= 1f, skill.Id));
     }
 
     [Fact]

@@ -24,6 +24,9 @@ Godot self-tests (headless):
   trade-test        For each seller, a host + 1 bot client beside it with gold and orbs; asserts each opens the
                     shop window, gets what it can pay for (or sells what it carries), is refused after, and ends
                     with the right weapons in hand and the cost taken or the pay given
+  town-test         Host + 1 bot client in the town; each breaks the nearest crate, sits on a bench and lies on a bed;
+                    asserts crates break and splinter on both machines, both players are seen sitting, lying and
+                    getting up where the seats put them, and no seat is left taken
   camera-test       In every camera mode, W must move up the screen and D right; HUD sits on screen
   wall-test         Bolts, balls and arrows loosed at a wall, from afar and from against it, must end at it
   parts-test        Every part and alias of the catalogue put on a figure, and 200 figures drawn at random from each pool
@@ -43,8 +46,11 @@ Screenshots (real renderer; off-screen, minimized, unfocused window):
                     --start-at x,z   the bot starts on that spot of the ground instead of in the town; x,y,z
                                      at that height (4 a storey up, -4 the crypt); or a marker: crypt, upstairs:1
                     --orb-chance P   every monster leaves a magic orb P of the time (0 to 1) instead of rarely
+                    --potion-chance P   every monster leaves a potion's charge P of the time instead of rarely
                     --start-gold N   --start-orbs N   --start-armour TIER   the bot starts with that much
+                    --start-spent   the bot starts at a third of its HP, its potion empty and no mana
                     --trade-drill   the bot trades with the seller it starts beside
+                    --town-drill    the bot breaks a crate, sits on a bench and lies on a bed
                     --status-drill  every few seconds a skeleton is frozen and the next stunned
 
   armour-lineup     The knight in a row in each tier of armour, seen from the front; saves _staging/armour-lineup.png
@@ -63,6 +69,8 @@ Assets:
                     the enemies and the sellers; [townsfolk] or [skeletons] eight figures drawn at random from that
                     pool ([townsfolk@40] from seed 40 on); [Druid,Witch] those characters as they were made
                     ([Druid:bare] with nothing on)
+  ring-lineup       The rings a thrust lays and arrows leave, side on, three moments apart; saves
+                    _staging/ring-lineup-1.png to -3.png
   gold-lineup       Every pile gold falls in, one coin to ten, in a row on the ground; saves
                     _staging/gold-lineup-low.png (seen as from behind a player) and -high.png (from above)
   gold-piles        Rebuild the gold piles (two to ten coins) from the one coin, with Blender in
@@ -139,6 +147,7 @@ COOP_WAVE_SCALE=4
 # Orbs are rare (a few monsters in a hundred leave one), so the test sessions raise every monster's chance to where
 # each machine is sure to see some fall and be picked up.
 COOP_ORB_CHANCE=0.25
+COOP_POTION_CHANCE=0.25
 
 # Long enough for every bot to show each thing the gates read (spins, swings, a lunge, a braced guard, a parry, a
 # swap of sets) with samples to spare; at 32 and 26 one or another came up short about one run in three.
@@ -266,7 +275,7 @@ co_op_session() {
     local logs=$1 host_quit=$2 client_quit=$3
     shift 3
     local failed=0
-    run_session "$logs" "$COOP_CLIENTS" "$host_quit" "$client_quit" --wave-scale "$COOP_WAVE_SCALE" --orb-chance "$COOP_ORB_CHANCE" "$@" || failed=1
+    run_session "$logs" "$COOP_CLIENTS" "$host_quit" "$client_quit" --wave-scale "$COOP_WAVE_SCALE" --orb-chance "$COOP_ORB_CHANCE" --potion-chance "$COOP_POTION_CHANCE" "$@" || failed=1
 
     local damage_taken_total=0 lunge_hits_total=0 hangings_faded_total=0 spin_dashes_kept=0 spin_dash_tests=0 spin_dashes_seen=0 one_handed_runners=0 channelled="" log
     for log in $(session_logs); do
@@ -340,6 +349,10 @@ co_op_session() {
         fi
         gate "$log" "$file" trail-check 'v["max_edges"] + 0 >= 4 && v["lingering_frames"] + 0 == 0 && v["enemy_trail_seen"] + 0 == 1' \
             "weapon trails missing or lingering" || failed=1
+        # Thrusts lay their rows of rings (every bot lunges, and the spear thrusts), and arrows leave rings behind them
+        # beyond those (skeleton archers shoot in every session).
+        gate "$log" "$file" trail-check 'v["ring_rows"] + 0 >= 1 && v["rings_laid"] + 0 > v["ring_rows"] * v["rings_per_row"]' \
+            "no thrust laid its rings, or no arrow left any" || failed=1
         gate "$log" "$file" flash-check 'v["enemy_flashes"] + 0 >= 1 && v["player_flashes"] + 0 >= 1 && v["lingering_frames"] + 0 == 0' \
             "hit flashes missing or lingering" || failed=1
         gate "$log" "$file" ui-check 'v["hp_mismatch_frames"] + 0 == 0 && v["bar_mismatch_frames"] + 0 == 0 && v["mana_mismatch_frames"] + 0 == 0 && v["max_enemy_bars"] + 0 >= 1 && v["max_player_bars"] + 0 >= 1 && v["skeleton_bar_frames"] + 0 >= 1 && v["far_skeleton_bar_frames"] + 0 == 0' \
@@ -370,17 +383,22 @@ co_op_session() {
         # The fortresses: the player starts inside the allied town, gets out of it and as far as the enemy fortress, and
         # takes no hit while in the town; no skeleton is ever in the town; every skeleton rises inside the enemy fortress
         # and some get out of it; walls between the camera and the player fade, and banners and torches are found hanging
-        # on walls to fade with them; the ways lead from where players start into each of the four rooms; nobody had to
+        # on walls to fade with them; the ways lead from where players start into each of the five rooms; nobody had to
         # walk straight for want of a way round the walls.
-        gate "$log" "$file" map-check 'v["started_safe"] + 0 == 1 && v["left_town"] + 0 == 1 && v["nearest_to_fortress_gate"] + 0 <= 20 && v["hits_while_safe"] + 0 == 0 && v["enemies_in_town_frames"] + 0 == 0 && v["rose_outside_fortress"] + 0 == 0 && v["enemies_seen"] + 0 >= 1 && v["enemies_left_fortress"] + 0 >= 1 && v["walls_faded_max"] + 0 >= 1 && v["hangings"] + 0 >= 1 && v["rooms"] + 0 == 4 && v["rooms_with_a_way_in"] + 0 == v["rooms"] + 0 && v["straight_steps_after_start"] + 0 == 0' \
+        gate "$log" "$file" map-check 'v["started_safe"] + 0 == 1 && v["left_town"] + 0 == 1 && v["nearest_to_fortress_gate"] + 0 <= 20 && v["hits_while_safe"] + 0 == 0 && v["enemies_in_town_frames"] + 0 == 0 && v["rose_outside_fortress"] + 0 == 0 && v["enemies_seen"] + 0 >= 1 && v["enemies_left_fortress"] + 0 >= 1 && v["walls_faded_max"] + 0 >= 1 && v["hangings"] + 0 >= 1 && v["rooms"] + 0 == 5 && v["rooms_with_a_way_in"] + 0 == v["rooms"] + 0 && v["straight_steps_after_start"] + 0 == 0' \
             "players not starting safe or never leaving town, skeletons in the town or rising outside their fortress or never leaving it, walls never fading, nothing hung on them, a room with no way in, or no way found round the walls" || failed=1
 
         # Monsters leave gold and, at the sessions' raised chance, magic orbs: every machine sees both fall and be picked
         # up, and what it shows on the ground matches what it was told, a model for each thing lying and no other (the
         # playtest's leak check leaves them out for that); every player has earned gold, orbs and souls, and the HUD
-        # shows what it has.
-        gate "$log" "$file" loot-check 'v["piles_seen"] + 0 >= 1 && v["piles_taken_seen"] + 0 >= 1 && v["piles_on_ground"] + 0 == v["piles_seen"] - v["piles_taken_seen"] && v["orbs_seen"] + 0 >= 1 && v["orbs_taken_seen"] + 0 >= 1 && v["orbs_on_ground"] + 0 == v["orbs_seen"] - v["orbs_taken_seen"] && v["gold_here"] + 0 > v["gold_start"] + 0 && v["orbs_here"] + 0 >= 1 && v["souls_here"] + 0 >= 1 && v["purse_mismatch_frames"] + 0 == 0 && v["loot_model_mismatch_frames"] + 0 == 0' \
-            "no gold or no orb dropped or picked up, models not matching what lies on the ground, none earned, or the HUD showing other amounts" || failed=1
+        # shows what it has. Potion charges fall and are picked up as orbs are, and potions are drunk (bots drink at half
+        # HP), none healing more than a charge does.
+        gate "$log" "$file" loot-check 'v["piles_seen"] + 0 >= 1 && v["piles_taken_seen"] + 0 >= 1 && v["piles_on_ground"] + 0 == v["piles_seen"] - v["piles_taken_seen"] && v["orbs_seen"] + 0 >= 1 && v["orbs_taken_seen"] + 0 >= 1 && v["orbs_on_ground"] + 0 == v["orbs_seen"] - v["orbs_taken_seen"] && v["gold_here"] + 0 > v["gold_start"] + 0 && v["orbs_here"] + 0 >= 1 && v["souls_here"] + 0 >= 1 && v["purse_mismatch_frames"] + 0 == 0 && v["loot_model_mismatch_frames"] + 0 == 0 && v["potions_seen"] + 0 >= 1 && v["potions_taken_seen"] + 0 >= 1 && v["potions_on_ground"] + 0 == v["potions_seen"] - v["potions_taken_seen"] && v["drinks_seen"] + 0 >= 1 && v["drink_healed_most"] + 0 <= v["heal_per_charge"] + 0' \
+            "no gold, orb or potion charge dropped or picked up, models not matching what lies on the ground, none earned, the HUD showing other amounts, no potion drunk, or one healing more than a charge" || failed=1
+        # Souls, seen: a wisp rises for every soul of every monster this machine saw die while its player was in the
+        # game, and every one has reached the player or is still on its way.
+        gate "$log" "$file" loot-check 'v["souls_risen"] + 0 >= 1 && v["souls_taken_in"] + 0 >= 1 && v["souls_risen"] + 0 == v["souls_died_here"] + 0 && v["souls_risen"] + 0 == v["souls_taken_in"] + v["souls_flying"]' \
+            "no soul seen rising for a monster that died, none reaching the player, or one lost on the way" || failed=1
 
         # A dash thrown with the attack button carries a thrust: every bot lunges, every machine sees it, the thrust's hit
         # window closes within two physics frames of the dash ending, and the weapon then reaches as far as the lunge's range.
@@ -399,8 +417,8 @@ co_op_session() {
         gate "$log" "$file" dash-check 'v["dashes"] + 0 >= 1 && (v["distance_max"] - v["expected"]) ^ 2 < 0.1225 && v["distance_median"] + 0 <= v["expected"] + 0.35 && v["max_in_recharge_window"] + 0 == v["charges"] + 0 && v["refused"] + 0 >= 1 && v["remote_dashes_seen"] + 0 >= 1 && v["ghosts_emitted"] + 0 >= 1 && v["ghost_lingering_frames"] + 0 == 0' \
             "dashes missing, off distance, beyond their charges, unseen by others, or ghosts wrong" || failed=1
 
-        # Each of the weapon's two skills: the drawn weapon's live reach at its hit tests (median) must match the skill's
-        # range, so the hit area ends where the weapon does. Skill fields read skill=measured/range.
+        # Each of the weapon's skills, both forms of its primary and its secondary: the drawn weapon's live reach at its hit tests (median) must match the skill's
+        # range, so the hit area ends where the weapon does. Skill fields read skill=measured/range/samples.
         local reach
         reach=$(grep -E '^\[reach-check\]' "$file")
         if ! echo "$reach" | awk '{
@@ -412,7 +430,7 @@ co_op_session() {
                     if (mr[1] == "NaN") { ok = 0; continue }
                     d = mr[1] - mr[2]; if (d * d > 0.0625) ok = 0
                 }
-                exit !(ok && skills == 2)
+                exit !(ok && skills >= 2)
             }'; then
             echo "FAIL $log: weapon reach at hit time does not match skill range (${reach:-no reach-check line})"
             failed=1
@@ -543,7 +561,8 @@ playtest() {
         gate "$log" "$file" wave-check 'v["waves"] + 0 >= 3' "fewer than 3 waves in the session" || failed=1
         # Node growth compares each later wave with the second: the fewest nodes in each while every player carries
         # both weapons, leaving out what comes and goes with the fight and has its own check: skeletons and damage
-        # numbers (the two lingering counts), gold on the ground (loot-check), HP bars (ui-check), arrows (ranged-check).
+        # numbers (the two lingering counts), gold on the ground and souls on their way (loot-check), burning ground,
+        # ice and splinters (each over in seconds), HP bars (ui-check), arrows (ranged-check).
         gate "$log" "$file" leak-check "v[\"corpse_lingering_frames\"] + 0 == 0 && v[\"text_lingering_frames\"] + 0 == 0 && v[\"node_growth\"] + 0 <= $MAX_NODE_GROWTH && v[\"orphan_growth\"] + 0 <= $MAX_ORPHAN_GROWTH" \
             "dead skeletons or damage numbers outstaying their time, or nodes piling up from wave to wave" || failed=1
         gate "$log" "$file" down-check 'v["downs"] + 0 >= 1 && v["revives"] + 0 >= 1 && (v["down_seconds_min"] - v["expected_seconds"]) ^ 2 < 0.25 && (v["down_seconds_max"] - v["expected_seconds"]) ^ 2 < 0.25 && v["hp_after_revive_min"] + 0 == v["hp_max"] + 0 && v["hits_while_down"] + 0 == 0' \
@@ -624,6 +643,9 @@ TRADE_TEST_MERCHANT_ORBS=1
 TRADE_TEST_ENCHANT_GOLD=180
 TRADE_TEST_ENCHANT_ORBS=3
 
+# At the innkeeper the players start spent (--start-spent) with exactly the gold for three rests, its one offer.
+TRADE_TEST_INN_GOLD=30
+
 # The sellers the town's layout stands, by id, on one line: Windows Python ends each line it prints with a carriage
 # return, which would stay on every id but the last.
 town_sellers() {
@@ -652,6 +674,8 @@ trade_session() {
         means=(--start-gold "$TRADE_TEST_MERCHANT_GOLD" --start-orbs "$TRADE_TEST_MERCHANT_ORBS")
     elif [ "$seller" = enchanter ]; then
         means=(--start-gold "$TRADE_TEST_ENCHANT_GOLD" --start-orbs "$TRADE_TEST_ENCHANT_ORBS")
+    elif [ "$seller" = innkeeper ]; then
+        means=(--start-gold "$TRADE_TEST_INN_GOLD" --start-spent)
     fi
     run_session "$logs" 1 14 11 --no-enemies --start-at "$spot" "${means[@]}" --trade-drill || failed=1
 
@@ -670,6 +694,12 @@ trade_session() {
         # alone pays, and the armour got is worn and shown on the HUD.
         gate "$seller $log" "$file" trade-check 'v["bought"] + 0 >= 1 && v["gold_here"] + 0 == v["gold_start"] - v["spent"] + v["earned"] && (v["earned"] + 0 > 0) == ("'"$seller"'" == "merchant") && v["orbs_here"] + 0 == v["orbs_start"] - v["orbs_spent"] && v["bought"] + 0 == 3 && v["refused_by_window"] + 0 >= 1 && v["refused_by_host"] + 0 >= 1 && v["in_hand"] == v["expected_in_hand"] && v["on_back"] == v["expected_on_back"] && v["armour_here"] + 0 == v["expected_armour"] + 0 && v["armour_shown"] + 0 == v["armour_here"] + 0' \
             "not three things got, the gold or orbs not matching what was paid and earned, a seller paying that should not or the merchant not paying, something it could not pay for not refused by the window or by the host, the weapons got not in hand and on the back, or the armour got not worn or not shown" || failed=1
+        # The rest, at the innkeeper: it came spent, and leaves with its HP and potion full, its mana filled by the first
+        # rest, before it could have filled of itself.
+        if [ "$seller" = innkeeper ]; then
+            gate "$seller $log" "$file" trade-check 'v["hp_start"] + 0 < v["hp_max"] + 0 && v["hp_here"] + 0 == v["hp_max"] + 0 && v["potion_start"] + 0 == 0 && v["potion_here"] + 0 == v["potion_max"] + 0 && v["mana_before_rest"] + 0 < v["mana_max"] + 0 && v["mana_on_rest"] + 0 == v["mana_max"] + 0' \
+                "the rest not filling the HP, the potion or the mana of a player who came spent" || failed=1
+        fi
         # The look: both players' figures on this machine wear the parts of the armour each has, but for the frames in
         # which it changes (two measured: the host arms a player as it joins, a frame before the figure's first of
         # its own), and this one's is the look of its tier, which is another than it came to the seller in when the
@@ -764,6 +794,10 @@ magic_test() {
         # The thrust reaches as far as the lunge's range, with a staff or a wand as with any weapon.
         gate "$log" "$file" lunge-check 'v["lunges_here"] + 0 >= 1 && v["reach_off_range"] ^ 2 < 0.0625' \
             "no lunge, or its thrust reaching off its range" || failed=1
+        # Fire and ice leave their ground, seen laid on every machine, and never more patches at once than the casters
+        # may keep between them.
+        gate "$log" "$file" magic-check 'v["burning_laid"] + 0 >= 1 && v["icy_laid"] + 0 >= 1 && v["surfaces_shown_most"] + 0 >= 1 && v["surfaces_shown_most"] + 0 <= v["surfaces_kept_most"] + 0' \
+            "no burning ground or ice seen laid, or more patches at once than their casters keep" || failed=1
         check_log_errors "$log" "$file" || failed=1
         player=$((player + 1))
     done
@@ -802,6 +836,9 @@ magic_test() {
             "no skeleton seen frozen, stunned or burning, a frozen one without its ice, or a held one moving" || failed=1
     done
     gate host "$host" status-host 'v["drills"] + 0 >= 2' "the host froze and stunned nothing on cue" || failed=1
+    # Turns on burning ground burned skeletons and turns on ice chilled them, and skeletons stood on ice.
+    gate host "$host" magic-host 'v["burning_acted"] + 0 >= 1 && v["icy_acted"] + 0 >= 1 && v["on_ice_frames"] + 0 >= 1' \
+        "no skeleton burned by burning ground, chilled by ice or seen on it" || failed=1
     # The host deals every barrier a blow as it goes up (counted above): while a barrier holds the blow costs no HP.
     gate host "$host" magic-host 'v["drill_hp_lost"] + 0 == 0' "a blow on a barrier that held cost its player HP" || failed=1
 
@@ -819,6 +856,36 @@ trade_test() {
     done
 
     [ "$failed" -eq 0 ] && echo "trade-test passed ($(echo $sellers | tr ' ' ','))" || echo "trade-test FAILED (logs: $logs)"
+    return "$failed"
+}
+
+# The town test starts its players between a crate and the bench by the camp fire, a walk from the inn's beds.
+TOWN_TEST_START="4.0,18.5"
+TOWN_TEST_HOST_SECONDS=50
+TOWN_TEST_CLIENT_SECONDS=45
+
+town_test() {
+    build || return 1
+    local logs="$ROOT/_staging/town-test" failed=0
+    run_session "$logs" 1 "$TOWN_TEST_HOST_SECONDS" "$TOWN_TEST_CLIENT_SECONDS" --no-enemies --start-at "$TOWN_TEST_START" --town-drill || failed=1
+
+    local log
+    for log in host client1; do
+        local file="$logs/$log.log"
+        grep -E '^\[town-(check|host)\]' "$file" | sed "s/^/$log: /"
+        # Crates: the one it went for broke after showing a hit that did not break it, every one broken here burst into splinters as it broke (or broke before this
+        # machine joined and was told of it), and no splinters are left.
+        gate "$log" "$file" town-check 'v["drill_done"] + 0 == 1 && v["broke_mine"] + 0 == 1 && v["crate_hits"] + 0 >= 1 && v["crates_broken_shown"] + 0 >= 1 && v["crates_broken_here"] + 0 == v["crates_broken_shown"] + v["crates_broken_heard"] && v["splinters_most"] + 0 >= 1 && v["splinters_left"] + 0 == 0' \
+            "the drill not done, its crate not broken, a crate breaking without splinters, or splinters left behind" || failed=1
+        # Seats: every player seen sitting, lying down and getting up, its body where the seat puts it once down, nobody
+        # left resting, and the prompt shown while a seat was in reach.
+        gate "$log" "$file" town-check 'v["seen_sitting"] + 0 == v["players"] + 0 && v["seen_lying"] + 0 == v["players"] + 0 && v["seen_getting_up"] + 0 == v["players"] + 0 && v["off_seat_most"] + 0 <= 0.25 && v["resting_at_end"] + 0 == 0 && v["prompt_frames"] + 0 >= 1' \
+            "a player not seen sitting, lying or getting up, a body away from where its seat puts it, someone left resting, or no prompt" || failed=1
+        check_log_errors "$log" "$file" || failed=1
+    done
+    gate host "$logs/host.log" town-host 'v["seats"] + 0 >= 1 && v["seats_taken"] + 0 == 0' "no seats, or a seat left taken on the host" || failed=1
+
+    [ "$failed" -eq 0 ] && echo "town-test passed" || echo "town-test FAILED (logs: $logs)"
     return "$failed"
 }
 
@@ -917,6 +984,16 @@ gold_lineup() {
     done
 }
 
+# The rings thrusts and arrows leave, side on, a moment apart: _staging/ring-lineup-1.png to -3.png.
+ring_lineup() {
+    screenshot --no-enemies --no-ui --at 1.85 --frames 3 --interval 0.1 --ring-lineup > /dev/null || return 1
+    local n
+    for n in 1 2 3; do
+        cp "$ROOT/_staging/screenshot_$n.png" "$ROOT/_staging/ring-lineup-$n.png"
+        echo "ring-lineup: $ROOT/_staging/ring-lineup-$n.png"
+    done
+}
+
 # Figures in a row, for looking at what the parts make: the game's cast, a pool's random figures, a character.
 look_lineup() {
     screenshot --no-enemies --no-ui --at 1 --look-lineup "${1:-cast}" || return 1
@@ -981,12 +1058,16 @@ screenshot() {
             --magic-barriers) args+=(--magic-barriers); shift ;;
             --look-lineup) args+=(--look-lineup "$2"); shift 2 ;;
             --gold-lineup) args+=(--gold-lineup "$2"); shift 2 ;;
+            --ring-lineup) args+=(--ring-lineup); shift ;;
             --start-at) args+=(--start-at "$2"); shift 2 ;;
             --orb-chance) args+=(--orb-chance "$2"); shift 2 ;;
+            --potion-chance) args+=(--potion-chance "$2"); shift 2 ;;
             --start-gold) args+=(--start-gold "$2"); shift 2 ;;
             --start-orbs) args+=(--start-orbs "$2"); shift 2 ;;
             --start-armour) args+=(--start-armour "$2"); shift 2 ;;
+            --start-spent) args+=(--start-spent); shift ;;
             --trade-drill) args+=(--trade-drill); shift ;;
+            --town-drill) args+=(--town-drill); shift ;;
             --status-drill) args+=(--status-drill); shift ;;
             --no-ui) args+=(--no-ui); shift ;;
             --no-enemies) args+=(--no-enemies); shift ;;
@@ -998,7 +1079,7 @@ screenshot() {
     build || return 1
     mkdir -p "$ROOT/_staging"
     rm -f "$ROOT"/_staging/screenshot*.png
-    local log="$ROOT/_staging/screenshot.log" limit=120
+    local log="$ROOT/_staging/screenshot.log" limit=${SCREENSHOT_LIMIT:-120}
     timeout "$limit" "$GODOT" --position -10000,-10000 --path "$PROJECT" -- --ai-playtest --screenshot "${args[@]}" > "$log" 2>&1
     local status=$?
     grep -E '^\[screenshot\]' "$log"
@@ -1047,7 +1128,7 @@ swing_survey() {
 # Runs every self-test even after a failure, so one report covers them all.
 smoke() {
     local failed=() name
-    for name in camera-test wall-test parts-test floors-test net-test pvp-test trade-test magic-test; do
+    for name in camera-test wall-test parts-test floors-test net-test pvp-test trade-test town-test magic-test; do
         echo "== $name"
         "${name//-/_}" || failed+=("$name")
     done
@@ -1055,7 +1136,7 @@ smoke() {
         echo "smoke FAILED: ${failed[*]}"
         return 1
     fi
-    echo "smoke passed (camera-test, wall-test, parts-test, floors-test, net-test, pvp-test, trade-test, magic-test)"
+    echo "smoke passed (camera-test, wall-test, parts-test, floors-test, net-test, pvp-test, trade-test, town-test, magic-test)"
 }
 
 case "${1:-help}" in
@@ -1066,6 +1147,7 @@ case "${1:-help}" in
     net-test) net_test ;;
     pvp-test) pvp_test ;;
     trade-test) trade_test ;;
+    town-test) town_test ;;
     magic-test) magic_test ;;
     camera-test) camera_test ;;
     wall-test) wall_test ;;
@@ -1081,6 +1163,7 @@ case "${1:-help}" in
     magic-lineup) shift; magic_lineup "$@" ;;
     look-lineup) shift; look_lineup "$@" ;;
     gold-lineup) gold_lineup ;;
+    ring-lineup) ring_lineup ;;
     gold-piles) gold_piles ;;
     level-fortresses) shift; python "$ROOT/Tools/level_fortresses.py" "$@" ;;
     level-audit) shift; python "$ROOT/Tools/level_audit.py" "$@" ;;

@@ -36,9 +36,10 @@ public partial class NetSelfTest
         var trail = LocalPlayer()?.Trail;
         GD.Print($"[trail-check] me={me} tip_length={(trail?.TipLength ?? float.NaN):F2} max_edges={_trailMaxEdges} "
             + $"tip_reach_max={_trailTipReach:F2} "
-            + $"lingering_frames={_trailLingering} enemy_trail_seen={(_enemyTrailSeen ? 1 : 0)}");
+            + $"lingering_frames={_trailLingering} enemy_trail_seen={(_enemyTrailSeen ? 1 : 0)} "
+            + $"ring_rows={PierceRings.In(GetTree()).Rows} rings_per_row={PierceRings.RowCount} rings_laid={PierceRings.In(GetTree()).Laid}");
         var weapon = LocalPlayer()?.Weapon ?? Weapons.Default;
-        var reachBySkill = new[] { weapon.Primary, weapon.Secondary }.Select(s => $"{s.Id}={Median(_tipReachAtHit.GetValueOrDefault(s.Id)):F2}/{s.Range:F2}");
+        var reachBySkill = new[] { weapon.Primary, weapon.Alternate, weapon.Secondary }.OfType<SkillDefinition>().Select(s => $"{s.Id}={Median(_tipReachAtHit.GetValueOrDefault(s.Id)):F2}/{s.Range:F2}/{_tipReachAtHit.GetValueOrDefault(s.Id)?.Count ?? 0}");
         GD.Print($"[reach-check] me={me} weapon={weapon.Id} {string.Join(" ", reachBySkill)}");
     }
 

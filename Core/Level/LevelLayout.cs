@@ -9,9 +9,10 @@ namespace WarriorsOfEverdawn.Core.Level;
 // Solid pieces block movement; the rest is walked through. A solid blocks as its whole box does, with FollowsMesh as
 // its mesh does (a doorway is walked through), or as a Ramp from the top of its box at its -Z end down to the bottom
 // at its +Z end, as the kit's stairs rise (a flight of stairs is walked up). Level is the floor it stands on (Floors.FloorUnder).
-// View is which cameras draw it; it blocks the same whichever does.
+// View is which cameras draw it; it blocks the same whichever does. A Breakable one, a solid that blocks as its box
+// does, is broken by blows (Breakables).
 public sealed record LayoutPlacement(string Asset, Vector3 Position, Quaternion Rotation, Vector3 Scale, bool Solid, bool FollowsMesh = false, bool Ramp = false,
-    LayoutView View = LayoutView.All)
+    LayoutView View = LayoutView.All, bool Breakable = false)
 {
     public int Level => Floors.FloorUnder(Position.Y);
 }
@@ -130,6 +131,12 @@ public sealed record LevelLayout(
             throw new FormatException($"{sourceName}: placement of '{asset}' has shape '{shape}'; only a solid may have one, \"{MeshShape}\" or \"{RampShape}\"");
         }
 
+        bool breakable = p.TryGetProperty("breakable", out var breakableValue) && breakableValue.GetBoolean();
+        if (breakable && (!solid || shape != null))
+        {
+            throw new FormatException($"{sourceName}: placement of '{asset}' is breakable; only a solid that blocks as its box does may be");
+        }
+
         return new LayoutPlacement(
             asset,
             ReadVector3(p.GetProperty("position")),
@@ -138,7 +145,8 @@ public sealed record LevelLayout(
             solid,
             FollowsMesh: shape == MeshShape,
             Ramp: shape == RampShape,
-            View: ReadView(p, asset, sourceName));
+            View: ReadView(p, asset, sourceName),
+            Breakable: breakable);
     }
 
     private static LayoutView ReadView(JsonElement p, string asset, string sourceName)

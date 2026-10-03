@@ -121,6 +121,7 @@ public partial class WallSelfTest : Node
         _lane = lane;
         GD.Print($"[wall-check] lane_x={lane.X:F1} wall_face_z={_face:F2}");
         float towardWall = Yaw.Of(Vector3.Forward);
+        var home = player.GlobalPosition;
         foreach (var (label, skill) in new[]
         {
             ("bolt", Weapons.Staff(Element.Fire).Primary),
@@ -131,15 +132,33 @@ public partial class WallSelfTest : Node
         {
             foreach (var (where, from) in new[] { ("afar", Afar), ("touching", Touching) })
             {
-                _cases.Enqueue(($"{label}-{where}", feet => _bolts.Fly(player, _nextId++, skill, feet + Vector3.Up * Bolts.Height, towardWall), from));
+                _cases.Enqueue(($"{label}-{where}", feet => Throw(player, skill, feet, towardWall), from));
             }
         }
 
         var shot = Enemies.SkeletonArcher.Attack;
         foreach (var (where, from) in new[] { ("afar", Afar), ("touching", Touching) })
         {
-            _cases.Enqueue(($"skeleton-arrow-{where}", feet => _arrows.Loose(shot, shot.Damage, feet + Vector3.Up * Arrows.Height, Vector3.Forward), from));
+            _cases.Enqueue(($"skeleton-arrow-{where}", feet =>
+            {
+                Stand(player, home);
+                _arrows.Loose(shot, shot.Damage, feet + Vector3.Up * Arrows.Height, Vector3.Forward);
+            }, from));
         }
+    }
+
+    // Thrown from where the player stands, as in play: the host takes the ground a ball of fire leaves where it
+    // bursts (GroundSurfaces) from no further than a throw from its caster.
+    private void Throw(PlayerCharacter player, SkillDefinition skill, Vector3 feet, float yaw)
+    {
+        Stand(player, feet);
+        _bolts.Fly(player, _nextId++, skill, feet + Vector3.Up * Bolts.Height, yaw);
+    }
+
+    private static void Stand(PlayerCharacter player, Vector3 feet)
+    {
+        player.GlobalPosition = feet;
+        player.NetPosition = feet;
     }
 
     // A stretch of the back wall with nothing standing between it and a spot Afar from it, at the heights things

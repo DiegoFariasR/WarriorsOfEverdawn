@@ -97,6 +97,9 @@ public sealed record LaunchOptions
     // without the flag.
     public float? GoldLineup { get; init; }
 
+    // For looking at the rings thrusts and arrows leave (--ring-lineup).
+    public bool RingLineup { get; init; }
+
     // --parts-check: puts every part of the catalogue on a figure and quits, saying whether each came out right.
     public bool PartsCheck { get; init; }
 
@@ -114,6 +117,9 @@ public sealed record LaunchOptions
     // of its own, so a short session is sure to see some.
     public float? OrbChance { get; init; }
 
+    // Host only, for test sessions: every monster's chance of leaving a potion's charge, in place of its orb chance.
+    public float? PotionChance { get; init; }
+
     // Host only, for trying the sellers: every player starts with this much gold in place of Purse.StartingGold, and
     // this many orbs.
     public int? StartGold { get; init; }
@@ -125,8 +131,14 @@ public sealed record LaunchOptions
     // Host only, for trying armour: every player starts wearing this tier.
     public int StartArmour { get; init; }
 
+    // For trying the innkeeper: every player starts spent, at a third of its HP, its potion drunk dry and its mana gone.
+    public bool StartSpent { get; init; }
+
     // For the trade test: the bot trades with the seller it starts beside (NetSelfTest.Trade).
     public bool TradeDrill { get; init; }
+
+    // For the town test: the bot breaks a crate, sits on a bench and lies on a bed (NetSelfTest.Town).
+    public bool TownDrill { get; init; }
 
     // Host only, for the self-tests: every barrier that goes up is dealt a blow, through the same path as a
     // skeleton's (NetSelfTest.Magic).
@@ -180,13 +192,17 @@ public sealed record LaunchOptions
                 "--magic-lineup" => options with { MagicLineup = ElementsAfter(args, ref i) },
                 "--magic-barriers" => options with { MagicLineup = Array.Empty<Element>(), MagicBarriers = true },
                 "--gold-lineup" => options with { GoldLineup = FloatAfter(args, ref i) },
+                "--ring-lineup" => options with { RingLineup = true },
                 "--look-lineup" => options with { LookLineup = ValueAfter(args, ref i).Split(',', StringSplitOptions.RemoveEmptyEntries) },
                 "--start-at" => StartAtAfter(args, ref i, options),
                 "--orb-chance" => options with { OrbChance = ChanceAfter(args, ref i) },
+                "--potion-chance" => options with { PotionChance = ChanceAfter(args, ref i) },
                 "--start-gold" => options with { StartGold = PositiveIntAfter(args, ref i) },
                 "--start-orbs" => options with { StartOrbs = PositiveIntAfter(args, ref i) },
                 "--start-armour" => options with { StartArmour = ArmourTierAfter(args, ref i) },
+                "--start-spent" => options with { StartSpent = true },
                 "--trade-drill" => options with { TradeDrill = true },
+                "--town-drill" => options with { TownDrill = true },
                 "--barrier-drill" => options with { BarrierDrill = true },
                 "--status-drill" => options with { StatusDrill = true },
                 _ => throw new ArgumentException($"Unknown launch argument '{args[i]}'"),

@@ -73,7 +73,7 @@ public static class Enemies
 public static class PlayerRules
 {
     public const int MaxHp = 100;
-    public const float RespawnDelay = 4f;
+    public const float RespawnDelay = 10f;
 
     // First pass for the two-handed Knight: strength first.
     public static readonly CharacterStats KnightStats = new(Str: 12, Wis: 5, Agi: 8);

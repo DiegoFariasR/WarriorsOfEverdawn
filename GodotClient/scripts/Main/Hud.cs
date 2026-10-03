@@ -15,6 +15,9 @@ public partial class Hud : CanvasLayer
 {
     private const float NoticeTime = 2.5f;
     private const float NoticeFade = 0.5f;
+    private const float SoulPulseScale = 1.45f;
+    private const float SoulPulseLight = 1.8f;
+    private const float SoulPulseTime = 0.35f;
     private const float Margin = 16f;
     private const float BarWidth = 260f;
     private const float SlotHeight = 62f;
@@ -34,6 +37,7 @@ public partial class Hud : CanvasLayer
     private readonly Label[] _statValues = new Label[4];
     private readonly Label _gold = UiTheme.MakeLabel("0", UiTheme.Numbers, 16, UiTheme.GoldHi);
     private readonly Label _souls = UiTheme.MakeLabel("0", UiTheme.Numbers, 16, UiTheme.SoulText);
+    private Tween? _soulsPulse;
 
     // White, and tinted each frame with the colour the orbs themselves are passing through.
     private readonly Label _orbs = UiTheme.MakeLabel("0", UiTheme.Numbers, 16, Colors.White);
@@ -41,11 +45,17 @@ public partial class Hud : CanvasLayer
 
     private const string NoSkill = "-";
 
+    // A potion's charge, as its pip on the skill bar.
+    private static readonly Color PotionPip = new(0.9f, 0.25f, 0.25f);
+
     // Everdawn's MP colour, for mana costs on the skill bar.
     private static readonly Color ManaText = new(0.55f, 0.78f, 1f);
     private Label _name = null!;
     private readonly ColorRect[] _dashPips = new ColorRect[DashRules.Charges];
     private Label _dashRecharge = null!;
+    private readonly ColorRect[] _potionPips = new ColorRect[HealthPotion.MaxCharges];
+    private Label _potionCooldown = null!;
+    private ColorRect _potionDim = null!;
     private ProgressBar _health = null!;
     private Label _healthText = null!;
     private ProgressBar _mana = null!;
@@ -64,6 +74,8 @@ public partial class Hud : CanvasLayer
 
     public SellerLabels SellerLabels { get; } = new() { Name = "SellerLabels" };
 
+    public SeatPrompt SeatPrompt { get; } = new() { Name = "SeatPrompt" };
+
     public ShopPanel Shop { get; } = new() { Name = "Shop" };
 
     public Control PlayerFrame { get; private set; } = null!;
@@ -78,6 +90,18 @@ public partial class Hud : CanvasLayer
 
     public string ShownSouls => _souls.Text;
 
+    // A soul reaching this machine's player (SoulWisps): its count swells and settles, lit white.
+    public void PulseSouls()
+    {
+        _soulsPulse?.Kill();
+        _souls.PivotOffset = _souls.Size / 2f;
+        _souls.Scale = Vector2.One * SoulPulseScale;
+        _souls.Modulate = Colors.White * SoulPulseLight;
+        _soulsPulse = _souls.CreateTween().SetParallel();
+        _soulsPulse.TweenProperty(_souls, "scale", Vector2.One, SoulPulseTime).SetTrans(Tween.TransitionType.Back).SetEase(Tween.EaseType.Out);
+        _soulsPulse.TweenProperty(_souls, "modulate", Colors.White, SoulPulseTime);
+    }
+
     public string ShownOrbs => _orbs.Text;
 
     public string ShownArmour => _statValues[3].Text;
@@ -87,6 +111,7 @@ public partial class Hud : CanvasLayer
         AddChild(Bars);
         AddChild(GroundLabels);
         AddChild(SellerLabels);
+        AddChild(SeatPrompt);
         PlayerFrame = BuildPlayerFrame();
         AddChild(PlayerFrame);
         SkillBar = BuildSkillBar();
@@ -125,7 +150,7 @@ public partial class Hud : CanvasLayer
             // The first weapons are simply shown; a change is announced.
             if (_shownSets != null)
             {
-                ShowNotice($"{NameOf(Player.Weapon, "Nothing")} in hand, {NameOf(Player.StowedWeapon, "nothing")} on your back  -  X swaps, G drops");
+                ShowNotice($"{NameOf(Player.Weapon, "Nothing")} in hand, {NameOf(Player.StowedWeapon, "nothing")} on your back  -  Tab swaps, G drops");
             }
 
             ShowSkills(Player.Weapon);
@@ -167,6 +192,16 @@ public partial class Hud : CanvasLayer
         _guardDim.Visible = Player.GuardRecoveryLeft > 0f;
 
         _dashRecharge.Text = charges < DashRules.Charges ? $"{Player.NextDashIn:F1}" : "";
+
+        int potion = Player.Vitals.PotionCharges;
+        for (int i = 0; i < _potionPips.Length; i++)
+        {
+            _potionPips[i].Color = i < potion ? PotionPip : new Color(UiTheme.WoodDk, 0.9f);
+        }
+
+        float drink = Player.DrinkCooldownLeft;
+        _potionCooldown.Text = drink > 0f ? $"{drink:F1}" : "";
+        _potionDim.Visible = potion == 0;
 
         for (int i = 0; i < SkillSlots.Length; i++)
         {
@@ -272,6 +307,7 @@ public partial class Hud : CanvasLayer
 
         bar.AddChild(BuildGuardSlot());
         bar.AddChild(BuildDashSlot());
+        bar.AddChild(BuildPotionSlot());
         bar.AddChild(BuildSwapSlot());
         return bar;
     }
@@ -298,6 +334,30 @@ public partial class Hud : CanvasLayer
         return slot;
     }
 
+    // The health potion: a pip per charge, lit while it is there, dimmed with none left, and the seconds until it can
+    // be drunk again.
+    private Control BuildPotionSlot()
+    {
+        var (slot, column, _) = BarSlot(100f, "R", "Potion");
+        var pips = new HBoxContainer { Alignment = BoxContainer.AlignmentMode.Center };
+        pips.AddThemeConstantOverride("separation", 6);
+        for (int i = 0; i < _potionPips.Length; i++)
+        {
+            _potionPips[i] = new ColorRect { CustomMinimumSize = new Vector2(12f, 6f), MouseFilter = Control.MouseFilterEnum.Ignore };
+            pips.AddChild(_potionPips[i]);
+        }
+
+        column.AddChild(pips);
+        column.AddChild(Hint($"+{HealthPotion.Heal} HP"));
+        _potionDim = Dim();
+        slot.AddChild(_potionDim);
+        _potionCooldown = UiTheme.MakeLabel("", UiTheme.Numbers, 14, Colors.White, outline: 3);
+        _potionCooldown.HorizontalAlignment = HorizontalAlignment.Right;
+        _potionCooldown.VerticalAlignment = VerticalAlignment.Top;
+        slot.AddChild(_potionCooldown);
+        return slot;
+    }
+
     private Control BuildGuardSlot()
     {
         var (slot, column, name) = BarSlot(110f, "SHIFT");
@@ -308,10 +368,10 @@ public partial class Hud : CanvasLayer
         return slot;
     }
 
-    // The other weapon set, on the back: what X swaps to.
+    // The other weapon set, on the back: what Tab swaps to.
     private Control BuildSwapSlot()
     {
-        var (slot, column, name) = BarSlot(120f, "X");
+        var (slot, column, name) = BarSlot(120f, "TAB");
         _backWeapon = name;
         column.AddChild(Hint("on your back"));
         return slot;
